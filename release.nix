@@ -18,13 +18,14 @@ let
   testsSupportedSystems = [ "x86_64-linux" ];
   collectTests = ds: filter (d: elem d.system testsSupportedSystems) (collect isDerivation ds);
 
-  inherit (systems.examples) mingwW64 musl64 ghcjs;
+  inherit (systems.examples) mingwW64 musl64 ghcjs raspberryPi;
 
   jobs = {
     native = mapTestOn (packagePlatforms project);
-    "${mingwW64.config}" = mapTestOnCross mingwW64 (packagePlatformsCross project);
-    "${musl64.config}"   = mapTestOnCross musl64   (packagePlatformsCross project);
-    "${ghcjs.config}"    = mapTestOnCross ghcjs    (packagePlatformsCross project);
+    "${mingwW64.config}"    = mapTestOnCross mingwW64    (packagePlatformsCross project);
+    "${musl64.config}"      = mapTestOnCross musl64      (packagePlatformsCross project);
+    "${ghcjs.config}"       = mapTestOnCross ghcjs       (packagePlatformsCross project);
+    "${raspberryPi.config}" = mapTestOnCross raspberryPi (packagePlatformsCross project);
   }
   // {
     # This aggregate job is what IOHK Hydra uses to update
