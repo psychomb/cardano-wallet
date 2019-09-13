@@ -1239,7 +1239,7 @@ instance GHC.Enum.Enum (Cardano.Wallet.Primitive.AddressDerivation.Index 'Cardan
 --   flexible to various backends.
 module Cardano.Wallet.Transaction
 data TransactionLayer t k
-TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkStdTx (Tx t, [TxWitness])) -> (CoinSelection -> Quantity "byte" Int) -> (Quantity "byte" Word16 -> Word8 -> Word8) -> (CoinSelection -> Either (ErrValidateSelection t) ()) -> TransactionLayer t k
+TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkStdTx (Tx t, [TxWitness])) -> (CoinSelection -> Quantity "byte" Int) -> (Quantity "byte" Word16 -> Word8 -> Word8) -> (CoinSelection -> Either (ErrValidateSelection t) ()) -> (ByteString -> Either ErrDecodeSignedTx (Tx t, [TxWitness])) -> TransactionLayer t k
 
 -- | Construct a standard transaction
 --   
@@ -1283,6 +1283,9 @@ TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryptio
 --   on its side doesn't support more than 255 inputs or outputs.
 [validateSelection] :: TransactionLayer t k -> CoinSelection -> Either (ErrValidateSelection t) ()
 
+-- | Decode an externally-signed transaction to the chain producer
+[decodeSignedTx] :: TransactionLayer t k -> ByteString -> Either ErrDecodeSignedTx (Tx t, [TxWitness])
+
 -- | Possible signing error
 newtype ErrMkStdTx
 
@@ -1295,6 +1298,11 @@ ErrKeyNotFoundForAddress :: Address -> ErrMkStdTx
 --   
 --   type instance (ErrValidateSelection MyBackend) = MyCustomError
 type family ErrValidateSelection t
+
+-- | Error while trying to decode externally signed transaction
+data ErrDecodeSignedTx
+ErrDecodeSignedTxWrongPayload :: Text -> ErrDecodeSignedTx
+ErrDecodeSignedTxNotSupported :: ErrDecodeSignedTx
 
 -- | This is called by the <a>TransactionLayer</a> implementation. It uses
 --   the serialization functions to calculate the size of an empty
@@ -1324,6 +1332,8 @@ EstimateMaxNumberOfInputsParams :: ([TxIn] -> [TxOut] -> [TxWitness] -> Int) -> 
 [estTxWitnessSize] :: EstimateMaxNumberOfInputsParams t -> Int
 instance GHC.Show.Show Cardano.Wallet.Transaction.ErrMkStdTx
 instance GHC.Classes.Eq Cardano.Wallet.Transaction.ErrMkStdTx
+instance GHC.Classes.Eq Cardano.Wallet.Transaction.ErrDecodeSignedTx
+instance GHC.Show.Show Cardano.Wallet.Transaction.ErrDecodeSignedTx
 
 
 -- | This module contains types for address discovery. The two address
@@ -2283,7 +2293,7 @@ instance GHC.Classes.Eq Cardano.Wallet.Primitive.Fee.Fee
 
 module Cardano.Wallet.Network
 data NetworkLayer t m
-NetworkLayer :: (BlockHeader -> ExceptT ErrGetBlock m [Block (Tx t)]) -> ExceptT ErrNetworkTip m (BlockHeader, Quantity "block" Natural) -> ((Tx t, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (ByteString -> ExceptT ErrDecodeExternalTx m (Tx t, [TxWitness])) -> NetworkLayer t m
+NetworkLayer :: (BlockHeader -> ExceptT ErrGetBlock m [Block (Tx t)]) -> ExceptT ErrNetworkTip m (BlockHeader, Quantity "block" Natural) -> ((Tx t, [TxWitness]) -> ExceptT ErrPostTx m ()) -> NetworkLayer t m
 
 -- | Fetches a contiguous sequence of blocks from the node, starting from
 --   the first block available with a slot greater than the given block
@@ -2305,15 +2315,12 @@ NetworkLayer :: (BlockHeader -> ExceptT ErrGetBlock m [Block (Tx t)]) -> ExceptT
 -- | Broadcast a transaction to the chain producer
 [postTx] :: NetworkLayer t m -> (Tx t, [TxWitness]) -> ExceptT ErrPostTx m ()
 
--- | Decode an externally-signed transaction to the chain producer
-[decodeExternalTx] :: NetworkLayer t m -> ByteString -> ExceptT ErrDecodeExternalTx m (Tx t, [TxWitness])
-
 -- | Wait until 'networkTip networkLayer' succeeds according to a given
 --   retry policy. Throws an exception otherwise.
 waitForConnection :: NetworkLayer t IO -> RetryPolicyM IO -> IO ()
 
--- | A default <a>RetryPolicy</a> with a constant delay, but retries for no
---   longer than a minute.
+-- | A default <tt>RetryPolicy</tt> with a constant delay, but retries for
+--   no longer than a minute.
 defaultRetryPolicy :: Monad m => RetryPolicyM m
 
 -- | Network is unavailable
@@ -2340,14 +2347,6 @@ data ErrPostTx
 ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
 ErrPostTxBadRequest :: Text -> ErrPostTx
 ErrPostTxProtocolFailure :: Text -> ErrPostTx
-
--- | Error while trying to decode externally signed transaction
-data ErrDecodeExternalTx
-ErrDecodeExternalTxWrongPayload :: Text -> ErrDecodeExternalTx
-ErrDecodeExternalTxNotSupported :: ErrDecodeExternalTx
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrDecodeExternalTx
-instance GHC.Show.Show Cardano.Wallet.Network.ErrDecodeExternalTx
-instance GHC.Generics.Generic Cardano.Wallet.Network.ErrDecodeExternalTx
 instance GHC.Classes.Eq Cardano.Wallet.Network.ErrPostTx
 instance GHC.Show.Show Cardano.Wallet.Network.ErrPostTx
 instance GHC.Generics.Generic Cardano.Wallet.Network.ErrPostTx
@@ -2359,7 +2358,6 @@ instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkTip
 instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkUnavailable
 instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkUnavailable
 instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkUnavailable
-instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrDecodeExternalTx
 instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrPostTx
 instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkTip
 
@@ -3087,7 +3085,7 @@ ErrSubmitTxNoSuchWallet :: ErrNoSuchWallet -> ErrSubmitTx
 --   to the network.
 data ErrSubmitExternalTx
 ErrSubmitExternalTxNetwork :: ErrPostTx -> ErrSubmitExternalTx
-ErrSubmitExternalTxDecode :: ErrDecodeExternalTx -> ErrSubmitExternalTx
+ErrSubmitExternalTxDecode :: ErrDecodeSignedTx -> ErrSubmitExternalTx
 
 -- | Error while trying to send a transaction
 data ErrPostTx
@@ -3096,9 +3094,9 @@ ErrPostTxBadRequest :: Text -> ErrPostTx
 ErrPostTxProtocolFailure :: Text -> ErrPostTx
 
 -- | Error while trying to decode externally signed transaction
-data ErrDecodeExternalTx
-ErrDecodeExternalTxWrongPayload :: Text -> ErrDecodeExternalTx
-ErrDecodeExternalTxNotSupported :: ErrDecodeExternalTx
+data ErrDecodeSignedTx
+ErrDecodeSignedTxWrongPayload :: Text -> ErrDecodeSignedTx
+ErrDecodeSignedTxNotSupported :: ErrDecodeSignedTx
 
 -- | A type family for validations that are specific to a particular
 --   backend type. This demands an instantiation of the family for a
@@ -3597,7 +3595,7 @@ module Network.Wai.Middleware.ServantError
 --   the response when necessary. So, any response with or without payload
 --   but no content-type will trigger the <tt>convert</tt> function and
 --   offer the caller to adjust the response as needed.
-handleRawError :: (ServantErr -> ServantErr) -> Middleware
+handleRawError :: (Request -> ServantErr -> ServantErr) -> Middleware
 
 
 -- | API handlers and server using the underlying wallet layer to provide
@@ -3632,14 +3630,14 @@ instance Formatting.Buildable.Buildable e => Cardano.Wallet.Api.Server.LiftHandl
 instance Formatting.Buildable.Buildable e => Cardano.Wallet.Api.Server.LiftHandler (Cardano.Wallet.ErrEstimateTxFee e)
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrListUTxOStatistics
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSignTx
-instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrDecodeExternalTx
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Transaction.ErrDecodeSignedTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSubmitExternalTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSubmitTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrNetworkUnavailable
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrUpdatePassphrase
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrListTransactions
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrStartTimeLaterThanEndTime
-instance Cardano.Wallet.Api.Server.LiftHandler Servant.Server.Internal.ServantErr.ServantErr
+instance Cardano.Wallet.Api.Server.LiftHandler (Network.Wai.Internal.Request, Servant.Server.Internal.ServantErr.ServantErr)
 
 module Cardano.Wallet.Version
 version :: Version

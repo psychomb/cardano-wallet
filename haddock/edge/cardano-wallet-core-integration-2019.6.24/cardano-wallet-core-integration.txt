@@ -366,6 +366,7 @@ errMsg403ZeroAmtOutput :: String
 errMsg405 :: String
 errMsg406 :: String
 errMsg415 :: String
+errMsg415OctetStream :: String
 errMsg500 :: String
 
 module Test.Integration.Scenario.API.Addresses
