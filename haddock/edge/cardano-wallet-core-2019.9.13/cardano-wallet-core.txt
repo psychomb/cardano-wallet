@@ -2915,72 +2915,10 @@ instance Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.Address
 --   <a>Cardano.Wallet.DB</a> and <a>Cardano.Wallet.Network</a> to realize
 --   its role as being intermediary between the three.
 module Cardano.Wallet
-data WalletLayer s t k
-WalletLayer :: ((Show s, NFData s, IsOurs s, DefineTx t) => WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId) -> (WalletId -> ExceptT ErrNoSuchWallet IO (Wallet s t, WalletMetadata)) -> (WalletId -> (WalletMetadata -> WalletMetadata) -> ExceptT ErrNoSuchWallet IO ()) -> (WalletKey k => WalletId -> (Passphrase "encryption-old", Passphrase "encryption-new") -> ExceptT ErrUpdatePassphrase IO ()) -> IO [WalletId] -> (WalletId -> ExceptT ErrNoSuchWallet IO ()) -> (DefineTx t => WalletId -> ExceptT ErrNoSuchWallet IO ()) -> ((IsOurs s, CompareDiscovery s, KnownAddresses s, DefineTx t) => WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]) -> (forall e. (DefineTx t, e ~ ErrValidateSelection t) => WalletId -> NonEmpty TxOut -> ExceptT (ErrCreateUnsignedTx e) IO CoinSelection) -> (forall e. (DefineTx t, e ~ ErrValidateSelection t) => WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimateTxFee e) IO Fee) -> (DefineTx t => WalletId -> ExceptT ErrListUTxOStatistics IO UTxOStatistics) -> ((Show s, NFData s, IsOwned s k, GenChange s) => WalletId -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignTx IO (Tx t, TxMeta, [TxWitness])) -> (DefineTx t => WalletId -> (Tx t, TxMeta, [TxWitness]) -> ExceptT ErrSubmitTx IO ()) -> (ByteString -> ExceptT ErrSubmitExternalTx IO (Tx t)) -> (DefineTx t => WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]) -> (WalletKey k => WalletId -> (k  'RootK XPrv, Passphrase "encryption") -> ExceptT ErrNoSuchWallet IO ()) -> WalletLayer s t k
+data WalletLayer s t (k :: Depth -> * -> *)
 
--- | Initialise and store a new wallet, returning its ID.
-[$sel:createWallet:WalletLayer] :: WalletLayer s t k -> (Show s, NFData s, IsOurs s, DefineTx t) => WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
-
--- | Retrieve the wallet state for the wallet with the given ID.
-[$sel:readWallet:WalletLayer] :: WalletLayer s t k -> WalletId -> ExceptT ErrNoSuchWallet IO (Wallet s t, WalletMetadata)
-
--- | Update a wallet's metadata with the given update function.
-[$sel:updateWallet:WalletLayer] :: WalletLayer s t k -> WalletId -> (WalletMetadata -> WalletMetadata) -> ExceptT ErrNoSuchWallet IO ()
-
--- | Change a wallet's passphrase to the given passphrase.
-[$sel:updateWalletPassphrase:WalletLayer] :: WalletLayer s t k -> WalletKey k => WalletId -> (Passphrase "encryption-old", Passphrase "encryption-new") -> ExceptT ErrUpdatePassphrase IO ()
-
--- | Retrieve a list of known wallet IDs.
-[$sel:listWallets:WalletLayer] :: WalletLayer s t k -> IO [WalletId]
-
--- | Remove an existing wallet. Note that there's no particular work to be
---   done regarding the restoration worker as it will simply terminate on
---   the next tick when noticing that the corresponding wallet is gone.
-[$sel:removeWallet:WalletLayer] :: WalletLayer s t k -> WalletId -> ExceptT ErrNoSuchWallet IO ()
-
--- | Restore a wallet from its current tip up to the network tip.
---   
---   This function returns immediately, starting a worker thread in the
---   background that will fetch and apply remaining blocks until the
---   network tip is reached or until failure.
-[$sel:restoreWallet:WalletLayer] :: WalletLayer s t k -> DefineTx t => WalletId -> ExceptT ErrNoSuchWallet IO ()
-
--- | List all addresses of a wallet with their metadata. Addresses are
---   ordered from the most-recently-discovered to the oldest known.
-[$sel:listAddresses:WalletLayer] :: WalletLayer s t k -> (IsOurs s, CompareDiscovery s, KnownAddresses s, DefineTx t) => WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
-
--- | Prepare a transaction and automatically select inputs from the wallet
---   to cover the requested outputs. Note that this only runs coin
---   selection for the given outputs. In order to construct (and sign) an
---   actual transaction, use <a>$sel:signTx:WalletLayer</a>.
-[$sel:createUnsignedTx:WalletLayer] :: WalletLayer s t k -> forall e. (DefineTx t, e ~ ErrValidateSelection t) => WalletId -> NonEmpty TxOut -> ExceptT (ErrCreateUnsignedTx e) IO CoinSelection
-
--- | Estimate a transaction fee by automatically selecting inputs from the
---   wallet to cover the requested outputs.
-[$sel:estimateTxFee:WalletLayer] :: WalletLayer s t k -> forall e. (DefineTx t, e ~ ErrValidateSelection t) => WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimateTxFee e) IO Fee
-
--- | List the wallet's UTxO statistics.
-[$sel:listUtxoStatistics:WalletLayer] :: WalletLayer s t k -> DefineTx t => WalletId -> ExceptT ErrListUTxOStatistics IO UTxOStatistics
-
--- | Produce witnesses and construct a transaction from a given selection.
---   Requires the encryption passphrase in order to decrypt the root
---   private key. Note that this doesn't broadcast the transaction to the
---   network. In order to do so, use <a>$sel:submitTx:WalletLayer</a>.
-[$sel:signTx:WalletLayer] :: WalletLayer s t k -> (Show s, NFData s, IsOwned s k, GenChange s) => WalletId -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignTx IO (Tx t, TxMeta, [TxWitness])
-
--- | Broadcast a (signed) transaction to the network.
-[$sel:submitTx:WalletLayer] :: WalletLayer s t k -> DefineTx t => WalletId -> (Tx t, TxMeta, [TxWitness]) -> ExceptT ErrSubmitTx IO ()
-
--- | Broadcast an externally-signed transaction to the network.
-[$sel:submitExternalTx:WalletLayer] :: WalletLayer s t k -> ByteString -> ExceptT ErrSubmitExternalTx IO (Tx t)
-
--- | List all transactions and metadata from history for a given wallet.
-[$sel:listTransactions:WalletLayer] :: WalletLayer s t k -> DefineTx t => WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]
-
--- | Attach a given private key to a wallet. The private key is necessary
---   for some operations like signing transactions, or generating new
---   accounts.
-[$sel:attachPrivateKey:WalletLayer] :: WalletLayer s t k -> WalletKey k => WalletId -> (k  'RootK XPrv, Passphrase "encryption") -> ExceptT ErrNoSuchWallet IO ()
+-- | Create a new instance of the wallet layer.
+newWalletLayer :: Trace IO Text -> BlockchainParameters t -> DBLayer IO s t k -> NetworkLayer t IO -> TransactionLayer t k -> IO (WalletLayer s t k)
 data BlockchainParameters t
 BlockchainParameters :: Block (Tx t) -> StartTime -> FeePolicy -> SlotLength -> EpochLength -> Quantity "byte" Word16 -> Quantity "block" Word32 -> BlockchainParameters t
 
@@ -3004,6 +2942,110 @@ BlockchainParameters :: Block (Tx t) -> StartTime -> FeePolicy -> SlotLength -> 
 
 -- | Length of the suffix of the chain considered unstable
 [$sel:getEpochStability:BlockchainParameters] :: BlockchainParameters t -> Quantity "block" Word32
+
+-- | Attach a given private key to a wallet. The private key is necessary
+--   for some operations like signing transactions, or generating new
+--   accounts.
+attachPrivateKey :: WalletLayer s t k -> WalletId -> (k  'RootK XPrv, Passphrase "encryption") -> ExceptT ErrNoSuchWallet IO ()
+
+-- | Initialise and store a new wallet, returning its ID
+createWallet :: (Show s, NFData s, IsOurs s, DefineTx t) => WalletLayer s t k -> WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
+
+-- | List the wallet's UTxO statistics.
+listUtxoStatistics :: forall s t k. DefineTx t => WalletLayer s t k -> WalletId -> ExceptT ErrListUTxOStatistics IO UTxOStatistics
+
+-- | Retrieve a list of known wallet IDs.
+listWallets :: WalletLayer s t k -> IO [WalletId]
+
+-- | Retrieve the wallet state for the wallet with the given ID.
+readWallet :: WalletLayer s t k -> WalletId -> ExceptT ErrNoSuchWallet IO (Wallet s t, WalletMetadata)
+
+-- | Remove an existing wallet. Note that there's no particular work to be
+--   done regarding the restoration worker as it will simply terminate on
+--   the next tick when noticing that the corresponding wallet is gone.
+removeWallet :: WalletLayer s t k -> WalletId -> ExceptT ErrNoSuchWallet IO ()
+
+-- | Restore a wallet from its current tip up to the network tip.
+--   
+--   This function returns immediately, starting a worker thread in the
+--   background that will fetch and apply remaining blocks until the
+--   network tip is reached or until failure.
+restoreWallet :: DefineTx t => WalletLayer s t k -> WalletId -> ExceptT ErrNoSuchWallet IO ()
+
+-- | Update a wallet's metadata with the given update function.
+updateWallet :: WalletLayer s t k -> WalletId -> (WalletMetadata -> WalletMetadata) -> ExceptT ErrNoSuchWallet IO ()
+
+-- | Change a wallet's passphrase to the given passphrase.
+updateWalletPassphrase :: WalletKey k => WalletLayer s t k -> WalletId -> (Passphrase "encryption-old", Passphrase "encryption-new") -> ExceptT ErrUpdatePassphrase IO ()
+
+-- | Forbidden operation was executed on an already existing wallet
+newtype ErrWalletAlreadyExists
+ErrWalletAlreadyExists :: WalletId -> ErrWalletAlreadyExists
+
+-- | Can't perform given operation because there's no wallet
+newtype ErrNoSuchWallet
+ErrNoSuchWallet :: WalletId -> ErrNoSuchWallet
+
+-- | Errors that can occur when listing UTxO statistics.
+newtype ErrListUTxOStatistics
+ErrListUTxOStatisticsNoSuchWallet :: ErrNoSuchWallet -> ErrListUTxOStatistics
+
+-- | Errors that can occur when trying to change a wallet's passphrase.
+data ErrUpdatePassphrase
+ErrUpdatePassphraseNoSuchWallet :: ErrNoSuchWallet -> ErrUpdatePassphrase
+ErrUpdatePassphraseWithRootKey :: ErrWithRootKey -> ErrUpdatePassphrase
+
+-- | List all addresses of a wallet with their metadata. Addresses are
+--   ordered from the most-recently-discovered to the oldest known.
+listAddresses :: forall s t k. (IsOurs s, CompareDiscovery s, KnownAddresses s, DefineTx t) => WalletLayer s t k -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
+
+-- | Prepare a transaction and automatically select inputs from the wallet
+--   to cover the requested outputs. Note that this only runs coin
+--   selection for the given outputs. In order to construct (and sign) an
+--   actual transaction, use <a>signTx</a>.
+createUnsignedTx :: forall e s t k. (DefineTx t, e ~ ErrValidateSelection t) => WalletLayer s t k -> WalletId -> NonEmpty TxOut -> ExceptT (ErrCreateUnsignedTx e) IO CoinSelection
+
+-- | Estimate a transaction fee by automatically selecting inputs from the
+--   wallet to cover the requested outputs.
+estimateTxFee :: forall e s t k. (DefineTx t, e ~ ErrValidateSelection t) => WalletLayer s t k -> WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimateTxFee e) IO Fee
+
+-- | List all transactions and metadata from history for a given wallet.
+listTransactions :: forall s t k. DefineTx t => WalletLayer s t k -> WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]
+
+-- | Produce witnesses and construct a transaction from a given selection.
+--   Requires the encryption passphrase in order to decrypt the root
+--   private key. Note that this doesn't broadcast the transaction to the
+--   network. In order to do so, use <a>submitTx</a>.
+signTx :: (Show s, NFData s, IsOwned s k, GenChange s) => WalletLayer s t k -> WalletId -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignTx IO (Tx t, TxMeta, [TxWitness])
+
+-- | Broadcast an externally-signed transaction to the network.
+submitExternalTx :: WalletLayer s t k -> ByteString -> ExceptT ErrSubmitExternalTx IO (Tx t)
+
+-- | Broadcast a (signed) transaction to the network.
+submitTx :: WalletLayer s t k -> WalletId -> (Tx t, TxMeta, [TxWitness]) -> ExceptT ErrSubmitTx IO ()
+
+-- | Errors that can occur when creating an unsigned transaction.
+data ErrCreateUnsignedTx e
+ErrCreateUnsignedTxNoSuchWallet :: ErrNoSuchWallet -> ErrCreateUnsignedTx e
+ErrCreateUnsignedTxCoinSelection :: ErrCoinSelection e -> ErrCreateUnsignedTx e
+ErrCreateUnsignedTxFee :: ErrAdjustForFee -> ErrCreateUnsignedTx e
+
+-- | Errors that can occur when estimating transaction fees.
+data ErrEstimateTxFee e
+ErrEstimateTxFeeNoSuchWallet :: ErrNoSuchWallet -> ErrEstimateTxFee e
+ErrEstimateTxFeeCoinSelection :: ErrCoinSelection e -> ErrEstimateTxFee e
+
+-- | Errors that can occur when signing a transaction.
+data ErrSignTx
+ErrSignTx :: ErrMkStdTx -> ErrSignTx
+ErrSignTxNoSuchWallet :: ErrNoSuchWallet -> ErrSignTx
+ErrSignTxWithRootKey :: ErrWithRootKey -> ErrSignTx
+
+-- | Possible signing error
+newtype ErrMkStdTx
+
+-- | We tried to sign a transaction with inputs that are unknown to us?
+ErrKeyNotFoundForAddress :: Address -> ErrMkStdTx
 newtype ErrAdjustForFee
 
 -- | UTxO exhausted during fee covering We record what amount missed to
@@ -3035,69 +3077,6 @@ ErrInputsDepleted :: ErrCoinSelection e
 --   algorithm.
 ErrInvalidSelection :: e -> ErrCoinSelection e
 
--- | Errors that can occur when creating an unsigned transaction.
-data ErrCreateUnsignedTx e
-ErrCreateUnsignedTxNoSuchWallet :: ErrNoSuchWallet -> ErrCreateUnsignedTx e
-ErrCreateUnsignedTxCoinSelection :: ErrCoinSelection e -> ErrCreateUnsignedTx e
-ErrCreateUnsignedTxFee :: ErrAdjustForFee -> ErrCreateUnsignedTx e
-
--- | Errors that can occur when estimating transaction fees.
-data ErrEstimateTxFee e
-ErrEstimateTxFeeNoSuchWallet :: ErrNoSuchWallet -> ErrEstimateTxFee e
-ErrEstimateTxFeeCoinSelection :: ErrCoinSelection e -> ErrEstimateTxFee e
-
--- | Errors that can occur when trying to list transactions.
-data ErrListTransactions
-ErrListTransactionsNoSuchWallet :: ErrNoSuchWallet -> ErrListTransactions
-ErrListTransactionsStartTimeLaterThanEndTime :: ErrStartTimeLaterThanEndTime -> ErrListTransactions
-
--- | Errors that can occur when listing UTxO statistics.
-newtype ErrListUTxOStatistics
-ErrListUTxOStatisticsNoSuchWallet :: ErrNoSuchWallet -> ErrListUTxOStatistics
-
--- | Possible signing error
-newtype ErrMkStdTx
-
--- | We tried to sign a transaction with inputs that are unknown to us?
-ErrKeyNotFoundForAddress :: Address -> ErrMkStdTx
-
--- | Network is unavailable
-data ErrNetworkUnavailable
-
--- | Cannot connect to network backend.
-ErrNetworkUnreachable :: Text -> ErrNetworkUnavailable
-
--- | Network backend reports that the requested network is invalid.
-ErrNetworkInvalid :: Text -> ErrNetworkUnavailable
-
--- | Can't perform given operation because there's no wallet
-newtype ErrNoSuchWallet
-ErrNoSuchWallet :: WalletId -> ErrNoSuchWallet
-
--- | Error while trying to send a transaction
-data ErrPostTx
-ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
-ErrPostTxBadRequest :: Text -> ErrPostTx
-ErrPostTxProtocolFailure :: Text -> ErrPostTx
-
--- | Error while trying to decode externally signed transaction
-data ErrDecodeExternalTx
-ErrDecodeExternalTxWrongPayload :: Text -> ErrDecodeExternalTx
-ErrDecodeExternalTxNotSupported :: ErrDecodeExternalTx
-
--- | Errors that can occur when signing a transaction.
-data ErrSignTx
-ErrSignTx :: ErrMkStdTx -> ErrSignTx
-ErrSignTxNoSuchWallet :: ErrNoSuchWallet -> ErrSignTx
-ErrSignTxWithRootKey :: ErrWithRootKey -> ErrSignTx
-
--- | Indicates that the specified start time is later than the specified
---   end time.
-data ErrStartTimeLaterThanEndTime
-ErrStartTimeLaterThanEndTime :: UTCTime -> UTCTime -> ErrStartTimeLaterThanEndTime
-[$sel:errStartTime:ErrStartTimeLaterThanEndTime] :: ErrStartTimeLaterThanEndTime -> UTCTime
-[$sel:errEndTime:ErrStartTimeLaterThanEndTime] :: ErrStartTimeLaterThanEndTime -> UTCTime
-
 -- | Errors that can occur when submitting a signed transaction to the
 --   network.
 data ErrSubmitTx
@@ -3110,10 +3089,16 @@ data ErrSubmitExternalTx
 ErrSubmitExternalTxNetwork :: ErrPostTx -> ErrSubmitExternalTx
 ErrSubmitExternalTxDecode :: ErrDecodeExternalTx -> ErrSubmitExternalTx
 
--- | Errors that can occur when trying to change a wallet's passphrase.
-data ErrUpdatePassphrase
-ErrUpdatePassphraseNoSuchWallet :: ErrNoSuchWallet -> ErrUpdatePassphrase
-ErrUpdatePassphraseWithRootKey :: ErrWithRootKey -> ErrUpdatePassphrase
+-- | Error while trying to send a transaction
+data ErrPostTx
+ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
+ErrPostTxBadRequest :: Text -> ErrPostTx
+ErrPostTxProtocolFailure :: Text -> ErrPostTx
+
+-- | Error while trying to decode externally signed transaction
+data ErrDecodeExternalTx
+ErrDecodeExternalTxWrongPayload :: Text -> ErrDecodeExternalTx
+ErrDecodeExternalTxNotSupported :: ErrDecodeExternalTx
 
 -- | A type family for validations that are specific to a particular
 --   backend type. This demands an instantiation of the family for a
@@ -3121,10 +3106,6 @@ ErrUpdatePassphraseWithRootKey :: ErrWithRootKey -> ErrUpdatePassphrase
 --   
 --   type instance (ErrValidateSelection MyBackend) = MyCustomError
 type family ErrValidateSelection t
-
--- | Forbidden operation was executed on an already existing wallet
-newtype ErrWalletAlreadyExists
-ErrWalletAlreadyExists :: WalletId -> ErrWalletAlreadyExists
 
 -- | Errors that can occur when trying to perform an operation on a wallet
 --   that requires a private key, but where none is attached to the wallet.
@@ -3136,8 +3117,26 @@ ErrWithRootKeyWrongPassphrase :: WalletId -> ErrWrongPassphrase -> ErrWithRootKe
 data ErrWrongPassphrase
 ErrWrongPassphrase :: ErrWrongPassphrase
 
--- | Create a new instance of the wallet layer.
-newWalletLayer :: forall s t k. Buildable (Tx t) => Trace IO Text -> BlockchainParameters t -> DBLayer IO s t k -> NetworkLayer t IO -> TransactionLayer t k -> IO (WalletLayer s t k)
+-- | Errors that can occur when trying to list transactions.
+data ErrListTransactions
+ErrListTransactionsNoSuchWallet :: ErrNoSuchWallet -> ErrListTransactions
+ErrListTransactionsStartTimeLaterThanEndTime :: ErrStartTimeLaterThanEndTime -> ErrListTransactions
+
+-- | Network is unavailable
+data ErrNetworkUnavailable
+
+-- | Cannot connect to network backend.
+ErrNetworkUnreachable :: Text -> ErrNetworkUnavailable
+
+-- | Network backend reports that the requested network is invalid.
+ErrNetworkInvalid :: Text -> ErrNetworkUnavailable
+
+-- | Indicates that the specified start time is later than the specified
+--   end time.
+data ErrStartTimeLaterThanEndTime
+ErrStartTimeLaterThanEndTime :: UTCTime -> UTCTime -> ErrStartTimeLaterThanEndTime
+[$sel:errStartTime:ErrStartTimeLaterThanEndTime] :: ErrStartTimeLaterThanEndTime -> UTCTime
+[$sel:errEndTime:ErrStartTimeLaterThanEndTime] :: ErrStartTimeLaterThanEndTime -> UTCTime
 instance GHC.Classes.Eq Cardano.Wallet.ErrListTransactions
 instance GHC.Show.Show Cardano.Wallet.ErrListTransactions
 instance GHC.Classes.Eq Cardano.Wallet.ErrStartTimeLaterThanEndTime
@@ -3158,6 +3157,7 @@ instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrEstimateTxFee e)
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrEstimateTxFee e)
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrCreateUnsignedTx e)
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrCreateUnsignedTx e)
+instance GHC.Generics.Generic (Cardano.Wallet.BlockchainParameters t)
 
 
 -- | Utility functions for converting time values to and from text.
