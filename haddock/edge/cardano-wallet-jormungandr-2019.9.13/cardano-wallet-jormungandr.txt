@@ -354,8 +354,13 @@ module Cardano.Wallet.Jormungandr.Network
 --   <a>Jormungandr</a> backend target.
 newNetworkLayer :: forall n. () => BaseUrl -> IO (NetworkLayer (Jormungandr n) IO)
 
+-- | Creates a new <a>NetworkLayer</a> connecting to an underlying
+--   <a>Jormungandr</a> backend target. Also returns the internal
+--   <a>JormungandrLayer</a> component.
+newNetworkLayer' :: forall n. () => BaseUrl -> IO (JormungandrLayer n IO, NetworkLayer (Jormungandr n) IO)
+
 -- | Wrap a Jormungandr client into a <a>NetworkLayer</a> common interface.
-mkNetworkLayer :: Monad m => JormungandrLayer n m -> NetworkLayer (Jormungandr n) m
+mkNetworkLayer :: MonadBaseControl IO m => MVar UnstableBlocks -> JormungandrLayer n m -> NetworkLayer (Jormungandr n) m
 
 -- | Endpoints of the jormungandr REST API.
 data JormungandrLayer n m
@@ -422,12 +427,85 @@ Https :: Scheme
 
 -- | Format an API <a>BaseUrl</a>, for logging, etc.
 baseUrlToText :: BaseUrl -> Text
+
+-- | A list of block headers and their hashes. The last block in this
+--   sequence is the network tip. The first block in this sequence is the
+--   block of depth <i>k</i>, which is the last unstable block.
+data UnstableBlocks
+UnstableBlocks :: !Seq (Hash "BlockHeader", BlockHeader) -> !Quantity "block" Natural -> UnstableBlocks
+
+-- | Double-ended queue of block headers, and their IDs.
+[$sel:getUnstableBlocks:UnstableBlocks] :: UnstableBlocks -> !Seq (Hash "BlockHeader", BlockHeader)
+
+-- | The block height of the tip of the sequence.
+[$sel:blockHeight:UnstableBlocks] :: UnstableBlocks -> !Quantity "block" Natural
+
+-- | Updates the unstable blocks state using the given "fetch" functions.
+--   
+--   This attempts to synchronise the local state with that of the node.
+--   The node may be on a different chain to the current unstable blocks,
+--   so this function handles switching of chains.
+--   
+--   For example, this is what it would do when the local tip is
+--   <tt>a13</tt>, but the node's tip is <tt>b15</tt>, on a different
+--   chain.
+--   
+--   <pre>
+--                                     local tip ↴
+--                  ┌───┬───  ───┬───┬───┬───┬───┐
+--   UnstableBlocks │a03│..    ..│a10│a11│a12│a13│
+--                  └───┴───  ───┴───┴───┴───┴───┘
+--                            ───┬───┬───┬───┬───┬───┬───┐
+--   Node backend chain       ...│a10│a11│b12│b13│b14│b15│
+--                            ───┴───┴───┴───┴───┴───┴───┘
+--                        rollback point ⬏     node tip ⬏
+--   </pre>
+--   
+--   To start with, the node says the tip hash is <tt>b15</tt>.
+--   
+--   Work backwards from tip, fetching blocks and adding them to
+--   <tt>ac</tt>, and removing overlapping blocks from <tt>ubs</tt>.
+--   Overlapping blocks occur when there has been a rollback.
+--   
+--   <pre>
+--       ubs                     ac
+--   1.  ───┬───┬───┬───┬───┐    ┌───┐
+--       ...│a10│a11│a12│a13│    │b15│
+--       ───┴───┴───┴───┴───┘    └───┘
+--   2.  ───┬───┬───┬───┬───┐┌───┬───┐
+--       ...│a10│a11│a12│a13││b14│b15│
+--       ───┴───┴───┴───┴───┘└───┴───┘
+--   3.  ───┬───┬───┬───┐┌───┬───┬───┐
+--       ...│a10│a11│a12││b13│b14│b15│
+--       ───┴───┴───┴───┘└───┴───┴───┘
+--   4.  ───┬───┬───┐┌───┬───┬───┬───┐
+--       ...│a10│a11││b12│b13│b14│b15│
+--       ───┴───┴───┘└───┴───┴───┴───┘
+--   </pre>
+--   
+--   Stop once <tt>ubs</tt> and <tt>ac</tt> meet with a block which has the
+--   same hash. If they never meet, stop after fetching <i>k</i> blocks.
+--   
+--   Finally, to get the new <a>UnstableBlocks</a>, append <tt>ac</tt> to
+--   <tt>ubs</tt>, and limit the length to <i>k</i>.
+--   
+--   The new block height is the height of the first block that was
+--   fetched.
+--   
+--   If any errors occur while this process is running (for example,
+--   fetching a block which has been rolled back and lost from the node's
+--   state), it will immediately terminate.
+updateUnstableBlocks :: forall m. Monad m => Natural -> m (Hash "BlockHeader") -> (Hash "BlockHeader" -> m (BlockHeader, Quantity "block" Natural)) -> UnstableBlocks -> m UnstableBlocks
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.ErrGetBlockchainParams
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.ErrGetBlockchainParams
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.ErrGetDescendants
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.ErrGetDescendants
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.ErrUnexpectedNetworkFailure
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Network.UnstableBlocks
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.UnstableBlocks
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.UnstableBlocks
 instance GHC.Exception.Type.Exception Cardano.Wallet.Jormungandr.Network.ErrUnexpectedNetworkFailure
+instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Network.UnstableBlocks
 
 module Cardano.Wallet.Jormungandr.Transaction
 
