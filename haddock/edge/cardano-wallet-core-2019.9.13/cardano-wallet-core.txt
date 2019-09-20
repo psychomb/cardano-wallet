@@ -2888,8 +2888,8 @@ insertState :: PersistState s => (WalletId, SlotId) -> s -> SqlPersistT IO ()
 -- | Load the state for a checkpoint.
 selectState :: PersistState s => (WalletId, SlotId) -> SqlPersistT IO (Maybe s)
 
--- | Remove the state for all checkpoints of a wallet.
-deleteState :: PersistState s => WalletId -> SqlPersistT IO ()
+-- | Remove the state for one or all checkpoints of a wallet.
+deleteState :: PersistState s => WalletId -> Maybe SlotId -> SqlPersistT IO ()
 class DefineTx t => PersistTx t
 resolvedInputs :: PersistTx t => Tx t -> [(TxIn, Maybe Coin)]
 

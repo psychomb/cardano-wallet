@@ -155,13 +155,11 @@ UTxO                                sql=utxo
     utxoOutputAddress   W.Address   sql=output_address
     utxoOutputCoin      W.Coin      sql=output_coin
 
+    UniqueUTxO utxoWalletId utxoInputId utxoInputIndex
     Primary
         utxoWalletId
-        utxoSlot
         utxoInputId
         utxoInputIndex
-        utxoOutputAddress
-        utxoOutputCoin
 
     Foreign Wallet fk_wallet_utxo utxoWalletId
     deriving Show Generic
@@ -262,4 +260,4 @@ RndStatePendingAddress
     deriving Show Generic
 
 |]</span><span>
-</span><a name="line-265"></a></pre></body></html>
+</span><a name="line-263"></a></pre></body></html>
