@@ -325,6 +325,14 @@ TransactionInfo :: !Hash "Tx" -> ![(TxIn, Maybe TxOut)] -> ![TxOut] -> !TxMeta -
 
 -- | Creation time of the block including this transaction.
 [$sel:txInfoTime:TransactionInfo] :: TransactionInfo -> UTCTime
+
+-- | A linear equation a free variable <tt>x</tt>. Represents the <tt>s
+--   -&gt; a + b*s</tt> function where <tt>s</tt> can be the transaction
+--   size in bytes or, a number of inputs + outputs.
+--   
+--   <tt>a</tt> and <tt>b</tt> are constant coefficients.
+data FeePolicy
+LinearFee :: Quantity "lovelace" Double -> Quantity "lovelace/x" Double -> FeePolicy
 txIns :: forall t. DefineTx t => Set (Tx t) -> Set TxIn
 
 -- | True if the given tuple refers to a pending transaction
@@ -739,11 +747,14 @@ instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.ProtocolMagic
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SlotParameters
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.SlotParameters
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.SlotParameters
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.StartTime
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.StartTime
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.StartTime
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.StartTime
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.EpochLength
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.EpochLength
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.EpochLength
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.SlotLength
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.SlotLength
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SlotLength
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.TxMeta
@@ -783,6 +794,9 @@ instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.Address
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.Address
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.Address
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.Address
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.FeePolicy
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.FeePolicy
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.FeePolicy
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.TxWitness
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.TxWitness
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.TxWitness
@@ -857,6 +871,9 @@ instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "BlockHea
 instance Data.Text.Class.ToText (Cardano.Wallet.Primitive.Types.Hash "BlockHeader")
 instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Genesis")
 instance Data.Text.Class.ToText (Cardano.Wallet.Primitive.Types.Hash "Genesis")
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.StartTime
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.EpochLength
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.SlotLength
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.TxMeta
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.TxMeta
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.SlotId
@@ -874,6 +891,9 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.Address
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.Address
 instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.Address
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.Address
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.FeePolicy
+instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.FeePolicy
+instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.FeePolicy
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.Direction
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.Direction
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.Direction
@@ -1921,11 +1941,31 @@ module Cardano.Wallet.Primitive.Model
 --   Wallet SeqState Bitcoin
 --   </pre>
 data Wallet s t
+data BlockchainParameters
+BlockchainParameters :: StartTime -> FeePolicy -> SlotLength -> EpochLength -> Quantity "byte" Word16 -> Quantity "block" Word32 -> BlockchainParameters
+
+-- | Start time of the chain.
+[$sel:getGenesisBlockDate:BlockchainParameters] :: BlockchainParameters -> StartTime
+
+-- | Policy regarding transaction fee.
+[$sel:getFeePolicy:BlockchainParameters] :: BlockchainParameters -> FeePolicy
+
+-- | Length, in seconds, of a slot.
+[$sel:getSlotLength:BlockchainParameters] :: BlockchainParameters -> SlotLength
+
+-- | Number of slots in a single epoch.
+[$sel:getEpochLength:BlockchainParameters] :: BlockchainParameters -> EpochLength
+
+-- | Maximum size of a transaction (soft or hard limit).
+[$sel:getTxMaxSize:BlockchainParameters] :: BlockchainParameters -> Quantity "byte" Word16
+
+-- | Length of the suffix of the chain considered unstable
+[$sel:getEpochStability:BlockchainParameters] :: BlockchainParameters -> Quantity "block" Word32
 
 -- | Create a an empty wallet and apply the given genesis block
 --   
 --   The wallet tip will be set to the header of the applied genesis block.
-initWallet :: forall s t. (IsOurs s, NFData s, Show s, DefineTx t) => Block (Tx t) -> s -> Wallet s t
+initWallet :: forall s t. (IsOurs s, NFData s, Show s, DefineTx t) => Block (Tx t) -> BlockchainParameters -> s -> Wallet s t
 
 -- | Update the state of an existing Wallet model
 updateState :: (IsOurs s, NFData s, Show s) => s -> Wallet s t -> Wallet s t
@@ -1973,7 +2013,7 @@ newPending :: (Tx t, TxMeta) -> Wallet s t -> Wallet s t
 --   invariants to be broken. Therefore it should only be used in the
 --   special case of loading wallet checkpoints from the database (where it
 --   is assumed a valid wallet was stored into the database).
-unsafeInitWallet :: (IsOurs s, NFData s, Show s, DefineTx t) => UTxO -> Set (Tx t, TxMeta) -> BlockHeader -> s -> Quantity "block" Natural -> Wallet s t
+unsafeInitWallet :: (IsOurs s, NFData s, Show s, DefineTx t) => UTxO -> Set (Tx t, TxMeta) -> BlockHeader -> s -> Quantity "block" Natural -> BlockchainParameters -> Wallet s t
 
 -- | Get the wallet current tip
 currentTip :: Wallet s t -> BlockHeader
@@ -2004,9 +2044,19 @@ getPending :: Wallet s t -> Set (Tx t, TxMeta)
 --   A new wallet from <a>initWallet</a> (which already has the genesis
 --   block applied) has a block height of 0.
 blockHeight :: Wallet s t -> Quantity "block" Natural
+
+-- | Get the current chain parameters.
+--   
+--   Parameters may change over time via protocol updates, so we keep track
+--   of them as part of the wallet checkpoints.
+blockchainParameters :: Wallet s t -> BlockchainParameters
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Model.BlockchainParameters
+instance GHC.Show.Show Cardano.Wallet.Primitive.Model.BlockchainParameters
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Model.BlockchainParameters
 instance GHC.Show.Show (Cardano.Wallet.Primitive.Model.Wallet s t)
 instance GHC.Classes.Eq s => GHC.Classes.Eq (Cardano.Wallet.Primitive.Model.Wallet s t)
 instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.Model.Wallet s t)
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Model.BlockchainParameters
 
 
 -- | An implementation of the wallet database using only pure functions.
@@ -2285,8 +2335,6 @@ adjustForFee :: MonadRandom m => FeeOptions -> UTxO -> CoinSelection -> ExceptT 
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Fee.ErrAdjustForFee
 instance GHC.Show.Show Cardano.Wallet.Primitive.Fee.ErrAdjustForFee
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Fee.FeeOptions
-instance GHC.Show.Show Cardano.Wallet.Primitive.Fee.FeePolicy
-instance GHC.Classes.Eq Cardano.Wallet.Primitive.Fee.FeePolicy
 instance GHC.Show.Show Cardano.Wallet.Primitive.Fee.Fee
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Fee.Fee
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Fee.Fee
@@ -2436,6 +2484,8 @@ instance Web.Internal.HttpApiData.FromHttpApiData Cardano.Wallet.DB.Sqlite.Types
 instance Web.PathPieces.PathPiece Cardano.Wallet.DB.Sqlite.Types.TxId
 instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.Direction
 instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Types.Direction
+instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.FeePolicy
+instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Types.FeePolicy
 instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.WalletId
 instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Types.WalletId
 instance GHC.Read.Read Cardano.Wallet.Primitive.Types.WalletId
@@ -2514,11 +2564,17 @@ TxOut :: !TxId -> !Word32 -> !Address -> !Coin -> TxOut
 [txOutputAmount] :: TxOut -> !Coin
 type TxOutId = Key TxOut
 data Checkpoint
-Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !Word64 -> Checkpoint
+Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !Word64 -> !UTCTime -> !FeePolicy -> !Word64 -> !Word16 -> !Word16 -> !Word32 -> Checkpoint
 [checkpointWalletId] :: Checkpoint -> !WalletId
 [checkpointSlot] :: Checkpoint -> !SlotId
 [checkpointParent] :: Checkpoint -> !BlockId
 [checkpointBlockHeight] :: Checkpoint -> !Word64
+[checkpointGenesisStart] :: Checkpoint -> !UTCTime
+[checkpointFeePolicy] :: Checkpoint -> !FeePolicy
+[checkpointSlotLength] :: Checkpoint -> !Word64
+[checkpointEpochLength] :: Checkpoint -> !Word16
+[checkpointTxMaxSize] :: Checkpoint -> !Word16
+[checkpointEpochStability] :: Checkpoint -> !Word32
 type CheckpointId = Key Checkpoint
 data UTxO
 UTxO :: !WalletId -> !SlotId -> !Maybe SlotId -> !TxId -> !Word32 -> !Address -> !Coin -> UTxO
@@ -2931,29 +2987,26 @@ instance Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.Address
 --   </ul>
 module Cardano.Wallet
 data WalletLayer s t (k :: Depth -> * -> *)
-data BlockchainParameters t
-BlockchainParameters :: Block (Tx t) -> StartTime -> FeePolicy -> SlotLength -> EpochLength -> Quantity "byte" Word16 -> Quantity "block" Word32 -> BlockchainParameters t
-
--- | Very first block.
-[$sel:getGenesisBlock:BlockchainParameters] :: BlockchainParameters t -> Block (Tx t)
+data BlockchainParameters
+BlockchainParameters :: StartTime -> FeePolicy -> SlotLength -> EpochLength -> Quantity "byte" Word16 -> Quantity "block" Word32 -> BlockchainParameters
 
 -- | Start time of the chain.
-[$sel:getGenesisBlockDate:BlockchainParameters] :: BlockchainParameters t -> StartTime
+[$sel:getGenesisBlockDate:BlockchainParameters] :: BlockchainParameters -> StartTime
 
 -- | Policy regarding transaction fee.
-[$sel:getFeePolicy:BlockchainParameters] :: BlockchainParameters t -> FeePolicy
+[$sel:getFeePolicy:BlockchainParameters] :: BlockchainParameters -> FeePolicy
 
 -- | Length, in seconds, of a slot.
-[$sel:getSlotLength:BlockchainParameters] :: BlockchainParameters t -> SlotLength
+[$sel:getSlotLength:BlockchainParameters] :: BlockchainParameters -> SlotLength
 
 -- | Number of slots in a single epoch.
-[$sel:getEpochLength:BlockchainParameters] :: BlockchainParameters t -> EpochLength
+[$sel:getEpochLength:BlockchainParameters] :: BlockchainParameters -> EpochLength
 
 -- | Maximum size of a transaction (soft or hard limit).
-[$sel:getTxMaxSize:BlockchainParameters] :: BlockchainParameters t -> Quantity "byte" Word16
+[$sel:getTxMaxSize:BlockchainParameters] :: BlockchainParameters -> Quantity "byte" Word16
 
 -- | Length of the suffix of the chain considered unstable
-[$sel:getEpochStability:BlockchainParameters] :: BlockchainParameters t -> Quantity "block" Word32
+[$sel:getEpochStability:BlockchainParameters] :: BlockchainParameters -> Quantity "block" Word32
 
 -- | "Magic trick" to ease caller type signatures. This type family binds
 --   together constituants of the WalletLayer (or any similar structure) to
@@ -2980,8 +3033,7 @@ BlockchainParameters :: Block (Tx t) -> StartTime -> FeePolicy -> SlotLength -> 
 type family IsWalletCtx s t (k :: Depth -> * -> *) ctx :: Constraint
 
 -- | Create a new instance of the wallet layer.
-newWalletLayer :: Trace IO Text -> BlockchainParameters t -> DBLayer IO s t k -> NetworkLayer t IO -> TransactionLayer t k -> IO (WalletLayer s t k)
-type HasBlockchainParameters t = HasType (BlockchainParameters t)
+newWalletLayer :: Trace IO Text -> (Block (Tx t), BlockchainParameters) -> DBLayer IO s t k -> NetworkLayer t IO -> TransactionLayer t k -> IO (WalletLayer s t k)
 type HasDBLayer s t k = HasType (DBLayer IO s t k)
 type HasLogger = HasType (Trace IO Text)
 type HasNetworkLayer t = HasType (NetworkLayer t IO)
@@ -2994,7 +3046,7 @@ type HasWorkerRegistry = HasType WorkerRegistry
 attachPrivateKey :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx) => ctx -> WalletId -> (k  'RootK XPrv, Passphrase "encryption") -> ExceptT ErrNoSuchWallet IO ()
 
 -- | Initialise and store a new wallet, returning its ID
-createWallet :: forall ctx s t k. (IsWalletCtx s t k ctx, HasBlockchainParameters t ctx, HasDBLayer s t k ctx, Show s, NFData s, IsOurs s, DefineTx t) => ctx -> WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
+createWallet :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx, HasGenesisData t ctx, Show s, NFData s, IsOurs s, DefineTx t) => ctx -> WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
 
 -- | List the wallet's UTxO statistics.
 listUtxoStatistics :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrListUTxOStatistics IO UTxOStatistics
@@ -3015,7 +3067,7 @@ removeWallet :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx, 
 --   This function returns immediately, starting a worker thread in the
 --   background that will fetch and apply remaining blocks until the
 --   network tip is reached or until failure.
-restoreWallet :: forall ctx s t k. (IsWalletCtx s t k ctx, HasLogger ctx, HasBlockchainParameters t ctx, HasDBLayer s t k ctx, HasNetworkLayer t ctx, HasWorkerRegistry ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
+restoreWallet :: forall ctx s t k. (IsWalletCtx s t k ctx, HasLogger ctx, HasDBLayer s t k ctx, HasNetworkLayer t ctx, HasWorkerRegistry ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
 
 -- | Update a wallet's metadata with the given update function.
 updateWallet :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx) => ctx -> WalletId -> (WalletMetadata -> WalletMetadata) -> ExceptT ErrNoSuchWallet IO ()
@@ -3048,14 +3100,14 @@ listAddresses :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx,
 --   to cover the requested outputs. Note that this only runs coin
 --   selection for the given outputs. In order to construct (and sign) an
 --   actual transaction, use <a>signTx</a>.
-createUnsignedTx :: forall ctx s t k e. (IsWalletCtx s t k ctx, HasBlockchainParameters t ctx, HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s t k ctx, DefineTx t, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrCreateUnsignedTx e) IO CoinSelection
+createUnsignedTx :: forall ctx s t k e. (IsWalletCtx s t k ctx, HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s t k ctx, DefineTx t, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrCreateUnsignedTx e) IO CoinSelection
 
 -- | Estimate a transaction fee by automatically selecting inputs from the
 --   wallet to cover the requested outputs.
-estimateTxFee :: forall ctx s t k e. (IsWalletCtx s t k ctx, HasBlockchainParameters t ctx, HasTransactionLayer t k ctx, HasDBLayer s t k ctx, DefineTx t, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimateTxFee e) IO Fee
+estimateTxFee :: forall ctx s t k e. (IsWalletCtx s t k ctx, HasTransactionLayer t k ctx, HasDBLayer s t k ctx, DefineTx t, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimateTxFee e) IO Fee
 
 -- | List all transactions and metadata from history for a given wallet.
-listTransactions :: forall ctx s t k. (IsWalletCtx s t k ctx, HasBlockchainParameters t ctx, HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]
+listTransactions :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]
 
 -- | Produce witnesses and construct a transaction from a given selection.
 --   Requires the encryption passphrase in order to decrypt the root
@@ -3203,7 +3255,6 @@ instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrEstimateTxFee e)
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrCreateUnsignedTx e)
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrCreateUnsignedTx e)
 instance GHC.Generics.Generic (Cardano.Wallet.WalletLayer s t k)
-instance GHC.Generics.Generic (Cardano.Wallet.BlockchainParameters t)
 
 
 -- | Utility functions for converting time values to and from text.

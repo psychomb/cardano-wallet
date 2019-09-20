@@ -95,10 +95,14 @@ instance Data.Text.Class.FromText GHC.Base.String
 instance Data.Text.Class.FromText Data.Text.Internal.Text
 instance Data.Text.Class.FromText GHC.Types.Int
 instance Data.Text.Class.FromText GHC.Natural.Natural
+instance Data.Text.Class.FromText GHC.Integer.Type.Integer
+instance Data.Text.Class.FromText GHC.Types.Double
 instance Data.Text.Class.ToText GHC.Base.String
 instance Data.Text.Class.ToText Data.Text.Internal.Text
 instance Data.Text.Class.ToText GHC.Types.Int
 instance Data.Text.Class.ToText GHC.Natural.Natural
+instance Data.Text.Class.ToText GHC.Integer.Type.Integer
+instance Data.Text.Class.ToText GHC.Types.Double
 
 module Test.Text.Roundtrip
 
