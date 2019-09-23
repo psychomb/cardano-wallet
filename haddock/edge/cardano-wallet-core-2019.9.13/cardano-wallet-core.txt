@@ -232,8 +232,9 @@ Block :: !BlockHeader -> ![tx] -> Block tx
 [$sel:header:Block] :: Block tx -> !BlockHeader
 [$sel:transactions:Block] :: Block tx -> ![tx]
 data BlockHeader
-BlockHeader :: SlotId -> !Hash "BlockHeader" -> BlockHeader
+BlockHeader :: SlotId -> Quantity "block" Natural -> !Hash "BlockHeader" -> BlockHeader
 [$sel:slotId:BlockHeader] :: BlockHeader -> SlotId
+[$sel:blockHeight:BlockHeader] :: BlockHeader -> Quantity "block" Natural
 [$sel:prevBlockHash:BlockHeader] :: BlockHeader -> !Hash "BlockHeader"
 
 -- | An abstraction for computing transaction id. The <tt>target</tt> is an
@@ -1745,149 +1746,74 @@ instance (Control.DeepSeq.NFData key, Control.DeepSeq.NFData (Cardano.Wallet.Pri
 instance Cardano.Wallet.Primitive.AddressDerivation.WalletKey Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey
 instance Cardano.Wallet.Primitive.AddressDerivation.PersistKey Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey
 
+module Cardano.Wallet.Network
+data NetworkLayer t m
+NetworkLayer :: (BlockHeader -> ExceptT ErrGetBlock m [Block (Tx t)]) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx t, [TxWitness]) -> ExceptT ErrPostTx m ()) -> NetworkLayer t m
 
--- | These are (partial) CBOR decoders for Byron binary types. Note that we
---   ignore most of the block's and header's content and only retrieve the
---   pieces of information relevant to us, wallet (we do assume a trusted
---   node and therefore, we needn't to care about verifying signatures and
---   blocks themselves).
+-- | Fetches a contiguous sequence of blocks from the node, starting from
+--   the first block available with a slot greater than the given block
+--   header.
 --   
---   The format described in the decoders below are the one used in the
---   Byron era of Cardano and will endure in the first stages of Shelley.
---   They are also used by components like the Rust
---   <a>cardano-http-bridge</a>.
-module Cardano.Byron.Codec.Cbor
-decodeBlock :: Decoder s (Block ([TxIn], [TxOut]))
-decodeAddressDerivationPath :: Passphrase "addr-derivation-payload" -> Decoder s (Maybe (Index  'Hardened  'AccountK, Index  'Hardened  'AddressK))
-decodeAddressPayload :: Decoder s ByteString
-
--- | The attributes are pairs of numeric tags and bytes, where the bytes
---   will be CBOR-encoded stuff. This decoder does not enforce "canonicity"
---   of entries.
-decodeAllAttributes :: Decoder s [(Word8, ByteString)]
-decodeBlockHeader :: Decoder s BlockHeader
-decodeDerivationPathAttr :: Passphrase "addr-derivation-payload" -> [(Word8, ByteString)] -> Decoder s (Maybe (Index  'Hardened  'AccountK, Index  'Hardened  'AddressK))
-decodeSignedTx :: Decoder s (([TxIn], [TxOut]), [TxWitness])
-decodeTx :: Decoder s ([TxIn], [TxOut])
-decodeTxWitness :: Decoder s TxWitness
-
--- | Encode a public key to a corresponding Cardano Address. The encoding
---   of the attributes part of an address is left out to the caller; This
---   allows for distinguishing between Sequential and Random addresses (the
---   former doesn't have any attributes to encode).
+--   Blocks are returned in ascending slot order, without skipping blocks.
 --   
---   <pre>
---   -- Old / Random Addresses
---   let encodeAddrAttributes = mempty
---        &lt;&gt; CBOR.encodeMapLen 1
---        &lt;&gt; CBOR.encodeWord8 1
---        &lt;&gt; encodeDerivationPath (hdPassphrase rootXPub) accIx addrIx
---   let addr = encodeAddress xpub encodeAddrAttributes
+--   This function will not necessarily return all blocks available after
+--   the given point in time, but will return a reasonably-sized sequence.
 --   
---   -- New / Sequential Addresses
---   let encodeAddrAttributes = mempty &lt;&gt; CBOR.encodeMapLen 0
---   let addr = encodeAddress xpub encodeAddrAttributes
---   </pre>
---   
---   Note that we are passing the behavior to encode attributes as a
---   parameter here and do not handle multiple cases in
---   <a>encodeAddress</a> itself for multiple reasons:
---   
---   <ul>
---   <li>Inversion of control gives us a nicer implementation overall</li>
---   <li>Encoding attributes for Random addresses requires more context
---   than just the public key (like the wallet root id and some extra logic
---   for encoding passphrases). This is just scheme-specific and is better
---   left out of this particular function</li>
---   </ul>
-encodeAddress :: XPub -> [Encoding] -> Encoding
-encodeAttributes :: [Encoding] -> Encoding
-encodeDerivationPathAttr :: Passphrase "addr-derivation-payload" -> Index  'Hardened  'AccountK -> Index  'Hardened  'AddressK -> Encoding
-encodeProtocolMagicAttr :: ProtocolMagic -> Encoding
-encodePublicKeyWitness :: XPub -> Hash "signature" -> Encoding
-encodeSignedTx :: (([TxIn], [TxOut]), [TxWitness]) -> Encoding
-encodeTx :: ([TxIn], [TxOut]) -> Encoding
-encodeTxWitness :: TxWitness -> Encoding
+--   It may return the empty list if the node does not have any blocks
+--   after the specified starting slot.
+[nextBlocks] :: NetworkLayer t m -> BlockHeader -> ExceptT ErrGetBlock m [Block (Tx t)]
 
--- | Shortcut for deserialising a strict <tt>Bytestring</tt> with the given
---   decoder.
-deserialiseCbor :: (forall s. Decoder s a) -> ByteString -> Maybe a
+-- | Get the current network tip from the chain producer
+[networkTip] :: NetworkLayer t m -> ExceptT ErrNetworkTip m BlockHeader
 
--- | Inspect the next token that has to be decoded and print it to the
---   console as a trace. Useful for debugging Decoders. Example:
---   
---   <pre>
---   myDecoder :: CBOR.Decoder s MyType
---   myDecoder = do
---       a &lt;- CBOR.decodeWord64
---       inspectNextToken
---       [...]
---   </pre>
-inspectNextToken :: Decoder s ()
+-- | Broadcast a transaction to the chain producer
+[postTx] :: NetworkLayer t m -> (Tx t, [TxWitness]) -> ExceptT ErrPostTx m ()
 
--- | Decode an list of known length. Very similar to
---   <tt>decodeListIndef</tt>.
---   
---   <pre>
---   myDecoder :: CBOR.Decoder s [MyType]
---   myDecoder = decodeList decodeOne
---     where
---       decodeOne :: CBOR.Decoder s MyType
---   </pre>
-decodeList :: forall s a. Decoder s a -> Decoder s [a]
+-- | Wait until 'networkTip networkLayer' succeeds according to a given
+--   retry policy. Throws an exception otherwise.
+waitForConnection :: NetworkLayer t IO -> RetryPolicyM IO -> IO ()
 
--- | Decode an arbitrary long list. CBOR introduce a "break" character to
---   mark the end of the list, so we simply decode each item until we
---   encounter a break character.
---   
---   <pre>
---   myDecoder :: CBOR.Decoder s [MyType]
---   myDecoder = decodeListIndef decodeOne
---     where
---       decodeOne :: CBOR.Decoder s MyType
---   </pre>
-decodeListIndef :: forall s a. Decoder s a -> Decoder s [a]
+-- | A default <tt>RetryPolicy</tt> with a constant delay, but retries for
+--   no longer than a minute.
+defaultRetryPolicy :: Monad m => RetryPolicyM m
 
+-- | Network is unavailable
+data ErrNetworkUnavailable
 
--- | An implementation of address discovery for the random address scheme
---   as used by the legacy Cardano wallets.
-module Cardano.Wallet.Primitive.AddressDiscovery.Random
+-- | Cannot connect to network backend.
+ErrNetworkUnreachable :: Text -> ErrNetworkUnavailable
 
--- | HD random address discovery state and key material for AD.
-data RndState target
-RndState :: RndKey  'RootK XPrv -> Index  'Hardened  'AccountK -> Map DerivationPath Address -> Map DerivationPath Address -> StdGen -> RndState target
+-- | Network backend reports that the requested network is invalid.
+ErrNetworkInvalid :: Text -> ErrNetworkUnavailable
 
--- | The wallet root key.
-[rndKey] :: RndState target -> RndKey  'RootK XPrv
+-- | Error while trying to get the network tip
+data ErrNetworkTip
+ErrNetworkTipNetworkUnreachable :: ErrNetworkUnavailable -> ErrNetworkTip
+ErrNetworkTipNotFound :: ErrNetworkTip
 
--- | The account index used for address _generation_ in this wallet. Note
---   that addresses will be _discovered_ from any and all account indices,
---   regardless of this value.
-[accountIndex] :: RndState target -> Index  'Hardened  'AccountK
+-- | Error while trying to get one or more blocks
+data ErrGetBlock
+ErrGetBlockNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetBlock
+ErrGetBlockNotFound :: Hash "BlockHeader" -> ErrGetBlock
 
--- | The addresses which have so far been discovered, and their derivation
---   paths.
-[addresses] :: RndState target -> Map DerivationPath Address
-
--- | The addresses which have been generated for use as change addresses,
---   and their derivation paths. Once addresses have been discovered they
---   are removed from this set and added to <a>addresses</a>.
-[pendingAddresses] :: RndState target -> Map DerivationPath Address
-
--- | The state of the RNG.
-[gen] :: RndState target -> StdGen
-
--- | Initialize the HD random address discovery state from a root key and
---   RNG seed.
-mkRndState :: RndKey  'RootK XPrv -> Int -> RndState t
-instance GHC.Generics.Generic (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState target)
-instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState target)
-instance GHC.Show.Show (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState target)
-instance Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
-instance Cardano.Wallet.Primitive.AddressDiscovery.IsOwned (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t) Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey
-instance Cardano.Wallet.Primitive.AddressDerivation.KeyToAddress t Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey => Cardano.Wallet.Primitive.AddressDiscovery.GenChange (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
-instance Cardano.Wallet.Primitive.AddressDiscovery.CompareDiscovery (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
-instance Cardano.Wallet.Primitive.AddressDiscovery.KnownAddresses (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
+-- | Error while trying to send a transaction
+data ErrPostTx
+ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
+ErrPostTxBadRequest :: Text -> ErrPostTx
+ErrPostTxProtocolFailure :: Text -> ErrPostTx
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrPostTx
+instance GHC.Show.Show Cardano.Wallet.Network.ErrPostTx
+instance GHC.Generics.Generic Cardano.Wallet.Network.ErrPostTx
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrGetBlock
+instance GHC.Show.Show Cardano.Wallet.Network.ErrGetBlock
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkTip
+instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkTip
+instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkTip
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkUnavailable
+instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkUnavailable
+instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkUnavailable
+instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrPostTx
+instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkTip
 
 
 -- | Here we find the "business logic" to manage a Cardano wallet. This is
@@ -1904,16 +1830,19 @@ instance Cardano.Wallet.Primitive.AddressDiscovery.KnownAddresses (Cardano.Walle
 --   sort of side-effects in here :)
 module Cardano.Wallet.Primitive.Model
 
--- | An opaque wallet type, see <a>initWallet</a> and <a>applyBlocks</a> to
+-- | An opaque wallet type, see <a>initWallet</a>, <a>updateState</a>,
+--   <a>newPending</a>, <a>applyBlock</a>, and <a>applyBlocks</a> to
 --   construct and update wallets.
 --   
 --   Internally, this keeps track or a few things including:
 --   
 --   <ul>
 --   <li>UTxOs</li>
---   <li>Pending transaction</li>
+--   <li>Pending transactions</li>
 --   <li>Transaction history</li>
---   <li>TODO: Known &amp; used addresses</li>
+--   <li>Known &amp; used addresses, via address discovery state</li>
+--   <li>Block height of last applied block</li>
+--   <li>Blockchain parameters</li>
 --   </ul>
 --   
 --   The <a>Wallet</a> is paremeterized over two types:
@@ -1970,9 +1899,9 @@ initWallet :: forall s t. (IsOurs s, NFData s, Show s, DefineTx t) => Block (Tx 
 -- | Update the state of an existing Wallet model
 updateState :: (IsOurs s, NFData s, Show s) => s -> Wallet s t -> Wallet s t
 
--- | Apply Block is the only way to make the wallet evolve. It returns a
---   new updated wallet state, as well as the set of all our transaction
---   discovered while applying the block.
+-- | Apply Block is the primary way of making the wallet evolve. It returns
+--   the updated wallet state, as well as a set of all transactions
+--   belonging to the wallet discovered while applying the block.
 applyBlock :: forall s t. DefineTx t => Block (Tx t) -> Wallet s t -> (Map (Hash "Tx") (Tx t, TxMeta), Wallet s t)
 
 -- | Apply multiple blocks in sequence to an existing wallet, returning a
@@ -2013,7 +1942,7 @@ newPending :: (Tx t, TxMeta) -> Wallet s t -> Wallet s t
 --   invariants to be broken. Therefore it should only be used in the
 --   special case of loading wallet checkpoints from the database (where it
 --   is assumed a valid wallet was stored into the database).
-unsafeInitWallet :: (IsOurs s, NFData s, Show s, DefineTx t) => UTxO -> Set (Tx t, TxMeta) -> BlockHeader -> s -> Quantity "block" Natural -> BlockchainParameters -> Wallet s t
+unsafeInitWallet :: (IsOurs s, NFData s, Show s, DefineTx t) => UTxO -> Set (Tx t, TxMeta) -> BlockHeader -> s -> BlockchainParameters -> Wallet s t
 
 -- | Get the wallet current tip
 currentTip :: Wallet s t -> BlockHeader
@@ -2038,12 +1967,6 @@ utxo :: Wallet s t -> UTxO
 
 -- | Get the set of pending transactions
 getPending :: Wallet s t -> Set (Tx t, TxMeta)
-
--- | Get the block height of the chain.
---   
---   A new wallet from <a>initWallet</a> (which already has the genesis
---   block applied) has a block height of 0.
-blockHeight :: Wallet s t -> Quantity "block" Natural
 
 -- | Get the current chain parameters.
 --   
@@ -2338,76 +2261,6 @@ instance GHC.Generics.Generic Cardano.Wallet.Primitive.Fee.FeeOptions
 instance GHC.Show.Show Cardano.Wallet.Primitive.Fee.Fee
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Fee.Fee
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Fee.Fee
-
-module Cardano.Wallet.Network
-data NetworkLayer t m
-NetworkLayer :: (BlockHeader -> ExceptT ErrGetBlock m [Block (Tx t)]) -> ExceptT ErrNetworkTip m (BlockHeader, Quantity "block" Natural) -> ((Tx t, [TxWitness]) -> ExceptT ErrPostTx m ()) -> NetworkLayer t m
-
--- | Fetches a contiguous sequence of blocks from the node, starting from
---   the first block available with a slot greater than the given block
---   header.
---   
---   Blocks are returned in ascending slot order, without skipping blocks.
---   
---   This function will not necessarily return all blocks available after
---   the given point in time, but will return a reasonably-sized sequence.
---   
---   It may return the empty list if the node does not have any blocks
---   after the specified starting slot.
-[nextBlocks] :: NetworkLayer t m -> BlockHeader -> ExceptT ErrGetBlock m [Block (Tx t)]
-
--- | Get the current network tip from the chain producer and the current
---   chain's height.
-[networkTip] :: NetworkLayer t m -> ExceptT ErrNetworkTip m (BlockHeader, Quantity "block" Natural)
-
--- | Broadcast a transaction to the chain producer
-[postTx] :: NetworkLayer t m -> (Tx t, [TxWitness]) -> ExceptT ErrPostTx m ()
-
--- | Wait until 'networkTip networkLayer' succeeds according to a given
---   retry policy. Throws an exception otherwise.
-waitForConnection :: NetworkLayer t IO -> RetryPolicyM IO -> IO ()
-
--- | A default <tt>RetryPolicy</tt> with a constant delay, but retries for
---   no longer than a minute.
-defaultRetryPolicy :: Monad m => RetryPolicyM m
-
--- | Network is unavailable
-data ErrNetworkUnavailable
-
--- | Cannot connect to network backend.
-ErrNetworkUnreachable :: Text -> ErrNetworkUnavailable
-
--- | Network backend reports that the requested network is invalid.
-ErrNetworkInvalid :: Text -> ErrNetworkUnavailable
-
--- | Error while trying to get the network tip
-data ErrNetworkTip
-ErrNetworkTipNetworkUnreachable :: ErrNetworkUnavailable -> ErrNetworkTip
-ErrNetworkTipNotFound :: ErrNetworkTip
-
--- | Error while trying to get one or more blocks
-data ErrGetBlock
-ErrGetBlockNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetBlock
-ErrGetBlockNotFound :: Hash "BlockHeader" -> ErrGetBlock
-
--- | Error while trying to send a transaction
-data ErrPostTx
-ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
-ErrPostTxBadRequest :: Text -> ErrPostTx
-ErrPostTxProtocolFailure :: Text -> ErrPostTx
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrPostTx
-instance GHC.Show.Show Cardano.Wallet.Network.ErrPostTx
-instance GHC.Generics.Generic Cardano.Wallet.Network.ErrPostTx
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrGetBlock
-instance GHC.Show.Show Cardano.Wallet.Network.ErrGetBlock
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkTip
-instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkTip
-instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkTip
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkUnavailable
-instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkUnavailable
-instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkUnavailable
-instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrPostTx
-instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkTip
 
 
 -- | This module contains instances and types necessary for storing wallets
@@ -2899,72 +2752,6 @@ instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.DB.Sqlite.TH.
 instance (Database.Persist.Class.PersistQuery backend, Database.Persist.Class.PersistEntity.PersistEntityBackend Cardano.Wallet.DB.Sqlite.TH.Wallet Data.Type.Equality.~ Database.Persist.Class.PersistStore.BaseBackend backend) => Database.Persist.Class.DeleteCascade.DeleteCascade Cardano.Wallet.DB.Sqlite.TH.Wallet backend
 
 
--- | An implementation of the DBLayer which uses Persistent and SQLite.
-module Cardano.Wallet.DB.Sqlite
-
--- | Context for the SQLite <a>DBLayer</a>.
-data SqliteContext
-
--- | Sets up a connection to the SQLite database.
---   
---   Database migrations are run to create tables if necessary.
---   
---   If the given file path does not exist, it will be created by the
---   sqlite library.
---   
---   <tt>getDBLayer</tt> will provide the actual <a>DBLayer</a>
---   implementation. The database should be closed with
---   <a>destroyDBLayer</a>. If you use <a>withDBLayer</a> then both of
---   these things will be handled for you.
-newDBLayer :: forall s t k. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> IO (SqliteContext, DBLayer IO s t k)
-
--- | Finalize database statements and close the database connection.
-destroyDBLayer :: SqliteContext -> IO ()
-
--- | Runs an action with a connection to the SQLite database.
---   
---   Database migrations are run to create tables if necessary.
---   
---   If the given file path does not exist, it will be created by the
---   sqlite library.
-withDBLayer :: forall s t k a. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> (DBLayer IO s t k -> IO a) -> IO a
-
--- | Run a raw query from the outside using an instantiate DB layer. This
---   is completely unsafe because it breaks the abstraction boundary and
---   can have disastrous results on the database consistency.
-unsafeRunQuery :: SqliteContext -> SqlPersistT IO a -> IO a
-
--- | Functions for saving/loading the wallet's address discovery state into
---   SQLite.
-class PersistState s
-
--- | Store the state for a checkpoint.
-insertState :: PersistState s => (WalletId, SlotId) -> s -> SqlPersistT IO ()
-
--- | Load the state for a checkpoint.
-selectState :: PersistState s => (WalletId, SlotId) -> SqlPersistT IO (Maybe s)
-
--- | Remove the state for one or all checkpoints of a wallet.
-deleteState :: PersistState s => WalletId -> Maybe SlotId -> SqlPersistT IO ()
-class DefineTx t => PersistTx t
-resolvedInputs :: PersistTx t => Tx t -> [(TxIn, Maybe Coin)]
-
--- | Extract transaction resolved inputs. This slightly breaks the
---   abstraction boundary of <a>DefineTx</a> which doesn't really force any
---   structure on the resolved inputs. However, here in the DB-Layer,
---   supporting arbitrary shape for the inputs be much more complex and
---   require quite a lot of work. So, we kinda force the format here and
---   only here, and leave the rest of the code with an opaque
---   <tt>ResolvedTxIn</tt> type.
-mkTx :: PersistTx t => Hash "Tx" -> [(TxIn, Maybe Coin)] -> [TxOut] -> Tx t
-instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.DB.Sqlite.DBLog
-instance GHC.Classes.Eq Cardano.Wallet.DB.Sqlite.DBLog
-instance GHC.Show.Show Cardano.Wallet.DB.Sqlite.DBLog
-instance GHC.Generics.Generic Cardano.Wallet.DB.Sqlite.DBLog
-instance Cardano.Wallet.Primitive.AddressDerivation.KeyToAddress t Cardano.Wallet.Primitive.AddressDerivation.Sequential.SeqKey => Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState t)
-instance Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
-
-
 -- | Provides wallet layer functions that are used by API layer. Uses both
 --   <a>Cardano.Wallet.DB</a> and <a>Cardano.Wallet.Network</a> to realize
 --   its role as being intermediary between the three.
@@ -3255,6 +3042,216 @@ instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrEstimateTxFee e)
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrCreateUnsignedTx e)
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrCreateUnsignedTx e)
 instance GHC.Generics.Generic (Cardano.Wallet.WalletLayer s t k)
+
+
+-- | These are (partial) CBOR decoders for Byron binary types. Note that we
+--   ignore most of the block's and header's content and only retrieve the
+--   pieces of information relevant to us, wallet (we do assume a trusted
+--   node and therefore, we needn't to care about verifying signatures and
+--   blocks themselves).
+--   
+--   The format described in the decoders below are the one used in the
+--   Byron era of Cardano and will endure in the first stages of Shelley.
+--   They are also used by components like the Rust
+--   <a>cardano-http-bridge</a>.
+module Cardano.Byron.Codec.Cbor
+decodeBlock :: Decoder s (Block ([TxIn], [TxOut]))
+decodeAddressDerivationPath :: Passphrase "addr-derivation-payload" -> Decoder s (Maybe (Index  'Hardened  'AccountK, Index  'Hardened  'AddressK))
+decodeAddressPayload :: Decoder s ByteString
+
+-- | The attributes are pairs of numeric tags and bytes, where the bytes
+--   will be CBOR-encoded stuff. This decoder does not enforce "canonicity"
+--   of entries.
+decodeAllAttributes :: Decoder s [(Word8, ByteString)]
+decodeBlockHeader :: Decoder s BlockHeader
+decodeDerivationPathAttr :: Passphrase "addr-derivation-payload" -> [(Word8, ByteString)] -> Decoder s (Maybe (Index  'Hardened  'AccountK, Index  'Hardened  'AddressK))
+decodeSignedTx :: Decoder s (([TxIn], [TxOut]), [TxWitness])
+decodeTx :: Decoder s ([TxIn], [TxOut])
+decodeTxWitness :: Decoder s TxWitness
+
+-- | Encode a public key to a corresponding Cardano Address. The encoding
+--   of the attributes part of an address is left out to the caller; This
+--   allows for distinguishing between Sequential and Random addresses (the
+--   former doesn't have any attributes to encode).
+--   
+--   <pre>
+--   -- Old / Random Addresses
+--   let encodeAddrAttributes = mempty
+--        &lt;&gt; CBOR.encodeMapLen 1
+--        &lt;&gt; CBOR.encodeWord8 1
+--        &lt;&gt; encodeDerivationPath (hdPassphrase rootXPub) accIx addrIx
+--   let addr = encodeAddress xpub encodeAddrAttributes
+--   
+--   -- New / Sequential Addresses
+--   let encodeAddrAttributes = mempty &lt;&gt; CBOR.encodeMapLen 0
+--   let addr = encodeAddress xpub encodeAddrAttributes
+--   </pre>
+--   
+--   Note that we are passing the behavior to encode attributes as a
+--   parameter here and do not handle multiple cases in
+--   <a>encodeAddress</a> itself for multiple reasons:
+--   
+--   <ul>
+--   <li>Inversion of control gives us a nicer implementation overall</li>
+--   <li>Encoding attributes for Random addresses requires more context
+--   than just the public key (like the wallet root id and some extra logic
+--   for encoding passphrases). This is just scheme-specific and is better
+--   left out of this particular function</li>
+--   </ul>
+encodeAddress :: XPub -> [Encoding] -> Encoding
+encodeAttributes :: [Encoding] -> Encoding
+encodeDerivationPathAttr :: Passphrase "addr-derivation-payload" -> Index  'Hardened  'AccountK -> Index  'Hardened  'AddressK -> Encoding
+encodeProtocolMagicAttr :: ProtocolMagic -> Encoding
+encodePublicKeyWitness :: XPub -> Hash "signature" -> Encoding
+encodeSignedTx :: (([TxIn], [TxOut]), [TxWitness]) -> Encoding
+encodeTx :: ([TxIn], [TxOut]) -> Encoding
+encodeTxWitness :: TxWitness -> Encoding
+
+-- | Shortcut for deserialising a strict <tt>Bytestring</tt> with the given
+--   decoder.
+deserialiseCbor :: (forall s. Decoder s a) -> ByteString -> Maybe a
+
+-- | Inspect the next token that has to be decoded and print it to the
+--   console as a trace. Useful for debugging Decoders. Example:
+--   
+--   <pre>
+--   myDecoder :: CBOR.Decoder s MyType
+--   myDecoder = do
+--       a &lt;- CBOR.decodeWord64
+--       inspectNextToken
+--       [...]
+--   </pre>
+inspectNextToken :: Decoder s ()
+
+-- | Decode an list of known length. Very similar to
+--   <tt>decodeListIndef</tt>.
+--   
+--   <pre>
+--   myDecoder :: CBOR.Decoder s [MyType]
+--   myDecoder = decodeList decodeOne
+--     where
+--       decodeOne :: CBOR.Decoder s MyType
+--   </pre>
+decodeList :: forall s a. Decoder s a -> Decoder s [a]
+
+-- | Decode an arbitrary long list. CBOR introduce a "break" character to
+--   mark the end of the list, so we simply decode each item until we
+--   encounter a break character.
+--   
+--   <pre>
+--   myDecoder :: CBOR.Decoder s [MyType]
+--   myDecoder = decodeListIndef decodeOne
+--     where
+--       decodeOne :: CBOR.Decoder s MyType
+--   </pre>
+decodeListIndef :: forall s a. Decoder s a -> Decoder s [a]
+
+
+-- | An implementation of address discovery for the random address scheme
+--   as used by the legacy Cardano wallets.
+module Cardano.Wallet.Primitive.AddressDiscovery.Random
+
+-- | HD random address discovery state and key material for AD.
+data RndState target
+RndState :: RndKey  'RootK XPrv -> Index  'Hardened  'AccountK -> Map DerivationPath Address -> Map DerivationPath Address -> StdGen -> RndState target
+
+-- | The wallet root key.
+[rndKey] :: RndState target -> RndKey  'RootK XPrv
+
+-- | The account index used for address _generation_ in this wallet. Note
+--   that addresses will be _discovered_ from any and all account indices,
+--   regardless of this value.
+[accountIndex] :: RndState target -> Index  'Hardened  'AccountK
+
+-- | The addresses which have so far been discovered, and their derivation
+--   paths.
+[addresses] :: RndState target -> Map DerivationPath Address
+
+-- | The addresses which have been generated for use as change addresses,
+--   and their derivation paths. Once addresses have been discovered they
+--   are removed from this set and added to <a>addresses</a>.
+[pendingAddresses] :: RndState target -> Map DerivationPath Address
+
+-- | The state of the RNG.
+[gen] :: RndState target -> StdGen
+
+-- | Initialize the HD random address discovery state from a root key and
+--   RNG seed.
+mkRndState :: RndKey  'RootK XPrv -> Int -> RndState t
+instance GHC.Generics.Generic (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState target)
+instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState target)
+instance GHC.Show.Show (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState target)
+instance Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
+instance Cardano.Wallet.Primitive.AddressDiscovery.IsOwned (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t) Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey
+instance Cardano.Wallet.Primitive.AddressDerivation.KeyToAddress t Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey => Cardano.Wallet.Primitive.AddressDiscovery.GenChange (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
+instance Cardano.Wallet.Primitive.AddressDiscovery.CompareDiscovery (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
+instance Cardano.Wallet.Primitive.AddressDiscovery.KnownAddresses (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
+
+
+-- | An implementation of the DBLayer which uses Persistent and SQLite.
+module Cardano.Wallet.DB.Sqlite
+
+-- | Context for the SQLite <a>DBLayer</a>.
+data SqliteContext
+
+-- | Sets up a connection to the SQLite database.
+--   
+--   Database migrations are run to create tables if necessary.
+--   
+--   If the given file path does not exist, it will be created by the
+--   sqlite library.
+--   
+--   <tt>getDBLayer</tt> will provide the actual <a>DBLayer</a>
+--   implementation. The database should be closed with
+--   <a>destroyDBLayer</a>. If you use <a>withDBLayer</a> then both of
+--   these things will be handled for you.
+newDBLayer :: forall s t k. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> IO (SqliteContext, DBLayer IO s t k)
+
+-- | Finalize database statements and close the database connection.
+destroyDBLayer :: SqliteContext -> IO ()
+
+-- | Runs an action with a connection to the SQLite database.
+--   
+--   Database migrations are run to create tables if necessary.
+--   
+--   If the given file path does not exist, it will be created by the
+--   sqlite library.
+withDBLayer :: forall s t k a. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> (DBLayer IO s t k -> IO a) -> IO a
+
+-- | Run a raw query from the outside using an instantiate DB layer. This
+--   is completely unsafe because it breaks the abstraction boundary and
+--   can have disastrous results on the database consistency.
+unsafeRunQuery :: SqliteContext -> SqlPersistT IO a -> IO a
+
+-- | Functions for saving/loading the wallet's address discovery state into
+--   SQLite.
+class PersistState s
+
+-- | Store the state for a checkpoint.
+insertState :: PersistState s => (WalletId, SlotId) -> s -> SqlPersistT IO ()
+
+-- | Load the state for a checkpoint.
+selectState :: PersistState s => (WalletId, SlotId) -> SqlPersistT IO (Maybe s)
+
+-- | Remove the state for one or all checkpoints of a wallet.
+deleteState :: PersistState s => WalletId -> Maybe SlotId -> SqlPersistT IO ()
+class DefineTx t => PersistTx t
+resolvedInputs :: PersistTx t => Tx t -> [(TxIn, Maybe Coin)]
+
+-- | Extract transaction resolved inputs. This slightly breaks the
+--   abstraction boundary of <a>DefineTx</a> which doesn't really force any
+--   structure on the resolved inputs. However, here in the DB-Layer,
+--   supporting arbitrary shape for the inputs be much more complex and
+--   require quite a lot of work. So, we kinda force the format here and
+--   only here, and leave the rest of the code with an opaque
+--   <tt>ResolvedTxIn</tt> type.
+mkTx :: PersistTx t => Hash "Tx" -> [(TxIn, Maybe Coin)] -> [TxOut] -> Tx t
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.DB.Sqlite.DBLog
+instance GHC.Classes.Eq Cardano.Wallet.DB.Sqlite.DBLog
+instance GHC.Show.Show Cardano.Wallet.DB.Sqlite.DBLog
+instance GHC.Generics.Generic Cardano.Wallet.DB.Sqlite.DBLog
+instance Cardano.Wallet.Primitive.AddressDerivation.KeyToAddress t Cardano.Wallet.Primitive.AddressDerivation.Sequential.SeqKey => Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState t)
+instance Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
 
 
 -- | Utility functions for converting time values to and from text.
