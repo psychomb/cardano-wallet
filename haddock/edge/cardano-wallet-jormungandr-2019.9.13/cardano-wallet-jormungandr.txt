@@ -298,7 +298,7 @@ data Scheme
 Http :: Scheme
 Https :: Scheme
 
--- | Generate a configuration file for Jörmungandr@0.3.1
+-- | Generate a configuration file for Jörmungandr@0.3.999
 genConfigFile :: FilePath -> Int -> BaseUrl -> Value
 instance Cardano.Wallet.Primitive.Types.DefineTx (Cardano.Wallet.Jormungandr.Compatibility.Jormungandr network)
 instance Cardano.Wallet.DB.Sqlite.PersistTx (Cardano.Wallet.Jormungandr.Compatibility.Jormungandr network)
