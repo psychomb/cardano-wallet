@@ -2430,10 +2430,9 @@ Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !Word64 -> !UTCTime -> !FeePol
 [checkpointEpochStability] :: Checkpoint -> !Word32
 type CheckpointId = Key Checkpoint
 data UTxO
-UTxO :: !WalletId -> !SlotId -> !Maybe SlotId -> !TxId -> !Word32 -> !Address -> !Coin -> UTxO
+UTxO :: !WalletId -> !SlotId -> !TxId -> !Word32 -> !Address -> !Coin -> UTxO
 [utxoWalletId] :: UTxO -> !WalletId
 [utxoSlot] :: UTxO -> !SlotId
-[utxoSlotSpent] :: UTxO -> !Maybe SlotId
 [utxoInputId] :: UTxO -> !TxId
 [utxoInputIndex] :: UTxO -> !Word32
 [utxoOutputAddress] :: UTxO -> !Address
@@ -2495,7 +2494,7 @@ fk_checkpoint_rnd_state :: RndStateCheckpoint -> Key Checkpoint
 fk_wallet_rnd_state :: RndState -> Key Wallet
 fk_checkpoint_seq_state :: SeqStateCheckpoint -> Key Checkpoint
 fk_wallet_seq_state :: SeqState -> Key Wallet
-fk_wallet_utxo :: UTxO -> Key Wallet
+fk_checkpoint_utxo :: UTxO -> Key Checkpoint
 fk_wallet_checkpoint :: Checkpoint -> Key Wallet
 fk_wallet_tx_meta :: TxMeta -> Key Wallet
 fk_wallet_private_key :: PrivateKey -> Key Wallet
