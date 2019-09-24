@@ -2003,19 +2003,19 @@ data Database wid s t xprv
 Database :: !Map wid (WalletDatabase s t xprv) -> Map (Hash "Tx") (Tx t) -> Database wid s t xprv
 
 -- | Wallet-related information.
-[wallets] :: Database wid s t xprv -> !Map wid (WalletDatabase s t xprv)
+[$sel:wallets:Database] :: Database wid s t xprv -> !Map wid (WalletDatabase s t xprv)
 
 -- | In the database, transactions are global and not associated with any
 --   particular wallet.
-[txs] :: Database wid s t xprv -> Map (Hash "Tx") (Tx t)
+[$sel:txs:Database] :: Database wid s t xprv -> Map (Hash "Tx") (Tx t)
 
 -- | Model database record for a single wallet.
 data WalletDatabase s t xprv
 WalletDatabase :: ![Wallet s t] -> !WalletMetadata -> !Map (Hash "Tx") TxMeta -> !Maybe xprv -> WalletDatabase s t xprv
-[checkpoints] :: WalletDatabase s t xprv -> ![Wallet s t]
-[metadata] :: WalletDatabase s t xprv -> !WalletMetadata
-[txHistory] :: WalletDatabase s t xprv -> !Map (Hash "Tx") TxMeta
-[xprv] :: WalletDatabase s t xprv -> !Maybe xprv
+[$sel:checkpoints:WalletDatabase] :: WalletDatabase s t xprv -> ![Wallet s t]
+[$sel:metadata:WalletDatabase] :: WalletDatabase s t xprv -> !WalletMetadata
+[$sel:txHistory:WalletDatabase] :: WalletDatabase s t xprv -> !Map (Hash "Tx") TxMeta
+[$sel:xprv:WalletDatabase] :: WalletDatabase s t xprv -> !Maybe xprv
 
 -- | Produces an empty model database.
 emptyDatabase :: Ord wid => Database wid s t xprv
@@ -2046,6 +2046,7 @@ mRemoveWallet :: Ord wid => wid -> ModelOp wid s t xprv ()
 mListWallets :: Ord wid => ModelOp wid s t xprv [wid]
 mPutCheckpoint :: Ord wid => wid -> Wallet s t -> ModelOp wid s t xprv ()
 mReadCheckpoint :: Ord wid => wid -> ModelOp wid s t xprv (Maybe (Wallet s t))
+mRollbackTo :: Ord wid => wid -> SlotId -> ModelOp wid s t xprv ()
 mPutWalletMeta :: Ord wid => wid -> WalletMetadata -> ModelOp wid s t xprv ()
 mReadWalletMeta :: Ord wid => wid -> ModelOp wid s t xprv (Maybe WalletMetadata)
 mPutTxHistory :: Ord wid => wid -> TxHistoryMap t -> ModelOp wid s t xprv ()
@@ -2075,7 +2076,7 @@ module Cardano.Wallet.DB
 --   serialize and unserialize it (e.g. <tt>forall s. (Serialize s) =&gt;
 --   ...</tt>)
 data DBLayer m s t k
-DBLayer :: (PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> ExceptT ErrWalletAlreadyExists m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> m [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s t -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (Wallet s t))) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe WalletMetadata)) -> (DefineTx t => PrimaryKey WalletId -> Map (Hash "Tx") (Tx t, TxMeta) -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> m [(Hash "Tx", (Tx t, TxMeta))]) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (forall e a. () => ExceptT e m a -> ExceptT e m a) -> DBLayer m s t k
+DBLayer :: (PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> ExceptT ErrWalletAlreadyExists m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> m [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s t -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (Wallet s t))) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe WalletMetadata)) -> (DefineTx t => PrimaryKey WalletId -> Map (Hash "Tx") (Tx t, TxMeta) -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> m [(Hash "Tx", (Tx t, TxMeta))]) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()) -> (forall e a. () => ExceptT e m a -> ExceptT e m a) -> DBLayer m s t k
 
 -- | Initialize a database entry for a given wallet. <a>putCheckpoint</a>,
 --   <a>putWalletMeta</a> or <a>putTxHistory</a> will actually all fail if
@@ -2134,6 +2135,9 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> ExceptT ErrWa
 -- | Read a previously stored private key and its associated passphrase
 --   hash.
 [readPrivateKey] :: DBLayer m s t k -> PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))
+
+-- | Drops all checkpoints and transaction data after the given slot.
+[rollbackTo] :: DBLayer m s t k -> PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()
 [withLock] :: DBLayer m s t k -> forall e a. () => ExceptT e m a -> ExceptT e m a
 
 -- | A primary key which can take many forms depending on the value. This
@@ -3190,8 +3194,11 @@ insertState :: PersistState s => (WalletId, SlotId) -> s -> SqlPersistT IO ()
 -- | Load the state for a checkpoint.
 selectState :: PersistState s => (WalletId, SlotId) -> SqlPersistT IO (Maybe s)
 
--- | Remove the state for one or all checkpoints of a wallet.
-deleteState :: PersistState s => WalletId -> Maybe SlotId -> SqlPersistT IO ()
+-- | Drop the state and everything related to it
+deleteState :: PersistState s => WalletId -> SqlPersistT IO ()
+
+-- | Rollback the state to a given slot
+rollbackState :: PersistState s => WalletId -> SlotId -> SqlPersistT IO ()
 class DefineTx t => PersistTx t
 resolvedInputs :: PersistTx t => Tx t -> [(TxIn, Maybe Coin)]
 
