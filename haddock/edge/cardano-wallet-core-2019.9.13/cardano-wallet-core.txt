@@ -593,11 +593,13 @@ WalletBalance :: !Quantity "lovelace" Natural -> !Quantity "lovelace" Natural ->
 [$sel:available:WalletBalance] :: WalletBalance -> !Quantity "lovelace" Natural
 [$sel:total:WalletBalance] :: WalletBalance -> !Quantity "lovelace" Natural
 
--- | Represent stake pool identifier. Note that the internal representation
---   is left open currently, until we figure out a better type for those.
+-- | Represent stake pool identifier. VRF PubKey: 32 bytes (ristretto25519)
+--   which translates to 64 hex character string see
+--   <a>https://github.com/input-output-hk/chain-libs/blob/master/chain-impl-mockchain/doc/format.md</a>
 newtype PoolId
-PoolId :: Text -> PoolId
-[$sel:getPoolId:PoolId] :: PoolId -> Text
+PoolId :: ByteString -> PoolId
+[$sel:getPoolId:PoolId] :: PoolId -> ByteString
+poolIdBytesLength :: Int
 
 -- | Represents a sort order, applicable to the results returned by a
 --   query.
@@ -907,6 +909,8 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.WalletMetadata
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.WalletMetadata
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.PoolId
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.PoolId
+instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.PoolId
+instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.PoolId
 instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.SortOrder
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.SortOrder
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.WalletPassphraseInfo
@@ -2382,6 +2386,10 @@ instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primiti
 instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.AddressDerivation.Sequential.ChangeChain
 instance Database.Persist.Class.PersistField.PersistField System.Random.StdGen
 instance Database.Persist.Sql.Class.PersistFieldSql System.Random.StdGen
+instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.PoolId
+instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Types.PoolId
+instance GHC.Read.Read Cardano.Wallet.Primitive.Types.PoolId
+instance Web.PathPieces.PathPiece Cardano.Wallet.Primitive.Types.PoolId
 
 
 -- | Auto-generated Sqlite &amp; Persistent machinery via Template-Haskell.
@@ -2394,13 +2402,13 @@ instance Database.Persist.Sql.Class.PersistFieldSql System.Random.StdGen
 --   module!
 module Cardano.Wallet.DB.Sqlite.TH
 data Wallet
-Wallet :: !WalletId -> !UTCTime -> !Text -> !Maybe UTCTime -> !WalletState -> !Maybe Text -> Wallet
+Wallet :: !WalletId -> !UTCTime -> !Text -> !Maybe UTCTime -> !WalletState -> !Maybe PoolId -> Wallet
 [walId] :: Wallet -> !WalletId
 [walCreationTime] :: Wallet -> !UTCTime
 [walName] :: Wallet -> !Text
 [walPassphraseLastUpdatedAt] :: Wallet -> !Maybe UTCTime
 [walStatus] :: Wallet -> !WalletState
-[walDelegation] :: Wallet -> !Maybe Text
+[walDelegation] :: Wallet -> !Maybe PoolId
 type WalletId = Key Wallet
 data PrivateKey
 PrivateKey :: !WalletId -> !ByteString -> !ByteString -> PrivateKey
@@ -3282,6 +3290,14 @@ data ApiAddress t
 ApiAddress :: !(ApiT Address, Proxy t) -> !ApiT AddressState -> ApiAddress t
 [$sel:id:ApiAddress] :: ApiAddress t -> !(ApiT Address, Proxy t)
 [$sel:state:ApiAddress] :: ApiAddress t -> !ApiT AddressState
+data ApiStakePool
+ApiStakePool :: !ApiT PoolId -> !StakePoolMetrics -> ApiStakePool
+[$sel:id:ApiStakePool] :: ApiStakePool -> !ApiT PoolId
+[$sel:metrics:ApiStakePool] :: ApiStakePool -> !StakePoolMetrics
+data StakePoolMetrics
+StakePoolMetrics :: !Quantity "lovelace" Natural -> !Quantity "block" Natural -> StakePoolMetrics
+[$sel:controlledStake:StakePoolMetrics] :: StakePoolMetrics -> !Quantity "lovelace" Natural
+[$sel:producedBlocks:StakePoolMetrics] :: StakePoolMetrics -> !Quantity "block" Natural
 data ApiWallet
 ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !ApiT (WalletDelegation (ApiT PoolId)) -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT WalletState -> ApiWallet
 [$sel:id:ApiWallet] :: ApiWallet -> !ApiT WalletId
@@ -3432,6 +3448,9 @@ instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiAddress t)
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiWallet
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiWallet
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiStakePool
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiStakePool
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiStakePool
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiUtxoStatistics
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiUtxoStatistics
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiUtxoStatistics
@@ -3477,6 +3496,9 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiFee
 instance GHC.Show.Show Cardano.Wallet.Api.Types.PostExternalTransactionData
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.PostExternalTransactionData
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.PostExternalTransactionData
+instance GHC.Show.Show Cardano.Wallet.Api.Types.StakePoolMetrics
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.StakePoolMetrics
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.StakePoolMetrics
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.WalletPostData
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.WalletPostData
 instance Cardano.Wallet.Primitive.AddressDerivation.FromMnemonic sizes purpose => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
@@ -3485,6 +3507,8 @@ instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Aeson.Types.From
 instance Cardano.Wallet.Primitive.Types.EncodeAddress t => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiAddress t)
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWallet
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiWallet
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiStakePool
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiStakePool
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiUtxoStatistics
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiUtxoStatistics
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.WalletPutData
@@ -3519,6 +3543,8 @@ instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Carda
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPoolGap)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.WalletBalance)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.WalletBalance)
+instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.PoolId)
+instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.PoolId)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT (Cardano.Wallet.Primitive.Types.WalletDelegation (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.PoolId)))
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT (Cardano.Wallet.Primitive.Types.WalletDelegation (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.PoolId)))
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.WalletName)
@@ -3529,8 +3555,6 @@ instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Carda
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.WalletState)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.BoundType)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.BoundType)
-instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.PoolId)
-instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.PoolId)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.SlotId)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.SlotId)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.TxIn)
@@ -3553,9 +3577,11 @@ instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiFee
 instance Data.Text.Class.FromText Cardano.Wallet.Api.Types.PostExternalTransactionData
 instance Servant.API.ContentTypes.MimeUnrender Servant.API.ContentTypes.OctetStream Cardano.Wallet.Api.Types.PostExternalTransactionData
 instance Servant.API.ContentTypes.MimeRender Servant.API.ContentTypes.OctetStream Cardano.Wallet.Api.Types.PostExternalTransactionData
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.StakePoolMetrics
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.StakePoolMetrics
 
 module Cardano.Wallet.Api
-type Api t = Addresses t :<|> Wallets :<|> Transactions t
+type Api t = Addresses t :<|> Wallets :<|> Transactions t :<|> StakePools
 type Addresses t = ListAddresses t
 
 -- | 
@@ -3607,6 +3633,11 @@ type ListTransactions t = "wallets" :> Capture "walletId" (ApiT WalletId) :> "tr
 -- | 
 --   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/postExternalTransaction</a>
 type PostExternalTransaction = "external-transactions" :> ReqBody '[OctetStream] PostExternalTransactionData :> PostAccepted '[JSON] ApiTxId
+type StakePools = ListStakePools
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/edge/#operation/listStakePools</a>
+type ListStakePools = "stake-pools" :> Get '[JSON] [ApiStakePool]
 
 -- | Any media type
 data Any
