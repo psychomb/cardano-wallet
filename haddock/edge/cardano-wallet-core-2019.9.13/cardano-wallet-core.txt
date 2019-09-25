@@ -1750,8 +1750,8 @@ instance Cardano.Wallet.Primitive.AddressDerivation.WalletKey Cardano.Wallet.Pri
 instance Cardano.Wallet.Primitive.AddressDerivation.PersistKey Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey
 
 module Cardano.Wallet.Network
-data NetworkLayer t m
-NetworkLayer :: (BlockHeader -> ExceptT ErrGetBlock m [Block (Tx t)]) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx t, [TxWitness]) -> ExceptT ErrPostTx m ()) -> NetworkLayer t m
+data NetworkLayer m tx block
+NetworkLayer :: (BlockHeader -> ExceptT ErrGetBlock m [block]) -> ExceptT ErrNetworkTip m BlockHeader -> ((tx, [TxWitness]) -> ExceptT ErrPostTx m ()) -> NetworkLayer m tx block
 
 -- | Fetches a contiguous sequence of blocks from the node, starting from
 --   the first block available with a slot greater than the given block
@@ -1764,17 +1764,17 @@ NetworkLayer :: (BlockHeader -> ExceptT ErrGetBlock m [Block (Tx t)]) -> ExceptT
 --   
 --   It may return the empty list if the node does not have any blocks
 --   after the specified starting slot.
-[nextBlocks] :: NetworkLayer t m -> BlockHeader -> ExceptT ErrGetBlock m [Block (Tx t)]
+[nextBlocks] :: NetworkLayer m tx block -> BlockHeader -> ExceptT ErrGetBlock m [block]
 
 -- | Get the current network tip from the chain producer
-[networkTip] :: NetworkLayer t m -> ExceptT ErrNetworkTip m BlockHeader
+[networkTip] :: NetworkLayer m tx block -> ExceptT ErrNetworkTip m BlockHeader
 
 -- | Broadcast a transaction to the chain producer
-[postTx] :: NetworkLayer t m -> (Tx t, [TxWitness]) -> ExceptT ErrPostTx m ()
+[postTx] :: NetworkLayer m tx block -> (tx, [TxWitness]) -> ExceptT ErrPostTx m ()
 
 -- | Wait until 'networkTip networkLayer' succeeds according to a given
 --   retry policy. Throws an exception otherwise.
-waitForConnection :: NetworkLayer t IO -> RetryPolicyM IO -> IO ()
+waitForConnection :: NetworkLayer IO tx block -> RetryPolicyM IO -> IO ()
 
 -- | A default <tt>RetryPolicy</tt> with a constant delay, but retries for
 --   no longer than a minute.
@@ -1815,6 +1815,7 @@ instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkTip
 instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkUnavailable
 instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkUnavailable
 instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkUnavailable
+instance GHC.Base.Functor m => GHC.Base.Functor (Cardano.Wallet.Network.NetworkLayer m tx)
 instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrPostTx
 instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkTip
 
@@ -2786,10 +2787,13 @@ BlockchainParameters :: StartTime -> FeePolicy -> SlotLength -> EpochLength -> Q
 type family IsWalletCtx s t (k :: Depth -> * -> *) ctx :: Constraint
 
 -- | Create a new instance of the wallet layer.
-newWalletLayer :: Trace IO Text -> (Block (Tx t), BlockchainParameters) -> DBLayer IO s t k -> NetworkLayer t IO -> TransactionLayer t k -> IO (WalletLayer s t k)
+newWalletLayer :: Trace IO Text -> (Block (Tx t), BlockchainParameters) -> DBLayer IO s t k -> NetworkLayer IO (Tx t) (Block (Tx t)) -> TransactionLayer t k -> IO (WalletLayer s t k)
 type HasDBLayer s t k = HasType (DBLayer IO s t k)
 type HasLogger = HasType (Trace IO Text)
-type HasNetworkLayer t = HasType (NetworkLayer t IO)
+
+-- | This module is only interested in one block-, and tx-type. This
+--   constraint hides that choice, for some ease of use.
+type HasNetworkLayer t = HasType (NetworkLayer IO (Tx t) (Block (Tx t)))
 type HasTransactionLayer t k = HasType (TransactionLayer t k)
 type HasWorkerRegistry = HasType WorkerRegistry
 

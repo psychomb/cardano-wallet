@@ -351,16 +351,26 @@ instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Jormungandr.Api.B
 module Cardano.Wallet.Jormungandr.Network
 
 -- | Creates a new <a>NetworkLayer</a> connecting to an underlying
---   <a>Jormungandr</a> backend target.
-newNetworkLayer :: forall n. () => BaseUrl -> IO (NetworkLayer (Jormungandr n) IO)
+--   <tt>Jormungandr</tt> backend target.
+newNetworkLayer :: BaseUrl -> IO (NetworkLayer IO Tx (Block Tx))
 
 -- | Creates a new <a>NetworkLayer</a> connecting to an underlying
---   <a>Jormungandr</a> backend target. Also returns the internal
+--   <tt>Jormungandr</tt> backend target. Also returns the internal
 --   <a>JormungandrLayer</a> component.
-newNetworkLayer' :: forall n. () => BaseUrl -> IO (JormungandrLayer IO, NetworkLayer (Jormungandr n) IO)
+newNetworkLayer' :: BaseUrl -> IO (JormungandrLayer IO, NetworkLayer IO Tx (Block Tx))
 
 -- | Wrap a Jormungandr client into a <a>NetworkLayer</a> common interface.
-mkNetworkLayer :: MonadBaseControl IO m => MVar UnstableBlocks -> JormungandrLayer m -> NetworkLayer (Jormungandr n) m
+mkNetworkLayer :: MonadBaseControl IO m => MVar UnstableBlocks -> JormungandrLayer m -> NetworkLayer m Tx (Block Tx)
+
+-- | Wrap a Jormungandr client into a <a>NetworkLayer</a> common interface.
+--   
+--   This version provides the full, raw blocks from
+--   <a>Cardano.Wallet.Jormungandr.Binary</a>.
+--   
+--   TODO: We may want to aim to replace the other constructors and only
+--   keep this one.
+mkRawNetworkLayer :: MonadBaseControl IO m => MVar UnstableBlocks -> JormungandrLayer m -> NetworkLayer m Tx Block
+emptyUnstableBlocks :: UnstableBlocks
 
 -- | Endpoints of the jormungandr REST API.
 data JormungandrLayer m

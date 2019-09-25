@@ -235,11 +235,11 @@ HttpBridgeLayer :: (Hash "BlockHeader" -> ExceptT ErrNetworkUnavailable m (Block
 [$sel:postSignedTx:HttpBridgeLayer] :: HttpBridgeLayer m -> (Tx, [TxWitness]) -> ExceptT ErrPostTx m ()
 
 -- | Constructs a network layer with the given cardano-http-bridge API.
-mkNetworkLayer :: forall n m. Monad m => HttpBridgeLayer m -> NetworkLayer (HttpBridge n) m
+mkNetworkLayer :: forall m. Monad m => HttpBridgeLayer m -> NetworkLayer m Tx (Block Tx)
 
 -- | Creates a cardano-http-bridge <a>NetworkLayer</a> using the given
 --   connection settings.
-newNetworkLayer :: forall n. KnownNetwork (n :: Network) => Int -> IO (NetworkLayer (HttpBridge n) IO)
+newNetworkLayer :: forall n. KnownNetwork (n :: Network) => Int -> IO (NetworkLayer IO Tx (Block Tx))
 
 -- | Construct a new network layer
 mkHttpBridgeLayer :: Manager -> BaseUrl -> NetworkName -> HttpBridgeLayer IO
