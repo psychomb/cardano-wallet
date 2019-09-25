@@ -1940,6 +1940,12 @@ applyBlock :: forall s t. DefineTx t => Block (Tx t) -> Wallet s t -> (Map (Hash
 applyBlocks :: forall s t. DefineTx t => NonEmpty (Block (Tx t)) -> Wallet s t -> NonEmpty (Map (Hash "Tx") (Tx t, TxMeta), Wallet s t)
 newPending :: (Tx t, TxMeta) -> Wallet s t -> Wallet s t
 
+-- | Remove a particular transaction from the pending set, effectively
+--   unlocking the corresponding UTxOs. Note that this is never called
+--   internally, but can be called to explicitly ask to forget a particular
+--   transaction (after a long-enough period of time for instance).
+forgetPending :: forall s t. DefineTx t => Hash "Tx" -> Wallet s t -> Wallet s t
+
 -- | Constructs a wallet from the exact given state. Using this function
 --   instead of <a>initWallet</a> and <a>applyBlock</a> allows the wallet
 --   invariants to be broken. Therefore it should only be used in the
@@ -2011,8 +2017,8 @@ Database :: !Map wid (WalletDatabase s t xprv) -> Map (Hash "Tx") (Tx t) -> Data
 
 -- | Model database record for a single wallet.
 data WalletDatabase s t xprv
-WalletDatabase :: ![Wallet s t] -> !WalletMetadata -> !Map (Hash "Tx") TxMeta -> !Maybe xprv -> WalletDatabase s t xprv
-[$sel:checkpoints:WalletDatabase] :: WalletDatabase s t xprv -> ![Wallet s t]
+WalletDatabase :: !Map SlotId (Wallet s t) -> !WalletMetadata -> !Map (Hash "Tx") TxMeta -> !Maybe xprv -> WalletDatabase s t xprv
+[$sel:checkpoints:WalletDatabase] :: WalletDatabase s t xprv -> !Map SlotId (Wallet s t)
 [$sel:metadata:WalletDatabase] :: WalletDatabase s t xprv -> !WalletMetadata
 [$sel:txHistory:WalletDatabase] :: WalletDatabase s t xprv -> !Map (Hash "Tx") TxMeta
 [$sel:xprv:WalletDatabase] :: WalletDatabase s t xprv -> !Maybe xprv
@@ -2044,8 +2050,8 @@ mCleanDB :: Ord wid => ModelOp wid s t xprv ()
 mCreateWallet :: Ord wid => wid -> Wallet s t -> WalletMetadata -> ModelOp wid s t xprv ()
 mRemoveWallet :: Ord wid => wid -> ModelOp wid s t xprv ()
 mListWallets :: Ord wid => ModelOp wid s t xprv [wid]
-mPutCheckpoint :: Ord wid => wid -> Wallet s t -> ModelOp wid s t xprv ()
-mReadCheckpoint :: Ord wid => wid -> ModelOp wid s t xprv (Maybe (Wallet s t))
+mPutCheckpoint :: forall wid s t xprv. (Ord wid, DefineTx t) => wid -> Wallet s t -> ModelOp wid s t xprv ()
+mReadCheckpoint :: forall wid s t xprv. (Ord wid, DefineTx t) => wid -> ModelOp wid s t xprv (Maybe (Wallet s t))
 mRollbackTo :: Ord wid => wid -> SlotId -> ModelOp wid s t xprv ()
 mPutWalletMeta :: Ord wid => wid -> WalletMetadata -> ModelOp wid s t xprv ()
 mReadWalletMeta :: Ord wid => wid -> ModelOp wid s t xprv (Maybe WalletMetadata)
@@ -2179,7 +2185,7 @@ module Cardano.Wallet.DB.MVar
 
 -- | Instantiate a new in-memory "database" layer that simply stores data
 --   in a local MVar. Data vanishes if the software is shut down.
-newDBLayer :: forall s t k. NFData (k  'RootK XPrv) => IO (DBLayer IO s t k)
+newDBLayer :: forall s t k. (NFData (k  'RootK XPrv), DefineTx t) => IO (DBLayer IO s t k)
 instance GHC.Show.Show Cardano.Wallet.DB.MVar.MVarDBError
 instance GHC.Exception.Type.Exception Cardano.Wallet.DB.MVar.MVarDBError
 
