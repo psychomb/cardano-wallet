@@ -90,6 +90,8 @@ instance Formatting.Buildable.Buildable Cardano.Wallet.Jormungandr.Primitive.Typ
 module Cardano.Wallet.Jormungandr.Binary
 data Block
 Block :: BlockHeader -> [Message] -> Block
+[header] :: Block -> BlockHeader
+[messages] :: Block -> [Message]
 data BlockHeader
 BlockHeader :: Word16 -> Word32 -> SlotId -> Word32 -> Hash "content" -> Hash "BlockHeader" -> BlockHeader
 [version] :: BlockHeader -> Word16
@@ -188,7 +190,14 @@ getMessage :: Get Message
 getTransaction :: Int -> Get (Tx, [TxWitness])
 putSignedTx :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
 putTx :: [(TxIn, Coin)] -> [TxOut] -> Put
-coerceBlock :: Block -> Block Tx
+
+-- | Convert the Jörmungandr binary format block into a simpler Wallet
+--   block.
+convertBlock :: Block -> Block Tx
+
+-- | Convert the Jörmungandr binary format header into a simpler Wallet
+--   header.
+convertBlockHeader :: BlockHeader -> BlockHeader
 putAddress :: Address -> Put
 getAddress :: Get Address
 singleAddressFromKey :: forall n. KnownNetwork n => Proxy n -> XPub -> Address
