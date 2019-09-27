@@ -28,6 +28,10 @@ Testnet :: Network
 class Typeable n => KnownNetwork (n :: Network)
 networkVal :: KnownNetwork n => Network
 protocolMagic :: KnownNetwork n => ProtocolMagic
+data Local
+Local :: Local
+instance GHC.Classes.Eq Cardano.Wallet.HttpBridge.Environment.Local
+instance GHC.Show.Show Cardano.Wallet.HttpBridge.Environment.Local
 instance GHC.Enum.Enum Cardano.Wallet.HttpBridge.Environment.Network
 instance GHC.Enum.Bounded Cardano.Wallet.HttpBridge.Environment.Network
 instance GHC.Classes.Eq Cardano.Wallet.HttpBridge.Environment.Network
@@ -235,13 +239,42 @@ HttpBridgeLayer :: (Hash "BlockHeader" -> ExceptT ErrNetworkUnavailable m (Block
 [$sel:postSignedTx:HttpBridgeLayer] :: HttpBridgeLayer m -> (Tx, [TxWitness]) -> ExceptT ErrPostTx m ()
 
 -- | Constructs a network layer with the given cardano-http-bridge API.
-mkNetworkLayer :: forall m. Monad m => HttpBridgeLayer m -> NetworkLayer m Tx (Block Tx)
+mkNetworkLayer :: forall n m. (Monad m, KnownNetwork (n :: Network)) => HttpBridgeLayer m -> NetworkLayer m Tx (Block Tx)
 
 -- | Creates a cardano-http-bridge <a>NetworkLayer</a> using the given
 --   connection settings.
-newNetworkLayer :: forall n. KnownNetwork (n :: Network) => Int -> IO (NetworkLayer IO Tx (Block Tx))
+newNetworkLayer :: forall n. KnownNetwork (n :: Network) => PortNumber -> IO (NetworkLayer IO Tx (Block Tx))
 
 -- | Construct a new network layer
 mkHttpBridgeLayer :: Manager -> BaseUrl -> NetworkName -> HttpBridgeLayer IO
+withNetworkLayer :: forall n a. KnownNetwork n => Trace IO Text -> HttpBridgeBackend -> (Either ErrStartup (PortNumber, NetworkLayer IO Tx (Block Tx)) -> IO a) -> IO a
+data HttpBridgeBackend
+UseRunning :: PortNumber -> HttpBridgeBackend
+Launch :: HttpBridgeConfig -> HttpBridgeBackend
+data HttpBridgeConfig
+HttpBridgeConfig :: Either Local Network -> Maybe FilePath -> Maybe PortNumber -> [String] -> StdStream -> HttpBridgeConfig
+[$sel:_networkName:HttpBridgeConfig] :: HttpBridgeConfig -> Either Local Network
+[$sel:_stateDir:HttpBridgeConfig] :: HttpBridgeConfig -> Maybe FilePath
+[$sel:_restApiPort:HttpBridgeConfig] :: HttpBridgeConfig -> Maybe PortNumber
+[$sel:_extraArgs:HttpBridgeConfig] :: HttpBridgeConfig -> [String]
+[$sel:_outputStream:HttpBridgeConfig] :: HttpBridgeConfig -> StdStream
+data ErrStartup
+ErrStartupNodeNotListening :: ErrStartup
+ErrStartupCommandExited :: ProcessHasExited -> ErrStartup
+instance GHC.Classes.Eq Cardano.Wallet.HttpBridge.Network.ErrStartup
+instance GHC.Show.Show Cardano.Wallet.HttpBridge.Network.ErrStartup
 instance GHC.Show.Show Cardano.Wallet.HttpBridge.Network.ErrUnexpectedNetworkFailure
+instance GHC.Classes.Eq Cardano.Wallet.HttpBridge.Network.HttpBridgeBackend
+instance GHC.Show.Show Cardano.Wallet.HttpBridge.Network.HttpBridgeBackend
+instance GHC.Classes.Eq Cardano.Wallet.HttpBridge.Network.HttpBridgeConfig
+instance GHC.Show.Show Cardano.Wallet.HttpBridge.Network.HttpBridgeConfig
+instance GHC.Exception.Type.Exception Cardano.Wallet.HttpBridge.Network.ErrStartup
 instance GHC.Exception.Type.Exception Cardano.Wallet.HttpBridge.Network.ErrUnexpectedNetworkFailure
+
+
+-- | This module provides the main wallet server function for the
+--   <tt>cardano-http-bridge</tt> backend.
+module Cardano.Wallet.HttpBridge
+
+-- | The <tt>cardano-wallet-http-bridge</tt> main function.
+serveWallet :: forall t k n s a. (t ~ HttpBridge n, s ~ SeqState t, k ~ SeqKey) => (KeyToAddress t k, KnownNetwork n) => (Configuration, Switchboard Text, Trace IO Text) -> Maybe FilePath -> Listen -> HttpBridgeBackend -> Maybe (PortNumber -> PortNumber -> NetworkLayer IO Tx (Block Tx) -> SqliteContext -> DBLayer IO s t k -> WalletLayer s t k -> IO a) -> IO ExitCode

@@ -29,12 +29,6 @@ cmdTransaction :: forall t. (DecodeAddress t, EncodeAddress t) => Mod CommandFie
 cmdAddress :: forall t. (DecodeAddress t, EncodeAddress t) => Mod CommandFields (IO ())
 cmdVersion :: Mod CommandFields (IO ())
 
--- | Execute <a>launch</a> commands. This differs from the <tt>serve</tt>
---   command as it takes care of also starting a node backend in two
---   separate processes and monitors both processes: if one terminates,
---   then the other one is cancelled.
-execLaunch :: Verbosity -> FilePath -> (Trace IO Text -> FilePath -> IO ()) -> [Command] -> IO ()
-
 -- | Helper for writing an option <a>Parser</a> using a <a>FromText</a>
 --   instance.
 optionT :: FromText a => Mod OptionFields a -> Parser a
@@ -57,6 +51,11 @@ listenOption :: Parser Listen
 --   <li><i>--node-port=INT</i> , default: 8080</li>
 --   </ul>
 nodePortOption :: Parser (Port "Node")
+
+-- | <ul>
+--   <li><i>--node-port=INT</i> , default: use any available port</li>
+--   </ul>
+nodePortMaybeOption :: Parser (Maybe (Port "Node"))
 
 -- | <ul>
 --   <li>-state-dir=FILEPATH, default:
@@ -148,7 +147,11 @@ getDataDir :: String -> IO FilePath
 
 -- | Wait for a service to become available on a given TCP port. Exit on
 --   failure with a proper error message.
-waitForService :: Service -> (Switchboard Text, Trace IO Text) -> Port "Node" -> IO () -> IO ()
+waitForService :: Service -> (Switchboard Text, Trace IO Text) -> Port "node" -> IO () -> IO ()
+
+-- | Initialize a state directory to store blockchain data such as blocks
+--   or the wallet database.
+setupStateDir :: (Text -> IO ()) -> FilePath -> IO ()
 instance GHC.Show.Show Cardano.CLI.Verbosity
 instance GHC.Classes.Eq Cardano.CLI.Verbosity
 instance Data.String.IsString Cardano.CLI.Service

@@ -62,17 +62,37 @@ NoStream :: StdStream
 -- | ProcessHasExited is used by a monitoring thread to signal that the
 --   process has exited.
 data ProcessHasExited
+ProcessDidNotStart :: String -> IOException -> ProcessHasExited
 ProcessHasExited :: String -> ExitCode -> ProcessHasExited
 
 -- | Run a bunch of command in separate processes. Note that, this
 --   operation is blocking and will throw when one of the given commands
 --   terminates. Commands are therefore expected to be daemon or
 --   long-running services.
-launch :: [Command] -> IO ProcessHasExited
+launch :: Trace IO LauncherLog -> [Command] -> IO ProcessHasExited
+
+-- | Starts a command in the background and then runs an action. If the
+--   action finishes (through an exception or otherwise) then the process
+--   is terminated (see <a>withCreateProcess</a>) for details. If the
+--   process exits, the action is cancelled. The return type reflects those
+--   two cases.
+withBackendProcess :: Trace IO LauncherLog -> Command -> IO a -> IO (Either ProcessHasExited a)
 
 -- | Convert any SIGTERM received to SIGINT, for which the runtime system
 --   has handlers that will correctly clean up sub-processes.
-installSignalHandlers :: IO ()
+installSignalHandlers :: Trace IO Text -> IO ()
+data LauncherLog
+MsgLauncherStart :: Command -> LauncherLog
+MsgLauncherStarted :: String -> Text -> LauncherLog
+MsgLauncherFinish :: ProcessHasExited -> LauncherLog
+MsgLauncherCleanup :: LauncherLog
+transformLauncherTrace :: Trace IO Text -> Trace IO LauncherLog
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Launcher.LauncherLog
+instance GHC.Generics.Generic Cardano.Launcher.LauncherLog
+instance GHC.Classes.Eq Cardano.Launcher.ProcessHasExited
 instance GHC.Show.Show Cardano.Launcher.ProcessHasExited
+instance GHC.Generics.Generic Cardano.Launcher.Command
 instance GHC.Exception.Type.Exception Cardano.Launcher.ProcessHasExited
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Launcher.ProcessHasExited
 instance Formatting.Buildable.Buildable Cardano.Launcher.Command
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Launcher.Command

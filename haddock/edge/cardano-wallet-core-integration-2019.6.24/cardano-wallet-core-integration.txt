@@ -53,19 +53,19 @@ HttpException :: HttpExceptionContent -> RequestException
 
 -- | Running Context for our integration test
 data Context t
-Context :: IO () -> (Text, Manager) -> Port "wallet" -> Port "node" -> Faucet -> (TxDescription -> (Natural, Natural)) -> Proxy t -> Context t
+Context :: IO () -> (Text, Manager) -> Port "node" -> Port "wallet" -> Faucet -> (TxDescription -> (Natural, Natural)) -> Proxy t -> Context t
 
--- | An action to clean up open processes after tests
+-- | Cleanup action for the context
 [_cleanup] :: Context t -> IO ()
 
 -- | The underlying BaseUrl and Manager used by the Wallet Client
 [_manager] :: Context t -> (Text, Manager)
 
+-- | Node TCP port
+[_nodePort] :: Context t -> Port "node"
+
 -- | Server TCP port
 [_walletPort] :: Context t -> Port "wallet"
-
--- | Jormungandr REST API port
-[_nodePort] :: Context t -> Port "node"
 
 -- | A <a>Faucet</a> handle in to have access to funded wallets in
 --   integration tests.
@@ -91,19 +91,19 @@ module Test.Integration.Framework.DSL
 
 -- | Running Context for our integration test
 data Context t
-Context :: IO () -> (Text, Manager) -> Port "wallet" -> Port "node" -> Faucet -> (TxDescription -> (Natural, Natural)) -> Proxy t -> Context t
+Context :: IO () -> (Text, Manager) -> Port "node" -> Port "wallet" -> Faucet -> (TxDescription -> (Natural, Natural)) -> Proxy t -> Context t
 
--- | An action to clean up open processes after tests
+-- | Cleanup action for the context
 [_cleanup] :: Context t -> IO ()
 
 -- | The underlying BaseUrl and Manager used by the Wallet Client
 [_manager] :: Context t -> (Text, Manager)
 
+-- | Node TCP port
+[_nodePort] :: Context t -> Port "node"
+
 -- | Server TCP port
 [_walletPort] :: Context t -> Port "wallet"
-
--- | Jormungandr REST API port
-[_nodePort] :: Context t -> Port "node"
 
 -- | A <a>Faucet</a> handle in to have access to funded wallets in
 --   integration tests.
@@ -296,9 +296,8 @@ updateWalletPassEp :: ApiWallet -> (Method, Text)
 runJcli :: CmdResult r => [String] -> IO r
 command :: CmdResult r => [CmdOption] -> String -> [String] -> IO r
 
--- | Run a command using the 'cardano-wallet' executable. We run it through
---   stack as we intend to also get code-coverage from running these
---   commands!
+-- | Run a command using the 'cardano-wallet' executable for the target
+--   <tt>t</tt>.
 cardanoWalletCLI :: forall t r. (CmdResult r, KnownCommand t) => [String] -> IO r
 generateMnemonicsViaCLI :: forall t r. (CmdResult r, KnownCommand t) => [String] -> IO r
 createWalletViaCLI :: forall t s. (HasType (Port "wallet") s, KnownCommand t) => s -> [String] -> String -> String -> String -> IO (ExitCode, String, Text)
@@ -388,10 +387,7 @@ module Test.Integration.Scenario.CLI.Mnemonics
 spec :: forall t. KnownCommand t => SpecWith ()
 
 module Test.Integration.Scenario.CLI.Port
-specNegative :: forall t. KnownCommand t => SpecWith ()
-specCommon :: forall t s. (HasType (Port "wallet") s, KnownCommand t) => SpecWith s
-specWithDefaultPort :: forall t s. (HasType (Port "wallet") s, KnownCommand t) => SpecWith s
-specWithRandomPort :: forall t s. (HasType (Port "wallet") s, KnownCommand t) => Port "wallet" -> SpecWith s
+spec :: forall t s. (HasType (Port "wallet") s, KnownCommand t) => SpecWith s
 
 module Test.Integration.Scenario.CLI.Transactions
 spec :: forall t. (EncodeAddress t, DecodeAddress t, KnownCommand t) => SpecWith (Context t)

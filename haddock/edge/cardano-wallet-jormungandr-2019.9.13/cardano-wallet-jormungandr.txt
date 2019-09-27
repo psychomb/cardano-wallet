@@ -308,7 +308,11 @@ Http :: Scheme
 Https :: Scheme
 
 -- | Generate a configuration file for Jörmungandr@0.3.999
-genConfigFile :: FilePath -> Int -> BaseUrl -> Value
+genConfigFile :: FilePath -> PortNumber -> BaseUrl -> Value
+localhostBaseUrl :: Int -> BaseUrl
+
+-- | Format an API <a>BaseUrl</a>, for logging, etc.
+baseUrlToText :: BaseUrl -> Text
 instance Cardano.Wallet.Primitive.Types.DefineTx (Cardano.Wallet.Jormungandr.Compatibility.Jormungandr network)
 instance Cardano.Wallet.DB.Sqlite.PersistTx (Cardano.Wallet.Jormungandr.Compatibility.Jormungandr network)
 instance Cardano.Wallet.Jormungandr.Environment.KnownNetwork n => Cardano.Wallet.Primitive.AddressDerivation.KeyToAddress (Cardano.Wallet.Jormungandr.Compatibility.Jormungandr n) Cardano.Wallet.Primitive.AddressDerivation.Sequential.SeqKey
@@ -357,38 +361,84 @@ instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Jormungandr.Api.B
 --   <tt>Jormungandr</tt> node. This is done by providing a
 --   <tt>NetworkLayer</tt> with some logic building on top of an underlying
 --   <tt>JormungandrLayer</tt> HTTP client.
+--   
+--   It also provides facilities for starting the <tt>jormungandr</tt> node
+--   backend process. The Jormungandr <a>NetworkLayer</a> implementation
+--   uses the HTTP REST API of this backend.
 module Cardano.Wallet.Jormungandr.Network
 
--- | Creates a new <a>NetworkLayer</a> connecting to an underlying
---   <tt>Jormungandr</tt> backend target.
-newNetworkLayer :: BaseUrl -> IO (NetworkLayer IO Tx (Block Tx))
+-- | Whether to start Jormungandr with the given config, or to connect to
+--   an already running Jormungandr REST API using the given parameters.
+data JormungandrBackend
+UseRunning :: JormungandrConnParams -> JormungandrBackend
+Launch :: JormungandrConfig -> JormungandrBackend
 
--- | Creates a new <a>NetworkLayer</a> connecting to an underlying
---   <tt>Jormungandr</tt> backend target. Also returns the internal
---   <a>JormungandrLayer</a> component.
-newNetworkLayer' :: BaseUrl -> IO (JormungandrLayer IO, NetworkLayer IO Tx (Block Tx))
+-- | Parameters for connecting to a Jormungandr REST API.
+data JormungandrConnParams
+JormungandrConnParams :: Hash "Genesis" -> BaseUrl -> JormungandrConnParams
+[$sel:_genesisHash:JormungandrConnParams] :: JormungandrConnParams -> Hash "Genesis"
+[$sel:_restApi:JormungandrConnParams] :: JormungandrConnParams -> BaseUrl
 
--- | Wrap a Jormungandr client into a <a>NetworkLayer</a> common interface.
-mkNetworkLayer :: MonadBaseControl IO m => MVar UnstableBlocks -> JormungandrLayer m -> NetworkLayer m Tx (Block Tx)
+-- | Starts the network layer and runs the given action with a
+--   <a>NetworkLayer</a>. The caller is responsible for handling errors
+--   which may have occurred while starting the Node.
+withNetworkLayer :: Trace IO Text -> JormungandrBackend -> (Either ErrStartup (JormungandrConnParams, NetworkLayer IO Tx (Block Tx)) -> IO a) -> IO a
+
+-- | A subset of the Jormungandr configuration parameters, used for
+--   starting the Jormungandr node backend.
+data JormungandrConfig
+JormungandrConfig :: FilePath -> FilePath -> FilePath -> Maybe PortNumber -> Severity -> StdStream -> JormungandrConfig
+[$sel:_stateDir:JormungandrConfig] :: JormungandrConfig -> FilePath
+[$sel:_genesisBlock:JormungandrConfig] :: JormungandrConfig -> FilePath
+[$sel:_secretFile:JormungandrConfig] :: JormungandrConfig -> FilePath
+[$sel:_restApiPort:JormungandrConfig] :: JormungandrConfig -> Maybe PortNumber
+[$sel:_minSeverity:JormungandrConfig] :: JormungandrConfig -> Severity
+[$sel:_outputStream:JormungandrConfig] :: JormungandrConfig -> StdStream
+
+-- | Endpoints of the jormungandr REST API.
+data JormungandrLayer m
+JormungandrLayer :: ExceptT ErrNetworkUnavailable m (Hash "BlockHeader") -> (Hash "BlockHeader" -> ExceptT ErrGetBlock m Block) -> (Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]) -> ((Tx, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (Hash "Genesis" -> ExceptT ErrGetBlockchainParams m (Block, BlockchainParameters)) -> JormungandrLayer m
+[$sel:getTipId:JormungandrLayer] :: JormungandrLayer m -> ExceptT ErrNetworkUnavailable m (Hash "BlockHeader")
+[$sel:getBlock:JormungandrLayer] :: JormungandrLayer m -> Hash "BlockHeader" -> ExceptT ErrGetBlock m Block
+[$sel:getDescendantIds:JormungandrLayer] :: JormungandrLayer m -> Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]
+[$sel:postMessage:JormungandrLayer] :: JormungandrLayer m -> (Tx, [TxWitness]) -> ExceptT ErrPostTx m ()
+[$sel:getInitialBlockchainParameters:JormungandrLayer] :: JormungandrLayer m -> Hash "Genesis" -> ExceptT ErrGetBlockchainParams m (Block, BlockchainParameters)
+
+-- | Launches a Jörmungandr node backend with the given configuration
+withJormungandr :: Trace IO Text -> JormungandrConfig -> (JormungandrConnParams -> IO a) -> IO (Either ErrStartup a)
+
+-- | Extract the port number from the base URL part of the connection
+--   params.
+connParamsPort :: JormungandrConnParams -> Int
+data ErrGetBlockchainParams
+ErrGetBlockchainParamsNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetBlockchainParams
+ErrGetBlockchainParamsGenesisNotFound :: Hash "Genesis" -> ErrGetBlockchainParams
+ErrGetBlockchainParamsIncompleteParams :: [ConfigParam] -> ErrGetBlockchainParams
+data ErrGetDescendants
+ErrGetDescendantsNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetDescendants
+ErrGetDescendantsParentNotFound :: Hash "BlockHeader" -> ErrGetDescendants
+data ErrStartup
+ErrStartupNodeNotListening :: ErrStartup
+ErrStartupGetBlockchainParameters :: ErrGetBlockchainParams -> ErrStartup
+ErrStartupGenesisBlockFailed :: FilePath -> ErrStartup
+ErrStartupCommandExited :: ProcessHasExited -> ErrStartup
+data ErrUnexpectedNetworkFailure
+ErrUnexpectedNetworkFailure :: Link -> ServantError -> ErrUnexpectedNetworkFailure
+data BaseUrl
+BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
+[baseUrlScheme] :: BaseUrl -> Scheme
+[baseUrlHost] :: BaseUrl -> String
+[baseUrlPort] :: BaseUrl -> Int
+[baseUrlPath] :: BaseUrl -> String
+data Scheme
+Http :: Scheme
+Https :: Scheme
 
 -- | Wrap a Jormungandr client into a <a>NetworkLayer</a> common interface.
 --   
 --   This version provides the full, raw blocks from
 --   <a>Cardano.Wallet.Jormungandr.Binary</a>.
---   
---   TODO: We may want to aim to replace the other constructors and only
---   keep this one.
-mkRawNetworkLayer :: MonadBaseControl IO m => MVar UnstableBlocks -> JormungandrLayer m -> NetworkLayer m Tx Block
-emptyUnstableBlocks :: UnstableBlocks
-
--- | Endpoints of the jormungandr REST API.
-data JormungandrLayer m
-JormungandrLayer :: ExceptT ErrNetworkUnavailable m (Hash "BlockHeader") -> (Hash "BlockHeader" -> ExceptT ErrGetBlock m Block) -> (Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]) -> ((Tx, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (Hash "Genesis" -> ExceptT ErrGetBlockchainParams m (Block Tx, BlockchainParameters)) -> JormungandrLayer m
-[$sel:getTipId:JormungandrLayer] :: JormungandrLayer m -> ExceptT ErrNetworkUnavailable m (Hash "BlockHeader")
-[$sel:getBlock:JormungandrLayer] :: JormungandrLayer m -> Hash "BlockHeader" -> ExceptT ErrGetBlock m Block
-[$sel:getDescendantIds:JormungandrLayer] :: JormungandrLayer m -> Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]
-[$sel:postMessage:JormungandrLayer] :: JormungandrLayer m -> (Tx, [TxWitness]) -> ExceptT ErrPostTx m ()
-[$sel:getInitialBlockchainParameters:JormungandrLayer] :: JormungandrLayer m -> Hash "Genesis" -> ExceptT ErrGetBlockchainParams m (Block Tx, BlockchainParameters)
+mkRawNetworkLayer :: MonadBaseControl IO m => (Block, BlockchainParameters) -> MVar UnstableBlocks -> JormungandrLayer m -> NetworkLayer m Tx Block
 
 -- | Construct a <a>JormungandrLayer</a>-client
 --   
@@ -423,29 +473,6 @@ JormungandrLayer :: ExceptT ErrNetworkUnavailable m (Hash "BlockHeader") -> (Has
 --   Right []
 --   </pre>
 mkJormungandrLayer :: Manager -> BaseUrl -> JormungandrLayer IO
-data ErrUnexpectedNetworkFailure
-ErrUnexpectedNetworkFailure :: Link -> ServantError -> ErrUnexpectedNetworkFailure
-data ErrGetDescendants
-ErrGetDescendantsNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetDescendants
-ErrGetDescendantsParentNotFound :: Hash "BlockHeader" -> ErrGetDescendants
-data ErrGetBlockchainParams
-ErrGetBlockchainParamsNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetBlockchainParams
-ErrGetBlockchainParamsGenesisNotFound :: Hash "Genesis" -> ErrGetBlockchainParams
-ErrGetBlockchainParamsIncompleteParams :: [ConfigParam] -> ErrGetBlockchainParams
-data BaseUrl
-BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
-[baseUrlScheme] :: BaseUrl -> Scheme
-[baseUrlHost] :: BaseUrl -> String
-[baseUrlPort] :: BaseUrl -> Int
-[baseUrlPath] :: BaseUrl -> String
-newManager :: ManagerSettings -> IO Manager
-defaultManagerSettings :: ManagerSettings
-data Scheme
-Http :: Scheme
-Https :: Scheme
-
--- | Format an API <a>BaseUrl</a>, for logging, etc.
-baseUrlToText :: BaseUrl -> Text
 
 -- | A list of block headers and their hashes. The last block in this
 --   sequence is the network tip. The first block in this sequence is the
@@ -480,7 +507,7 @@ UnstableBlocks :: !Seq (Hash "BlockHeader", BlockHeader) -> !Quantity "block" Na
 --                        rollback point ⬏     node tip ⬏
 --   </pre>
 --   
---   To start with, the node says the tip hash is <tt>b15</tt>.
+--   To startBackend with, the node says the tip hash is <tt>b15</tt>.
 --   
 --   Work backwards from tip, fetching blocks and adding them to
 --   <tt>ac</tt>, and removing overlapping blocks from <tt>ubs</tt>.
@@ -503,7 +530,8 @@ UnstableBlocks :: !Seq (Hash "BlockHeader", BlockHeader) -> !Quantity "block" Na
 --   </pre>
 --   
 --   Stop once <tt>ubs</tt> and <tt>ac</tt> meet with a block which has the
---   same hash. If they never meet, stop after fetching <i>k</i> blocks.
+--   same hash. If they never meet, stop cleanupConfig fetching <i>k</i>
+--   blocks.
 --   
 --   Finally, to get the new <a>UnstableBlocks</a>, append <tt>ac</tt> to
 --   <tt>ubs</tt>, and limit the length to <i>k</i>.
@@ -515,6 +543,9 @@ UnstableBlocks :: !Seq (Hash "BlockHeader", BlockHeader) -> !Quantity "block" Na
 --   fetching a block which has been rolled back and lost from the node's
 --   state), it will immediately terminate.
 updateUnstableBlocks :: forall m. Monad m => Natural -> m (Hash "BlockHeader") -> (Hash "BlockHeader" -> m (BlockHeader, Quantity "block" Natural)) -> UnstableBlocks -> m UnstableBlocks
+emptyUnstableBlocks :: UnstableBlocks
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.ErrStartup
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.ErrStartup
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.ErrGetBlockchainParams
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.ErrGetBlockchainParams
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.ErrGetDescendants
@@ -523,6 +554,13 @@ instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.ErrUnexpectedNetworkFa
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Network.UnstableBlocks
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.UnstableBlocks
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.UnstableBlocks
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.JormungandrBackend
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.JormungandrBackend
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.JormungandrConfig
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.JormungandrConfig
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.JormungandrConnParams
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.JormungandrConnParams
+instance GHC.Exception.Type.Exception Cardano.Wallet.Jormungandr.Network.ErrStartup
 instance GHC.Exception.Type.Exception Cardano.Wallet.Jormungandr.Network.ErrUnexpectedNetworkFailure
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Network.UnstableBlocks
 
@@ -539,3 +577,22 @@ ErrExceededInpsOrOuts :: ErrExceededInpsOrOuts
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Transaction.ErrExceededInpsOrOuts
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Transaction.ErrExceededInpsOrOuts
 instance Formatting.Buildable.Buildable Cardano.Wallet.Jormungandr.Transaction.ErrExceededInpsOrOuts
+
+
+-- | This module provides the main wallet server function for the
+--   Jörmungandr backend.
+--   
+--   The <a>Cardano.Wallet.Jormungandr.Network</a> module handles
+--   synchronization with the <tt>jormungandr</tt> process.
+--   
+--   The block format decoders are in
+--   <a>Cardano.Wallet.Jormungandr.Network</a>.
+--   
+--   Functionality specific to this backend for creating transactions is in
+--   <a>Cardano.Wallet.Jormungandr.Transaction</a>.
+module Cardano.Wallet.Jormungandr
+
+-- | The <tt>cardano-wallet-jormungandr</tt> main function. It takes the
+--   configuration which was passed from the CLI and environment and starts
+--   all components of the wallet.
+serveWallet :: forall t k n s. (n ~  'Testnet, t ~ Jormungandr n, s ~ SeqState t, k ~ SeqKey) => (Configuration, Switchboard Text, Trace IO Text) -> Maybe FilePath -> Listen -> JormungandrBackend -> (Port "wallet" -> Port "node" -> BlockchainParameters -> IO ()) -> IO ExitCode

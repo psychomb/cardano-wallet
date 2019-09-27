@@ -36,6 +36,45 @@ instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.DaedalusIPC.MsgOut
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.DaedalusIPC.MsgIn
 
 
+-- | Provides functions for checking if TCP ports can be connected to, or
+--   are available to listen on.
+--   
+--   These can be used for: - Waiting until a server in another process has
+--   started. - Start servers for testing when there may be multiple test
+--   suites running in parallel.
+module Cardano.Wallet.Network.Ports
+data PortNumber
+
+-- | Find a TCPv4 port which is likely to be free for listening on
+--   <tt>localhost</tt>. This binds a socket, receives an OS-assigned port,
+--   then closes the socket.
+--   
+--   Note that this is vulnerable to race conditions if another process
+--   binds the port returned by <a>getRandomPort</a> before this process
+--   does.
+--   
+--   Do not use this unless you have no other option.
+getRandomPort :: IO PortNumber
+
+-- | Checks whether <tt>connect()</tt> to a given TCPv4 <a>SockAddr</a>
+--   succeeds or returns <a>eCONNREFUSED</a>.
+--   
+--   Rethrows connection exceptions in all other cases (e.g. when the host
+--   is unroutable).
+--   
+--   Code courtesy of nh2: <a>https://stackoverflow.com/a/57022572</a>
+isPortOpen :: SockAddr -> IO Bool
+
+-- | Creates a <tt>SockAttr</tt> from host IP and port number.
+--   
+--   Example: &gt; simpleSockAddr (127,0,0,1) 8000
+simpleSockAddr :: (Word8, Word8, Word8, Word8) -> PortNumber -> SockAddr
+
+-- | Wait until a TCP port is open to connections according to a given
+--   retry policy. Throws an exception if the time out is reached.
+waitForPort :: RetryPolicyM IO -> PortNumber -> IO Bool
+
+
 -- | This module provides mnemonic (backup phrase) creation, and conversion
 --   of a mnemonic to seed for wallet restoration.
 --   
@@ -1753,76 +1792,6 @@ instance (Control.DeepSeq.NFData key, Control.DeepSeq.NFData (Cardano.Wallet.Pri
 instance Cardano.Wallet.Primitive.AddressDerivation.WalletKey Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey
 instance Cardano.Wallet.Primitive.AddressDerivation.PersistKey Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey
 
-module Cardano.Wallet.Network
-data NetworkLayer m tx block
-NetworkLayer :: (BlockHeader -> ExceptT ErrGetBlock m [block]) -> ExceptT ErrNetworkTip m BlockHeader -> ((tx, [TxWitness]) -> ExceptT ErrPostTx m ()) -> NetworkLayer m tx block
-
--- | Fetches a contiguous sequence of blocks from the node, starting from
---   the first block available with a slot greater than the given block
---   header.
---   
---   Blocks are returned in ascending slot order, without skipping blocks.
---   
---   This function will not necessarily return all blocks available after
---   the given point in time, but will return a reasonably-sized sequence.
---   
---   It may return the empty list if the node does not have any blocks
---   after the specified starting slot.
-[nextBlocks] :: NetworkLayer m tx block -> BlockHeader -> ExceptT ErrGetBlock m [block]
-
--- | Get the current network tip from the chain producer
-[networkTip] :: NetworkLayer m tx block -> ExceptT ErrNetworkTip m BlockHeader
-
--- | Broadcast a transaction to the chain producer
-[postTx] :: NetworkLayer m tx block -> (tx, [TxWitness]) -> ExceptT ErrPostTx m ()
-
--- | Wait until 'networkTip networkLayer' succeeds according to a given
---   retry policy. Throws an exception otherwise.
-waitForConnection :: NetworkLayer IO tx block -> RetryPolicyM IO -> IO ()
-
--- | A default <tt>RetryPolicy</tt> with a constant delay, but retries for
---   no longer than a minute.
-defaultRetryPolicy :: Monad m => RetryPolicyM m
-
--- | Network is unavailable
-data ErrNetworkUnavailable
-
--- | Cannot connect to network backend.
-ErrNetworkUnreachable :: Text -> ErrNetworkUnavailable
-
--- | Network backend reports that the requested network is invalid.
-ErrNetworkInvalid :: Text -> ErrNetworkUnavailable
-
--- | Error while trying to get the network tip
-data ErrNetworkTip
-ErrNetworkTipNetworkUnreachable :: ErrNetworkUnavailable -> ErrNetworkTip
-ErrNetworkTipNotFound :: ErrNetworkTip
-
--- | Error while trying to get one or more blocks
-data ErrGetBlock
-ErrGetBlockNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetBlock
-ErrGetBlockNotFound :: Hash "BlockHeader" -> ErrGetBlock
-
--- | Error while trying to send a transaction
-data ErrPostTx
-ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
-ErrPostTxBadRequest :: Text -> ErrPostTx
-ErrPostTxProtocolFailure :: Text -> ErrPostTx
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrPostTx
-instance GHC.Show.Show Cardano.Wallet.Network.ErrPostTx
-instance GHC.Generics.Generic Cardano.Wallet.Network.ErrPostTx
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrGetBlock
-instance GHC.Show.Show Cardano.Wallet.Network.ErrGetBlock
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkTip
-instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkTip
-instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkTip
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkUnavailable
-instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkUnavailable
-instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkUnavailable
-instance GHC.Base.Functor m => GHC.Base.Functor (Cardano.Wallet.Network.NetworkLayer m tx)
-instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrPostTx
-instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkTip
-
 
 -- | Here we find the "business logic" to manage a Cardano wallet. This is
 --   a direct implementation of the model from the <a>Formal Specification
@@ -1877,7 +1846,10 @@ module Cardano.Wallet.Primitive.Model
 --   </pre>
 data Wallet s t
 data BlockchainParameters
-BlockchainParameters :: StartTime -> FeePolicy -> SlotLength -> EpochLength -> Quantity "byte" Word16 -> Quantity "block" Word32 -> BlockchainParameters
+BlockchainParameters :: Hash "Genesis" -> StartTime -> FeePolicy -> SlotLength -> EpochLength -> Quantity "byte" Word16 -> Quantity "block" Word32 -> BlockchainParameters
+
+-- | Hash of the very first block
+[$sel:getGenesisBlockHash:BlockchainParameters] :: BlockchainParameters -> Hash "Genesis"
 
 -- | Start time of the chain.
 [$sel:getGenesisBlockDate:BlockchainParameters] :: BlockchainParameters -> StartTime
@@ -1984,6 +1956,80 @@ instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.Model.Wallet s t)
 instance Formatting.Buildable.Buildable s => Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.Model.Wallet s t)
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Model.BlockchainParameters
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Model.BlockchainParameters
+
+module Cardano.Wallet.Network
+data NetworkLayer m tx block
+NetworkLayer :: (BlockHeader -> ExceptT ErrGetBlock m [block]) -> ExceptT ErrNetworkTip m BlockHeader -> ((tx, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> NetworkLayer m tx block
+
+-- | Fetches a contiguous sequence of blocks from the node, starting from
+--   the first block available with a slot greater than the given block
+--   header.
+--   
+--   Blocks are returned in ascending slot order, without skipping blocks.
+--   
+--   This function will not necessarily return all blocks available after
+--   the given point in time, but will return a reasonably-sized sequence.
+--   
+--   It may return the empty list if the node does not have any blocks
+--   after the specified starting slot.
+[nextBlocks] :: NetworkLayer m tx block -> BlockHeader -> ExceptT ErrGetBlock m [block]
+
+-- | Get the current network tip from the chain producer
+[networkTip] :: NetworkLayer m tx block -> ExceptT ErrNetworkTip m BlockHeader
+
+-- | Broadcast a transaction to the chain producer
+[postTx] :: NetworkLayer m tx block -> (tx, [TxWitness]) -> ExceptT ErrPostTx m ()
+[staticBlockchainParameters] :: NetworkLayer m tx block -> (block, BlockchainParameters)
+
+-- | Network is unavailable
+data ErrNetworkUnavailable
+
+-- | Cannot connect to network backend.
+ErrNetworkUnreachable :: Text -> ErrNetworkUnavailable
+
+-- | Network backend reports that the requested network is invalid.
+ErrNetworkInvalid :: Text -> ErrNetworkUnavailable
+
+-- | Error while trying to get the network tip
+data ErrNetworkTip
+ErrNetworkTipNetworkUnreachable :: ErrNetworkUnavailable -> ErrNetworkTip
+ErrNetworkTipNotFound :: ErrNetworkTip
+
+-- | Error while trying to get one or more blocks
+data ErrGetBlock
+ErrGetBlockNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetBlock
+ErrGetBlockNotFound :: Hash "BlockHeader" -> ErrGetBlock
+
+-- | Error while trying to send a transaction
+data ErrPostTx
+ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
+ErrPostTxBadRequest :: Text -> ErrPostTx
+ErrPostTxProtocolFailure :: Text -> ErrPostTx
+
+-- | Exception predicate for <a>ErrNetworkUnreachable</a>.
+isNetworkUnreachable :: ErrNetworkUnavailable -> Bool
+
+-- | A default <tt>RetryPolicy</tt> with a delay that starts short, and
+--   that retries for no longer than a minute.
+defaultRetryPolicy :: Monad m => RetryPolicyM m
+
+-- | Wait until 'networkTip networkLayer' succeeds according to a given
+--   retry policy. Throws an exception otherwise.
+waitForNetwork :: NetworkLayer IO tx block -> RetryPolicyM IO -> IO ()
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrPostTx
+instance GHC.Show.Show Cardano.Wallet.Network.ErrPostTx
+instance GHC.Generics.Generic Cardano.Wallet.Network.ErrPostTx
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrGetBlock
+instance GHC.Show.Show Cardano.Wallet.Network.ErrGetBlock
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkTip
+instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkTip
+instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkTip
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkUnavailable
+instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkUnavailable
+instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkUnavailable
+instance GHC.Base.Functor m => GHC.Base.Functor (Cardano.Wallet.Network.NetworkLayer m tx)
+instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrPostTx
+instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkTip
 
 
 -- | An implementation of the wallet database using only pure functions.
@@ -2429,11 +2475,12 @@ TxOut :: !TxId -> !Word32 -> !Address -> !Coin -> TxOut
 [txOutputAmount] :: TxOut -> !Coin
 type TxOutId = Key TxOut
 data Checkpoint
-Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !Word64 -> !UTCTime -> !FeePolicy -> !Word64 -> !Word16 -> !Word16 -> !Word32 -> Checkpoint
+Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !Word64 -> !BlockId -> !UTCTime -> !FeePolicy -> !Word64 -> !Word16 -> !Word16 -> !Word32 -> Checkpoint
 [checkpointWalletId] :: Checkpoint -> !WalletId
 [checkpointSlot] :: Checkpoint -> !SlotId
 [checkpointParent] :: Checkpoint -> !BlockId
 [checkpointBlockHeight] :: Checkpoint -> !Word64
+[checkpointGenesisHash] :: Checkpoint -> !BlockId
 [checkpointGenesisStart] :: Checkpoint -> !UTCTime
 [checkpointFeePolicy] :: Checkpoint -> !FeePolicy
 [checkpointSlotLength] :: Checkpoint -> !Word64
@@ -2737,26 +2784,6 @@ instance (Database.Persist.Class.PersistQuery backend, Database.Persist.Class.Pe
 --   </ul>
 module Cardano.Wallet
 data WalletLayer s t (k :: Depth -> * -> *)
-data BlockchainParameters
-BlockchainParameters :: StartTime -> FeePolicy -> SlotLength -> EpochLength -> Quantity "byte" Word16 -> Quantity "block" Word32 -> BlockchainParameters
-
--- | Start time of the chain.
-[$sel:getGenesisBlockDate:BlockchainParameters] :: BlockchainParameters -> StartTime
-
--- | Policy regarding transaction fee.
-[$sel:getFeePolicy:BlockchainParameters] :: BlockchainParameters -> FeePolicy
-
--- | Length, in seconds, of a slot.
-[$sel:getSlotLength:BlockchainParameters] :: BlockchainParameters -> SlotLength
-
--- | Number of slots in a single epoch.
-[$sel:getEpochLength:BlockchainParameters] :: BlockchainParameters -> EpochLength
-
--- | Maximum size of a transaction (soft or hard limit).
-[$sel:getTxMaxSize:BlockchainParameters] :: BlockchainParameters -> Quantity "byte" Word16
-
--- | Length of the suffix of the chain considered unstable
-[$sel:getEpochStability:BlockchainParameters] :: BlockchainParameters -> Quantity "block" Word32
 
 -- | "Magic trick" to ease caller type signatures. This type family binds
 --   together constituants of the WalletLayer (or any similar structure) to
@@ -3184,6 +3211,10 @@ destroyDBLayer :: SqliteContext -> IO ()
 --   If the given file path does not exist, it will be created by the
 --   sqlite library.
 withDBLayer :: forall s t k a. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> (DBLayer IO s t k -> IO a) -> IO a
+
+-- | A variant of <a>withDBLayer</a> that also provides the
+--   <a>SqliteContext</a> to the action. This is mostly useful for testing.
+withDBLayerCtx :: forall s t k a. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> ((SqliteContext, DBLayer IO s t k) -> IO a) -> IO a
 
 -- | Run a raw query from the outside using an instantiate DB layer. This
 --   is completely unsafe because it breaks the abstraction boundary and
@@ -3707,7 +3738,6 @@ start :: forall ctx s t k. (DefineTx t, KeyToAddress t k, EncodeAddress t, Decod
 -- | Run an action with a TCP socket bound to a port specified by the
 --   <a>Listen</a> parameter.
 withListeningSocket :: Listen -> ((Port, Socket) -> IO ()) -> IO ()
-getRandomPort :: IO Port
 instance GHC.Classes.Eq Cardano.Wallet.Api.Server.Listen
 instance GHC.Show.Show Cardano.Wallet.Api.Server.Listen
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrNoSuchWallet
