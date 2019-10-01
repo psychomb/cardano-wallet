@@ -9,6 +9,101 @@
 @version 2019.9.13
 
 
+-- | This module provides a data structure and functions for operating on a
+--   sequence of block headers.
+--   
+--   The <a>BlockHeaders</a> sequence is used for maintaining the global
+--   unstable blocks state for the network layer. The unstable blocks state
+--   can be compared with the block headers state of chain consumers to
+--   determine the intersection point.
+module Cardano.Wallet.Jormungandr.BlockHeaders
+
+-- | A list of block headers and their hashes. The last block in this
+--   sequence is the network tip. The first block in this sequence is the
+--   block of depth <i>k</i>, which is the last unstable block.
+data BlockHeaders
+BlockHeaders :: !Seq (Hash "BlockHeader", BlockHeader) -> !Quantity "block" Word32 -> BlockHeaders
+
+-- | Double-ended queue of block headers, and their IDs.
+[$sel:getBlockHeaders:BlockHeaders] :: BlockHeaders -> !Seq (Hash "BlockHeader", BlockHeader)
+
+-- | The block height of the tip of the sequence.
+[$sel:blockHeight:BlockHeaders] :: BlockHeaders -> !Quantity "block" Word32
+
+-- | Constuct an empty unstable blocks sequence.
+emptyBlockHeaders :: BlockHeaders
+
+-- | Updates the unstable blocks state using the given "fetch" functions.
+--   
+--   This attempts to synchronise the local state with that of the node.
+--   The node may be on a different chain to the current unstable blocks,
+--   so this function handles switching of chains.
+--   
+--   For example, this is what it would do when the local tip is
+--   <tt>a13</tt>, but the node's tip is <tt>b15</tt>, on a different
+--   chain.
+--   
+--   <pre>
+--                                     local tip ↴
+--                   ┌───┬───  ───┬───┬───┬───┬───┐
+--   Unstable blocks │a03│..    ..│a10│a11│a12│a13│
+--                   └───┴───  ───┴───┴───┴───┴───┘
+--                             ───┬───┬───┬───┬───┬───┬───┐
+--   Node backend chain        ...│a10│a11│b12│b13│b14│b15│
+--                             ───┴───┴───┴───┴───┴───┴───┘
+--                         rollback point ⬏     node tip ⬏
+--   </pre>
+--   
+--   To startBackend with, the node says the tip hash is <tt>b15</tt>.
+--   
+--   Work backwards from tip, fetching blocks and adding them to
+--   <tt>ac</tt>, and removing overlapping blocks from <tt>ubs</tt>.
+--   Overlapping blocks occur when there has been a rollback.
+--   
+--   <pre>
+--       ubs                     ac
+--   1.  ───┬───┬───┬───┬───┐    ┌───┐
+--       ...│a10│a11│a12│a13│    │b15│
+--       ───┴───┴───┴───┴───┘    └───┘
+--   2.  ───┬───┬───┬───┬───┐┌───┬───┐
+--       ...│a10│a11│a12│a13││b14│b15│
+--       ───┴───┴───┴───┴───┘└───┴───┘
+--   3.  ───┬───┬───┬───┐┌───┬───┬───┐
+--       ...│a10│a11│a12││b13│b14│b15│
+--       ───┴───┴───┴───┘└───┴───┴───┘
+--   4.  ───┬───┬───┐┌───┬───┬───┬───┐
+--       ...│a10│a11││b12│b13│b14│b15│
+--       ───┴───┴───┘└───┴───┴───┴───┘
+--   </pre>
+--   
+--   Stop once <tt>ubs</tt> and <tt>ac</tt> meet with a block which has the
+--   same hash. If they never meet, stop cleanupConfig fetching <i>k</i>
+--   blocks.
+--   
+--   Finally, to get the new <a>BlockHeaders</a>, append <tt>ac</tt> to
+--   <tt>ubs</tt>, and limit the length to <i>k</i>.
+--   
+--   The new block height is the height of the first block that was
+--   fetched.
+--   
+--   If any errors occur while this process is running (for example,
+--   fetching a block which has been rolled back and lost from the node's
+--   state), it will immediately terminate.
+updateUnstableBlocks :: forall m. Monad m => Quantity "block" Word32 -> m (Hash "BlockHeader") -> (Hash "BlockHeader" -> m (BlockHeader, Quantity "block" Word32)) -> BlockHeaders -> m BlockHeaders
+
+-- | The tip block header of the unstable blocks, if it exists.
+blockHeadersTip :: BlockHeaders -> Maybe BlockHeader
+
+-- | Add recently fetched block headers to the unstable blocks. This will
+--   drop the oldest block headers to ensure that there are at most
+--   <i>k</i> items in the sequence.
+appendBlockHeaders :: Word32 -> BlockHeaders -> [(Hash "BlockHeader", BlockHeader, Quantity "block" Word32)] -> BlockHeaders
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.BlockHeaders.BlockHeaders
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.BlockHeaders.BlockHeaders
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.BlockHeaders.BlockHeaders
+instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.BlockHeaders.BlockHeaders
+
+
 -- | This module contains static configuration parameters. Rather than
 --   providing and carrying around a configuration file through the
 --   application, we resolve configuration data at runtime using the
@@ -472,7 +567,7 @@ Https :: Scheme
 --   
 --   This version provides the full, raw blocks from
 --   <a>Cardano.Wallet.Jormungandr.Binary</a>.
-mkRawNetworkLayer :: MonadBaseControl IO m => (Block, BlockchainParameters) -> MVar UnstableBlocks -> JormungandrLayer m -> NetworkLayer m Tx Block
+mkRawNetworkLayer :: MonadBaseControl IO m => (Block, BlockchainParameters) -> MVar BlockHeaders -> JormungandrLayer m -> NetworkLayer m Tx Block
 
 -- | Construct a <a>JormungandrLayer</a>-client
 --   
@@ -507,77 +602,6 @@ mkRawNetworkLayer :: MonadBaseControl IO m => (Block, BlockchainParameters) -> M
 --   Right []
 --   </pre>
 mkJormungandrLayer :: Manager -> BaseUrl -> JormungandrLayer IO
-
--- | A list of block headers and their hashes. The last block in this
---   sequence is the network tip. The first block in this sequence is the
---   block of depth <i>k</i>, which is the last unstable block.
-data UnstableBlocks
-UnstableBlocks :: !Seq (Hash "BlockHeader", BlockHeader) -> !Quantity "block" Natural -> UnstableBlocks
-
--- | Double-ended queue of block headers, and their IDs.
-[$sel:getUnstableBlocks:UnstableBlocks] :: UnstableBlocks -> !Seq (Hash "BlockHeader", BlockHeader)
-
--- | The block height of the tip of the sequence.
-[$sel:blockHeight:UnstableBlocks] :: UnstableBlocks -> !Quantity "block" Natural
-
--- | Updates the unstable blocks state using the given "fetch" functions.
---   
---   This attempts to synchronise the local state with that of the node.
---   The node may be on a different chain to the current unstable blocks,
---   so this function handles switching of chains.
---   
---   For example, this is what it would do when the local tip is
---   <tt>a13</tt>, but the node's tip is <tt>b15</tt>, on a different
---   chain.
---   
---   <pre>
---                                     local tip ↴
---                  ┌───┬───  ───┬───┬───┬───┬───┐
---   UnstableBlocks │a03│..    ..│a10│a11│a12│a13│
---                  └───┴───  ───┴───┴───┴───┴───┘
---                            ───┬───┬───┬───┬───┬───┬───┐
---   Node backend chain       ...│a10│a11│b12│b13│b14│b15│
---                            ───┴───┴───┴───┴───┴───┴───┘
---                        rollback point ⬏     node tip ⬏
---   </pre>
---   
---   To startBackend with, the node says the tip hash is <tt>b15</tt>.
---   
---   Work backwards from tip, fetching blocks and adding them to
---   <tt>ac</tt>, and removing overlapping blocks from <tt>ubs</tt>.
---   Overlapping blocks occur when there has been a rollback.
---   
---   <pre>
---       ubs                     ac
---   1.  ───┬───┬───┬───┬───┐    ┌───┐
---       ...│a10│a11│a12│a13│    │b15│
---       ───┴───┴───┴───┴───┘    └───┘
---   2.  ───┬───┬───┬───┬───┐┌───┬───┐
---       ...│a10│a11│a12│a13││b14│b15│
---       ───┴───┴───┴───┴───┘└───┴───┘
---   3.  ───┬───┬───┬───┐┌───┬───┬───┐
---       ...│a10│a11│a12││b13│b14│b15│
---       ───┴───┴───┴───┘└───┴───┴───┘
---   4.  ───┬───┬───┐┌───┬───┬───┬───┐
---       ...│a10│a11││b12│b13│b14│b15│
---       ───┴───┴───┘└───┴───┴───┴───┘
---   </pre>
---   
---   Stop once <tt>ubs</tt> and <tt>ac</tt> meet with a block which has the
---   same hash. If they never meet, stop cleanupConfig fetching <i>k</i>
---   blocks.
---   
---   Finally, to get the new <a>UnstableBlocks</a>, append <tt>ac</tt> to
---   <tt>ubs</tt>, and limit the length to <i>k</i>.
---   
---   The new block height is the height of the first block that was
---   fetched.
---   
---   If any errors occur while this process is running (for example,
---   fetching a block which has been rolled back and lost from the node's
---   state), it will immediately terminate.
-updateUnstableBlocks :: forall m. Monad m => Natural -> m (Hash "BlockHeader") -> (Hash "BlockHeader" -> m (BlockHeader, Quantity "block" Natural)) -> UnstableBlocks -> m UnstableBlocks
-emptyUnstableBlocks :: UnstableBlocks
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.ErrStartup
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.ErrStartup
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.ErrGetBlockchainParams
@@ -585,9 +609,6 @@ instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.ErrGetBlockchainParams
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.ErrGetDescendants
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.ErrGetDescendants
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.ErrUnexpectedNetworkFailure
-instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Network.UnstableBlocks
-instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.UnstableBlocks
-instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.UnstableBlocks
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.JormungandrBackend
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.JormungandrBackend
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.JormungandrConfig
@@ -596,7 +617,6 @@ instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.JormungandrConnParams
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.JormungandrConnParams
 instance GHC.Exception.Type.Exception Cardano.Wallet.Jormungandr.Network.ErrStartup
 instance GHC.Exception.Type.Exception Cardano.Wallet.Jormungandr.Network.ErrUnexpectedNetworkFailure
-instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Network.UnstableBlocks
 
 module Cardano.Wallet.Jormungandr.Transaction
 
