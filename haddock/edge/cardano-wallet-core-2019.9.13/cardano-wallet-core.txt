@@ -452,7 +452,7 @@ encodeAddress :: EncodeAddress t => Proxy t -> Address -> Text
 class DecodeAddress t
 decodeAddress :: DecodeAddress t => Proxy t -> Text -> Either TextDecodingError Address
 
--- | Coins are stored as Lovelace (reminder: 1 Lovelace = 1e6 ADA)
+-- | Coins are stored as Lovelace (reminder: 1 Lovelace = 1e-6 ADA)
 newtype Coin
 Coin :: Word64 -> Coin
 [$sel:getCoin:Coin] :: Coin -> Word64
@@ -638,6 +638,11 @@ WalletBalance :: !Quantity "lovelace" Natural -> !Quantity "lovelace" Natural ->
 newtype PoolId
 PoolId :: ByteString -> PoolId
 [$sel:getPoolId:PoolId] :: PoolId -> ByteString
+data StakeDistribution
+StakeDistribution :: Quantity "lovelace" Word64 -> [(PoolId, Quantity "lovelace" Word64)] -> Quantity "lovelace" Word64 -> StakeDistribution
+[$sel:dangling:StakeDistribution] :: StakeDistribution -> Quantity "lovelace" Word64
+[$sel:pools:StakeDistribution] :: StakeDistribution -> [(PoolId, Quantity "lovelace" Word64)]
+[$sel:unassigned:StakeDistribution] :: StakeDistribution -> Quantity "lovelace" Word64
 poolIdBytesLength :: Int
 
 -- | Represents a sort order, applicable to the results returned by a
@@ -855,6 +860,9 @@ instance GHC.Enum.Bounded Cardano.Wallet.Primitive.Types.TxStatus
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.TxStatus
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.TxStatus
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.TxStatus
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.StakeDistribution
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.StakeDistribution
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.StakeDistribution
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.WalletMetadata
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.WalletMetadata
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.WalletMetadata
