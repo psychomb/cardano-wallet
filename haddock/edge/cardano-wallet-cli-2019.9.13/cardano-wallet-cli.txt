@@ -39,7 +39,7 @@ optionT :: FromText a => Mod OptionFields a -> Parser a
 argumentT :: FromText a => Mod ArgumentFields a -> Parser a
 
 -- | <ul>
---   <li>-database=FILEPATH</li>
+--   <li>-database=DIR</li>
 --   </ul>
 databaseOption :: Parser FilePath
 
@@ -59,7 +59,7 @@ nodePortOption :: Parser (Port "Node")
 nodePortMaybeOption :: Parser (Maybe (Port "Node"))
 
 -- | <ul>
---   <li>-state-dir=FILEPATH, default:
+--   <li>-state-dir=DIR, default:
 --   ~<i>.cardano-wallet</i>$backend/$network</li>
 --   </ul>
 stateDirOption :: FilePath -> Parser (Maybe FilePath)
@@ -150,9 +150,9 @@ getDataDir :: String -> IO FilePath
 --   failure with a proper error message.
 waitForService :: Service -> (Switchboard Text, Trace IO Text) -> Port "node" -> IO () -> IO ()
 
--- | Initialize a state directory to store blockchain data such as blocks
---   or the wallet database.
-setupStateDir :: (Text -> IO ()) -> FilePath -> IO ()
+-- | Initialize a directory to store data such as blocks or the wallet
+--   databases
+setupDirectory :: (Text -> IO ()) -> FilePath -> IO ()
 failWith :: (Switchboard Text, Trace IO Text) -> Text -> IO ExitCode
 instance GHC.Show.Show Cardano.CLI.Verbosity
 instance GHC.Classes.Eq Cardano.CLI.Verbosity

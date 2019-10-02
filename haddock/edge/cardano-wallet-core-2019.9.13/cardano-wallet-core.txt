@@ -2223,6 +2223,17 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> [(Tx t, TxMet
 [rollbackTo] :: DBLayer m s t k -> PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()
 [withLock] :: DBLayer m s t k -> forall e a. () => ExceptT e m a -> ExceptT e m a
 
+-- | Instantiate database layers at will
+data DBFactory m s t k
+DBFactory :: (WalletId -> (DBLayer m s t k -> IO ()) -> IO ()) -> (WalletId -> IO ()) -> DBFactory m s t k
+
+-- | Creates a new or use an existing database, maintaining an open
+--   connection so long as necessary
+[withDatabase] :: DBFactory m s t k -> WalletId -> (DBLayer m s t k -> IO ()) -> IO ()
+
+-- | Erase any trace of the database
+[removeDatabase] :: DBFactory m s t k -> WalletId -> IO ()
+
 -- | A primary key which can take many forms depending on the value. This
 --   may become a type family as we move forward, but for now, it
 --   illustrate that some queries are ran against some sort of store;
@@ -2245,6 +2256,7 @@ ErrNoSuchWallet :: WalletId -> ErrNoSuchWallet
 -- | Forbidden operation was executed on an already existing wallet
 newtype ErrWalletAlreadyExists
 ErrWalletAlreadyExists :: WalletId -> ErrWalletAlreadyExists
+instance GHC.Generics.Generic (Cardano.Wallet.DB.DBFactory m s t k)
 instance GHC.Classes.Ord key => GHC.Classes.Ord (Cardano.Wallet.DB.PrimaryKey key)
 instance GHC.Classes.Eq key => GHC.Classes.Eq (Cardano.Wallet.DB.PrimaryKey key)
 instance GHC.Show.Show key => GHC.Show.Show (Cardano.Wallet.DB.PrimaryKey key)
@@ -2822,76 +2834,52 @@ instance (Database.Persist.Class.PersistQuery backend, Database.Persist.Class.Pe
 --   </ul>
 module Cardano.Wallet
 data WalletLayer s t (k :: Depth -> * -> *)
-
--- | "Magic trick" to ease caller type signatures. This type family binds
---   together constituants of the WalletLayer (or any similar structure) to
---   remove the ambiguity between s, t and k.
---   
---   Without this, calls to functions of the wallet layers are considered
---   ambiguous and demand several type applications, even when the context
---   is known concrete type!
---   
---   <pre>
---   W.createWallet <tt>ctx </tt>s <tt>t </tt>k ctx wId wName s
---   </pre>
---   
---   Now, if we add a constraint as <tt>IsWalletCtx s t k ctx</tt> to
---   <a>createWallet</a> , we can remove the type applications and do:
---   
---   <pre>
---   W.createWallet ctx wId wName s
---   </pre>
---   
---   For a known context, we can without ambiguity know what are the
---   corresponding parameters. The family is open, so it can be extended
---   for other kind of structure.
-type family IsWalletCtx s t (k :: Depth -> * -> *) ctx :: Constraint
-
--- | Create a new instance of the wallet layer.
-newWalletLayer :: Trace IO Text -> (Block (Tx t), BlockchainParameters) -> DBLayer IO s t k -> NetworkLayer IO (Tx t) (Block (Tx t)) -> TransactionLayer t k -> IO (WalletLayer s t k)
+WalletLayer :: Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO (Tx t) (Block (Tx t)) -> TransactionLayer t k -> DBLayer IO s t k -> WalletLayer s t
 type HasDBLayer s t k = HasType (DBLayer IO s t k)
+dbLayer :: forall s t k ctx. HasDBLayer s t k ctx => Lens' ctx (DBLayer IO s t k)
 type HasLogger = HasType (Trace IO Text)
+logger :: forall ctx. HasLogger ctx => Lens' ctx (Trace IO Text)
 
 -- | This module is only interested in one block-, and tx-type. This
 --   constraint hides that choice, for some ease of use.
 type HasNetworkLayer t = HasType (NetworkLayer IO (Tx t) (Block (Tx t)))
+networkLayer :: forall t ctx. HasNetworkLayer t ctx => Lens' ctx (NetworkLayer IO (Tx t) (Block (Tx t)))
 type HasTransactionLayer t k = HasType (TransactionLayer t k)
-type HasWorkerRegistry = HasType WorkerRegistry
+transactionLayer :: forall t k ctx. HasTransactionLayer t k ctx => Lens' ctx (TransactionLayer t k)
+type HasGenesisData t = HasType (Block (Tx t), BlockchainParameters)
+genesisData :: forall t ctx. HasGenesisData t ctx => Lens' ctx (Block (Tx t), BlockchainParameters)
+
+-- | Initialise and store a new wallet, returning its ID.
+createWallet :: forall ctx s t k. (HasGenesisData t ctx, HasDBLayer s t k ctx, Show s, NFData s, IsOurs s, DefineTx t) => ctx -> WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
 
 -- | Attach a given private key to a wallet. The private key is necessary
 --   for some operations like signing transactions, or generating new
 --   accounts.
-attachPrivateKey :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx) => ctx -> WalletId -> (k  'RootK XPrv, Passphrase "encryption") -> ExceptT ErrNoSuchWallet IO ()
-
--- | Initialise and store a new wallet, returning its ID
-createWallet :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx, HasGenesisData t ctx, Show s, NFData s, IsOurs s, DefineTx t) => ctx -> WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
+attachPrivateKey :: forall ctx s t k. HasDBLayer s t k ctx => ctx -> WalletId -> (k  'RootK XPrv, Passphrase "encryption") -> ExceptT ErrNoSuchWallet IO ()
 
 -- | List the wallet's UTxO statistics.
-listUtxoStatistics :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrListUTxOStatistics IO UTxOStatistics
-
--- | Retrieve a list of known wallet IDs.
-listWallets :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx) => ctx -> IO [WalletId]
+listUtxoStatistics :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrListUTxOStatistics IO UTxOStatistics
 
 -- | Retrieve the wallet state for the wallet with the given ID.
-readWallet :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO (Wallet s t, WalletMetadata, Set (Tx t))
+readWallet :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO (Wallet s t, WalletMetadata, Set (Tx t))
 
 -- | Remove an existing wallet. Note that there's no particular work to be
 --   done regarding the restoration worker as it will simply terminate on
 --   the next tick when noticing that the corresponding wallet is gone.
-removeWallet :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx, HasWorkerRegistry ctx) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
+removeWallet :: forall ctx s t k. HasDBLayer s t k ctx => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
 
 -- | Restore a wallet from its current tip up to the network tip.
 --   
 --   This function returns immediately, starting a worker thread in the
 --   background that will fetch and apply remaining blocks until the
 --   network tip is reached or until failure.
-restoreWallet :: forall ctx s t k. (IsWalletCtx s t k ctx, HasLogger ctx, HasDBLayer s t k ctx, HasNetworkLayer t ctx, HasWorkerRegistry ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
+restoreWallet :: forall ctx s t k. (HasLogger ctx, HasNetworkLayer t ctx, HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
 
 -- | Update a wallet's metadata with the given update function.
-updateWallet :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx) => ctx -> WalletId -> (WalletMetadata -> WalletMetadata) -> ExceptT ErrNoSuchWallet IO ()
+updateWallet :: forall ctx s t k. HasDBLayer s t k ctx => ctx -> WalletId -> (WalletMetadata -> WalletMetadata) -> ExceptT ErrNoSuchWallet IO ()
 
 -- | Change a wallet's passphrase to the given passphrase.
-updateWalletPassphrase :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx, WalletKey k) => ctx -> WalletId -> (Passphrase "encryption-old", Passphrase "encryption-new") -> ExceptT ErrUpdatePassphrase IO ()
+updateWalletPassphrase :: forall ctx s t k. (HasDBLayer s t k ctx, WalletKey k) => ctx -> WalletId -> (Passphrase "encryption-old", Passphrase "encryption-new") -> ExceptT ErrUpdatePassphrase IO ()
 
 -- | Forbidden operation was executed on an already existing wallet
 newtype ErrWalletAlreadyExists
@@ -2912,32 +2900,32 @@ ErrUpdatePassphraseWithRootKey :: ErrWithRootKey -> ErrUpdatePassphrase
 
 -- | List all addresses of a wallet with their metadata. Addresses are
 --   ordered from the most-recently-discovered to the oldest known.
-listAddresses :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx, IsOurs s, CompareDiscovery s, KnownAddresses s, DefineTx t) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
+listAddresses :: forall ctx s t k. (HasDBLayer s t k ctx, IsOurs s, CompareDiscovery s, KnownAddresses s, DefineTx t) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
 
 -- | Prepare a transaction and automatically select inputs from the wallet
 --   to cover the requested outputs. Note that this only runs coin
 --   selection for the given outputs. In order to construct (and sign) an
 --   actual transaction, use <a>signTx</a>.
-createUnsignedTx :: forall ctx s t k e. (IsWalletCtx s t k ctx, HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s t k ctx, DefineTx t, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrCreateUnsignedTx e) IO CoinSelection
+createUnsignedTx :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s t k ctx, DefineTx t, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrCreateUnsignedTx e) IO CoinSelection
 
 -- | Estimate a transaction fee by automatically selecting inputs from the
 --   wallet to cover the requested outputs.
-estimateTxFee :: forall ctx s t k e. (IsWalletCtx s t k ctx, HasTransactionLayer t k ctx, HasDBLayer s t k ctx, DefineTx t, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimateTxFee e) IO Fee
+estimateTxFee :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasDBLayer s t k ctx, DefineTx t, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimateTxFee e) IO Fee
 
 -- | List all transactions and metadata from history for a given wallet.
-listTransactions :: forall ctx s t k. (IsWalletCtx s t k ctx, HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]
+listTransactions :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]
 
 -- | Produce witnesses and construct a transaction from a given selection.
 --   Requires the encryption passphrase in order to decrypt the root
 --   private key. Note that this doesn't broadcast the transaction to the
 --   network. In order to do so, use <a>submitTx</a>.
-signTx :: forall ctx s t k. (IsWalletCtx s t k ctx, HasTransactionLayer t k ctx, HasDBLayer s t k ctx, Show s, NFData s, IsOwned s k, GenChange s) => ctx -> WalletId -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignTx IO (Tx t, TxMeta, [TxWitness])
+signTx :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s t k ctx, Show s, NFData s, IsOwned s k, GenChange s) => ctx -> WalletId -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignTx IO (Tx t, TxMeta, [TxWitness])
 
 -- | Broadcast an externally-signed transaction to the network.
-submitExternalTx :: forall ctx s t k. (IsWalletCtx s t k ctx, HasNetworkLayer t ctx, HasTransactionLayer t k ctx) => ctx -> ByteString -> ExceptT ErrSubmitExternalTx IO (Tx t)
+submitExternalTx :: forall ctx t k. (HasNetworkLayer t ctx, HasTransactionLayer t k ctx) => ctx -> ByteString -> ExceptT ErrSubmitExternalTx IO (Tx t)
 
 -- | Broadcast a (signed) transaction to the network.
-submitTx :: forall ctx s t k. (IsWalletCtx s t k ctx, HasNetworkLayer t ctx, HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> (Tx t, TxMeta, [TxWitness]) -> ExceptT ErrSubmitTx IO ()
+submitTx :: forall ctx s t k. (HasNetworkLayer t ctx, HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> (Tx t, TxMeta, [TxWitness]) -> ExceptT ErrSubmitTx IO ()
 
 -- | Errors that can occur when creating an unsigned transaction.
 data ErrCreateUnsignedTx e
@@ -3073,6 +3061,73 @@ instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrEstimateTxFee e)
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrCreateUnsignedTx e)
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrCreateUnsignedTx e)
 instance GHC.Generics.Generic (Cardano.Wallet.WalletLayer s t k)
+
+module Cardano.Wallet.Registry
+
+-- | A registry to keep track of worker threads and acquired resources.
+data WorkerRegistry key resource
+
+-- | Construct a new empty registry
+empty :: Ord key => IO (WorkerRegistry key resource)
+
+-- | Register a new worker
+insert :: Ord key => WorkerRegistry key resource -> Worker key resource -> IO ()
+
+-- | Get all registered keys in the registry
+keys :: WorkerRegistry key resource -> IO [key]
+
+-- | Lookup the registry for a given worker
+lookup :: (MonadIO m, Ord key) => WorkerRegistry key resource -> key -> m (Maybe (Worker key resource))
+
+-- | Remove a worker from the registry (and cancel any running task)
+remove :: Ord key => WorkerRegistry key resource -> key -> IO ()
+
+-- | A worker which holds and manipulate a paticular acquired resource.
+--   That resource can be, for example, a handle to a database connection.
+data Worker key resource
+
+-- | See <a>newWorker</a>
+data MkWorker key resource ctx
+MkWorker :: (WorkerCtx ctx -> key -> IO ()) -> (WorkerCtx ctx -> key -> IO ()) -> (Trace IO Text -> Either SomeException () -> IO ()) -> ((resource -> IO ()) -> IO ()) -> MkWorker key resource ctx
+
+-- | A task to execute before the main worker's task. When creating a
+--   worker, this task is guaranteed to have terminated once
+--   <a>newWorker</a> returns.
+[workerBefore] :: MkWorker key resource ctx -> WorkerCtx ctx -> key -> IO ()
+
+-- | A task for the worker, possibly infinite
+[workerMain] :: MkWorker key resource ctx -> WorkerCtx ctx -> key -> IO ()
+
+-- | Action to run when the worker exits
+[workerAfter] :: MkWorker key resource ctx -> Trace IO Text -> Either SomeException () -> IO ()
+
+-- | A bracket-style factory to acquire a resource
+[workerAcquire] :: MkWorker key resource ctx -> (resource -> IO ()) -> IO ()
+
+-- | Create a new worker for a given key. Workers maintain an acquired
+--   resource. They expect a task as argument and will terminate as soon as
+--   their task is over; so in practice, we provide a never-ending task
+--   that keeps the worker alive forever.
+--   
+--   Returns <a>Nothing</a> if the worker fails to acquire the necessary
+--   resource or terminate unexpectedly before entering its <tt>main</tt>
+--   action.
+--   
+--   <pre>
+--   &gt;&gt;&gt; newWorker ctx k withDBLayer restoreWallet
+--   worker&lt;thread#1234&gt;
+--   </pre>
+newWorker :: forall key resource ctx. (HasLogger ctx, HasWorkerCtx resource ctx, ToText key) => ctx -> key -> MkWorker key resource ctx -> IO (Maybe (Worker key resource))
+workerThread :: Worker key resource -> ThreadId
+workerId :: Worker key resource -> key
+workerResource :: Worker key resource -> resource
+
+-- | A class to link an existing context to a worker context.
+class HasType resource (WorkerCtx ctx) => HasWorkerCtx resource ctx where {
+    type family WorkerCtx ctx :: *;
+}
+hoistResource :: HasWorkerCtx resource ctx => resource -> ctx -> WorkerCtx ctx
+instance GHC.Generics.Generic (Cardano.Wallet.Registry.Worker key resource)
 
 
 -- | These are (partial) CBOR decoders for Byron binary types. Note that we
@@ -3242,6 +3297,12 @@ newDBLayer :: forall s t k. (IsOurs s, NFData s, Show s, PersistState s, Persist
 -- | Finalize database statements and close the database connection.
 destroyDBLayer :: SqliteContext -> IO ()
 
+-- | Instantiate a <a>DBFactory</a> from a given directory
+mkDBFactory :: forall s t k. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> DBFactory IO s t k
+
+-- | Lookup file-system for existing wallet databases
+findDatabases :: Trace IO Text -> FilePath -> IO [WalletId]
+
 -- | Runs an action with a connection to the SQLite database.
 --   
 --   Database migrations are run to create tables if necessary.
@@ -3249,10 +3310,6 @@ destroyDBLayer :: SqliteContext -> IO ()
 --   If the given file path does not exist, it will be created by the
 --   sqlite library.
 withDBLayer :: forall s t k a. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> (DBLayer IO s t k -> IO a) -> IO a
-
--- | A variant of <a>withDBLayer</a> that also provides the
---   <a>SqliteContext</a> to the action. This is mostly useful for testing.
-withDBLayerCtx :: forall s t k a. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> ((SqliteContext, DBLayer IO s t k) -> IO a) -> IO a
 
 -- | Run a raw query from the outside using an instantiate DB layer. This
 --   is completely unsafe because it breaks the abstraction boundary and
@@ -3652,64 +3709,20 @@ instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.StakePoolMetric
 module Cardano.Wallet.Api
 type Api t = Addresses t :<|> Wallets :<|> Transactions t :<|> StakePools
 type Addresses t = ListAddresses t
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/listAddresses</a>
-type ListAddresses t = "wallets" :> Capture "walletId" (ApiT WalletId) :> "addresses" :> QueryParam "state" (ApiT AddressState) :> Get '[JSON] [ApiAddress t]
 type Wallets = DeleteWallet :<|> GetWallet :<|> ListWallets :<|> PostWallet :<|> PutWallet :<|> PutWalletPassphrase :<|> GetUTxOsStatistics
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/deleteWallet</a>
-type DeleteWallet = "wallets" :> Capture "walletId" (ApiT WalletId) :> DeleteNoContent '[Any] NoContent
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/getWallet</a>
-type GetWallet = "wallets" :> Capture "walletId" (ApiT WalletId) :> Get '[JSON] ApiWallet
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/listWallets</a>
-type ListWallets = "wallets" :> Get '[JSON] [ApiWallet]
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/postWallet</a>
-type PostWallet = "wallets" :> ReqBody '[JSON] WalletPostData :> PostAccepted '[JSON] ApiWallet
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/putWallet</a>
-type PutWallet = "wallets" :> Capture "walletId" (ApiT WalletId) :> ReqBody '[JSON] WalletPutData :> Put '[JSON] ApiWallet
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/putWalletPassphrase</a>
-type PutWalletPassphrase = "wallets" :> Capture "walletId" (ApiT WalletId) :> "passphrase" :> ReqBody '[JSON] WalletPutPassphraseData :> PutNoContent '[Any] NoContent
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/getUTxOsStatistics</a>
-type GetUTxOsStatistics = "wallets" :> Capture "walletId" (ApiT WalletId) :> "statistics" :> "utxos" :> Get '[JSON] ApiUtxoStatistics
 type Transactions t = CreateTransaction t :<|> ListTransactions t :<|> PostTransactionFee t :<|> PostExternalTransaction
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/postTransaction</a>
-type CreateTransaction t = "wallets" :> Capture "walletId" (ApiT WalletId) :> "transactions" :> ReqBody '[JSON] (PostTransactionData t) :> PostAccepted '[JSON] (ApiTransaction t)
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/postTransactionFee</a>
-type PostTransactionFee t = "wallets" :> Capture "walletId" (ApiT WalletId) :> "transactions" :> "fees" :> ReqBody '[JSON] (PostTransactionFeeData t) :> PostAccepted '[JSON] ApiFee
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/listTransaction</a>
-type ListTransactions t = "wallets" :> Capture "walletId" (ApiT WalletId) :> "transactions" :> QueryParam "start" Iso8601Time :> QueryParam "end" Iso8601Time :> QueryParam "order" (ApiT SortOrder) :> Get '[JSON] [ApiTransaction t]
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/postExternalTransaction</a>
-type PostExternalTransaction = "external-transactions" :> ReqBody '[OctetStream] PostExternalTransactionData :> PostAccepted '[JSON] ApiTxId
 type StakePools = ListStakePools
-
--- | 
---   <a>https://input-output-hk.github.io/cardano-wallet/api/edge/#operation/listStakePools</a>
-type ListStakePools = "stake-pools" :> Get '[JSON] [ApiStakePool]
 
 -- | Any media type
 data Any
+data ApiLayer s t (k :: Depth -> * -> *)
+ApiLayer :: Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO (Tx t) (Block (Tx t)) -> TransactionLayer t k -> DBFactory IO s t k -> WorkerRegistry WalletId (DBLayer IO s t k) -> ApiLayer s t
+type HasWorkerRegistry s t k ctx = (HasType (WorkerRegistry WalletId (DBLayer IO s t k)) ctx, HasWorkerCtx (DBLayer IO s t k) ctx)
+workerRegistry :: forall s t k ctx. HasWorkerRegistry s t k ctx => Lens' ctx (WorkerRegistry WalletId (DBLayer IO s t k))
+type HasDBFactory s t k = HasType (DBFactory IO s t k)
+dbFactory :: forall s t k ctx. HasDBFactory s t k ctx => Lens' ctx (DBFactory IO s t k)
+instance GHC.Generics.Generic (Cardano.Wallet.Api.ApiLayer s t k)
+instance Cardano.Wallet.Registry.HasWorkerCtx (Cardano.Wallet.DB.DBLayer GHC.Types.IO s t k) (Cardano.Wallet.Api.ApiLayer s t k)
 instance Servant.API.ContentTypes.Accept Cardano.Wallet.Api.Any
 
 
@@ -3783,13 +3796,19 @@ ListenOnRandomPort :: Listen
 
 -- | Start the application server, using the given settings and a bound
 --   socket.
-start :: forall ctx s t k. (DefineTx t, KeyToAddress t k, EncodeAddress t, DecodeAddress t, Buildable (ErrValidateSelection t), k ~ SeqKey, s ~ SeqState t, ctx ~ WalletLayer s t k) => Settings -> Trace IO Text -> Socket -> ctx -> IO ()
+start :: forall ctx s t k. (DefineTx t, KeyToAddress t k, EncodeAddress t, DecodeAddress t, Buildable (ErrValidateSelection t), k ~ SeqKey, s ~ SeqState t, ctx ~ ApiLayer s t k) => Settings -> Trace IO Text -> Socket -> ctx -> IO ()
+
+-- | Create a new instance of the wallet layer.
+newApiLayer :: forall ctx s t k. (ctx ~ ApiLayer s t k, DefineTx t) => Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO (Tx t) (Block (Tx t)) -> TransactionLayer t k -> DBFactory IO s t k -> [WalletId] -> IO ctx
 
 -- | Run an action with a TCP socket bound to a port specified by the
 --   <a>Listen</a> parameter.
 withListeningSocket :: Listen -> ((Port, Socket) -> IO ()) -> IO ()
+instance GHC.Show.Show Cardano.Wallet.Api.Server.ErrCreateWallet
+instance GHC.Classes.Eq Cardano.Wallet.Api.Server.ErrCreateWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Server.Listen
 instance GHC.Show.Show Cardano.Wallet.Api.Server.Listen
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrCreateWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrNoSuchWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrWalletAlreadyExists
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrWithRootKey
