@@ -188,13 +188,17 @@ Block :: BlockHeader -> [Message] -> Block
 [header] :: Block -> BlockHeader
 [messages] :: Block -> [Message]
 data BlockHeader
-BlockHeader :: Word16 -> Word32 -> SlotId -> Word32 -> Hash "content" -> Hash "BlockHeader" -> BlockHeader
+BlockHeader :: Word16 -> Word32 -> SlotId -> Word32 -> Hash "content" -> Hash "BlockHeader" -> Maybe PoolId -> BlockHeader
 [version] :: BlockHeader -> Word16
 [contentSize] :: BlockHeader -> Word32
 [slot] :: BlockHeader -> SlotId
 [chainLength] :: BlockHeader -> Word32
 [contentHash] :: BlockHeader -> Hash "content"
 [parentHeaderHash] :: BlockHeader -> Hash "BlockHeader"
+
+-- | Will contain the VRFPubKey of the stake pool for non-genesis
+--   Genesis/Praos blocks.
+[producedBy] :: BlockHeader -> Maybe PoolId
 data ConfigParam
 
 -- | The official start time of the blockchain, in seconds since the Unix
