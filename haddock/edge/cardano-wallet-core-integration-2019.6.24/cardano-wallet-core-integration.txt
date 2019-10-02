@@ -306,6 +306,7 @@ deleteWalletViaCLI :: forall t r s. (CmdResult r, KnownCommand t, HasType (Port 
 getWalletUtxoStatisticsViaCLI :: forall t r s. (CmdResult r, KnownCommand t, HasType (Port "wallet") s) => s -> String -> IO r
 getWalletViaCLI :: forall t r s. (CmdResult r, KnownCommand t, HasType (Port "wallet") s) => s -> String -> IO r
 listAddressesViaCLI :: forall t r s. (CmdResult r, KnownCommand t, HasType (Port "wallet") s) => s -> [String] -> IO r
+listStakePoolsViaCLI :: forall t r s. (CmdResult r, KnownCommand t, HasType (Port "wallet") s) => s -> IO r
 listWalletsViaCLI :: forall t r s. (CmdResult r, KnownCommand t, HasType (Port "wallet") s) => s -> IO r
 updateWalletNameViaCLI :: forall t r s. (CmdResult r, KnownCommand t, HasType (Port "wallet") s) => s -> [String] -> IO r
 updateWalletPassphraseViaCLI :: forall t s. (KnownCommand t, HasType (Port "wallet") s) => s -> String -> String -> String -> String -> IO (ExitCode, Text, Text)
