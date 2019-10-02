@@ -3458,6 +3458,13 @@ UnexpectedError :: ApiErrorCode
 newtype Iso8601Time
 Iso8601Time :: UTCTime -> Iso8601Time
 [$sel:getIso8601Time:Iso8601Time] :: Iso8601Time -> UTCTime
+data ApiByronWallet
+ApiByronWallet :: !ApiT WalletId -> !ApiT WalletBalance -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT WalletState -> ApiByronWallet
+[$sel:id:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletId
+[$sel:balance:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletBalance
+[$sel:name:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletName
+[$sel:passphrase:ApiByronWallet] :: ApiByronWallet -> !Maybe (ApiT WalletPassphraseInfo)
+[$sel:state:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletState
 
 -- | Polymorphic wrapper type to put around primitive types and, 3rd party
 --   lib types to avoid defining orphan instances and/or, undesirable
@@ -3538,6 +3545,9 @@ instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.AddressAmount t)
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiBlockData
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiBlockData
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiBlockData
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiByronWallet
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiByronWallet
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiByronWallet
 instance GHC.Classes.Eq a => GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiT a)
 instance GHC.Show.Show a => GHC.Show.Show (Cardano.Wallet.Api.Types.ApiT a)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiT a)
@@ -3588,6 +3598,8 @@ instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Text.Class.FromT
 instance Cardano.Wallet.Primitive.Types.EncodeAddress t => Data.Text.Class.ToText (Cardano.Wallet.Api.Types.AddressAmount t)
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiBlockData
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiBlockData
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiByronWallet
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiByronWallet
 instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.Address, Data.Proxy.Proxy t)
 instance Cardano.Wallet.Primitive.Types.EncodeAddress t => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.Address, Data.Proxy.Proxy t)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.AddressState)
