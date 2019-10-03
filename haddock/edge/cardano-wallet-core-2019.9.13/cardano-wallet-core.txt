@@ -3318,7 +3318,9 @@ unsafeRunQuery :: SqliteContext -> SqlPersistT IO a -> IO a
 
 -- | Functions for saving/loading the wallet's address discovery state into
 --   SQLite.
-class PersistState s
+class PersistState s where {
+    type family StateAddress s :: *;
+}
 
 -- | Store the state for a checkpoint.
 insertState :: PersistState s => (WalletId, SlotId) -> s -> SqlPersistT IO ()
@@ -3329,8 +3331,8 @@ selectState :: PersistState s => (WalletId, SlotId) -> SqlPersistT IO (Maybe s)
 -- | Drop the state and everything related to it
 deleteState :: PersistState s => WalletId -> SqlPersistT IO ()
 
--- | Rollback the state to a given slot
-rollbackState :: PersistState s => WalletId -> SlotId -> SqlPersistT IO ()
+-- | Remove states matching the given predicate
+pruneState :: PersistState s => WalletId -> (EntityField (StateAddress s) SlotId -> Filter (StateAddress s)) -> SqlPersistT IO ()
 class DefineTx t => PersistTx t
 resolvedInputs :: PersistTx t => Tx t -> [(TxIn, Maybe Coin)]
 
