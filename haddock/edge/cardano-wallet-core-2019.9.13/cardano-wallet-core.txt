@@ -2054,6 +2054,9 @@ defaultRetryPolicy :: Monad m => RetryPolicyM m
 -- | Wait until 'networkTip networkLayer' succeeds according to a given
 --   retry policy. Throws an exception otherwise.
 waitForNetwork :: NetworkLayer IO tx block -> RetryPolicyM IO -> IO ()
+
+-- | Subscribe to a blockchain and get called with new block (in order)!
+follow :: NetworkLayer IO tx block -> Trace IO Text -> BlockHeader -> (NonEmpty block -> BlockHeader -> ExceptT e IO ()) -> (block -> BlockHeader) -> IO ()
 instance GHC.Classes.Eq Cardano.Wallet.Network.ErrPostTx
 instance GHC.Show.Show Cardano.Wallet.Network.ErrPostTx
 instance GHC.Generics.Generic Cardano.Wallet.Network.ErrPostTx
