@@ -6,51 +6,54 @@
 </span><a name="line-6"></a><span class="hs-pragma">{-# LANGUAGE QuasiQuotes #-}</span><span>
 </span><a name="line-7"></a><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
 </span><a name="line-8"></a><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
-</span><a name="line-9"></a><span>
-</span><a name="line-10"></a><span class="hs-comment">-- |</span><span>
-</span><a name="line-11"></a><span class="hs-comment">-- Copyright: &#169; 2018-2019 IOHK</span><span>
-</span><a name="line-12"></a><span class="hs-comment">-- License: Apache-2.0</span><span>
-</span><a name="line-13"></a><span class="hs-comment">--</span><span>
-</span><a name="line-14"></a><span class="hs-comment">-- Auto-generated Sqlite &amp; Persistent machinery via Template-Haskell. This has</span><span>
-</span><a name="line-15"></a><span class="hs-comment">-- been moved into a separate file so that we can treat it slightly differently</span><span>
-</span><a name="line-16"></a><span class="hs-comment">-- when computing code-coverage.</span><span>
-</span><a name="line-17"></a><span class="hs-comment">--</span><span>
-</span><a name="line-18"></a><span class="hs-comment">-- More than 6K lines end-up being generated from the instructions below! As a</span><span>
-</span><a name="line-19"></a><span class="hs-comment">-- result, we're going to ignore code-coverage on the following module and, no</span><span>
-</span><a name="line-20"></a><span class="hs-comment">-- hand-written functions should be written in this module!</span><span>
-</span><a name="line-21"></a><span>
-</span><a name="line-22"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Cardano.Wallet.DB.Sqlite.TH</span><span> </span><span class="hs-keyword">where</span><span>
-</span><a name="line-23"></a><span>
-</span><a name="line-24"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Prelude</span><span>
-</span><a name="line-25"></a><span>
-</span><a name="line-26"></a><span class="hs-keyword">import</span><span> </span><a href="Cardano.Wallet.DB.Sqlite.Types.html"><span class="hs-identifier">Cardano.Wallet.DB.Sqlite.Types</span></a><span>
-</span><a name="line-27"></a><span>    </span><span class="hs-special">(</span><span> </span><a href="Cardano.Wallet.DB.Sqlite.Types.html#AddressPoolXPub"><span class="hs-identifier hs-type">AddressPoolXPub</span></a><span class="hs-special">,</span><span> </span><a href="Cardano.Wallet.DB.Sqlite.Types.html#BlockId"><span class="hs-identifier hs-type">BlockId</span></a><span class="hs-special">,</span><span> </span><a href="Cardano.Wallet.DB.Sqlite.Types.html#TxId"><span class="hs-identifier hs-type">TxId</span></a><span class="hs-special">,</span><span> </span><a href="Cardano.Wallet.DB.Sqlite.Types.html#sqlSettings%27"><span class="hs-identifier hs-var">sqlSettings'</span></a><span> </span><span class="hs-special">)</span><span>
-</span><a name="line-28"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Text</span><span>
-</span><a name="line-29"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">Text</span><span> </span><span class="hs-special">)</span><span>
-</span><a name="line-30"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Time.Clock</span><span>
-</span><a name="line-31"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">UTCTime</span><span> </span><span class="hs-special">)</span><span>
-</span><a name="line-32"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Word</span><span>
-</span><a name="line-33"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">Word16</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Word32</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Word64</span><span> </span><span class="hs-special">)</span><span>
-</span><a name="line-34"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Database.Persist.TH</span><span>
-</span><a name="line-35"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-var">mkDeleteCascade</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">mkMigrate</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">mkPersist</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">persistLowerCase</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">share</span><span> </span><span class="hs-special">)</span><span>
-</span><a name="line-36"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Generics</span><span>
-</span><a name="line-37"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">Generic</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
-</span><a name="line-38"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Numeric.Natural</span><span>
-</span><a name="line-39"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">Natural</span><span> </span><span class="hs-special">)</span><span>
-</span><a name="line-40"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Random</span><span>
-</span><a name="line-41"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">StdGen</span><span> </span><span class="hs-special">)</span><span>
-</span><a name="line-42"></a><span>
-</span><a name="line-43"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><a href="Cardano.Wallet.Primitive.AddressDerivation.Sequential.html"><span class="hs-identifier">Cardano.Wallet.Primitive.AddressDerivation.Sequential</span></a><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">W</span><span>
-</span><a name="line-44"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><a href="Cardano.Wallet.Primitive.AddressDiscovery.Sequential.html"><span class="hs-identifier">Cardano.Wallet.Primitive.AddressDiscovery.Sequential</span></a><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">W</span><span>
-</span><a name="line-45"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><a href="Cardano.Wallet.Primitive.Types.html"><span class="hs-identifier">Cardano.Wallet.Primitive.Types</span></a><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">W</span><span>
-</span><a name="line-46"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data.ByteString.Char8</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">B8</span><span>
-</span><a name="line-47"></a><span>
-</span><a name="line-48"></a><span class="hs-identifier hs-var">share</span><span>
-</span><a name="line-49"></a><span>    </span><span class="hs-special">[</span><span> </span><span class="hs-identifier hs-var">mkPersist</span><span> </span><span class="hs-identifier hs-var">sqlSettings'</span><span>
-</span><a name="line-50"></a><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">mkDeleteCascade</span><span> </span><span class="hs-identifier hs-var">sqlSettings'</span><span>
-</span><a name="line-51"></a><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">mkMigrate</span><span> </span><span class="hs-string">&quot;migrateAll&quot;</span><span>
-</span><a name="line-52"></a><span>    </span><span class="hs-special">]</span><span>
-</span><a name="line-53"></a><span>    </span><span class="">[persistLowerCase|
+</span><a name="line-9"></a><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span>
+</span><a name="line-10"></a><span>
+</span><a name="line-11"></a><span class="hs-comment">-- |</span><span>
+</span><a name="line-12"></a><span class="hs-comment">-- Copyright: &#169; 2018-2019 IOHK</span><span>
+</span><a name="line-13"></a><span class="hs-comment">-- License: Apache-2.0</span><span>
+</span><a name="line-14"></a><span class="hs-comment">--</span><span>
+</span><a name="line-15"></a><span class="hs-comment">-- Auto-generated Sqlite &amp; Persistent machinery via Template-Haskell. This has</span><span>
+</span><a name="line-16"></a><span class="hs-comment">-- been moved into a separate file so that we can treat it slightly differently</span><span>
+</span><a name="line-17"></a><span class="hs-comment">-- when computing code-coverage.</span><span>
+</span><a name="line-18"></a><span class="hs-comment">--</span><span>
+</span><a name="line-19"></a><span class="hs-comment">-- More than 6K lines end-up being generated from the instructions below! As a</span><span>
+</span><a name="line-20"></a><span class="hs-comment">-- result, we're going to ignore code-coverage on the following module and, no</span><span>
+</span><a name="line-21"></a><span class="hs-comment">-- hand-written functions should be written in this module!</span><span>
+</span><a name="line-22"></a><span>
+</span><a name="line-23"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Cardano.Wallet.DB.Sqlite.TH</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-24"></a><span>
+</span><a name="line-25"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Prelude</span><span>
+</span><a name="line-26"></a><span>
+</span><a name="line-27"></a><span class="hs-keyword">import</span><span> </span><a href="Cardano.Wallet.DB.Sqlite.Types.html"><span class="hs-identifier">Cardano.Wallet.DB.Sqlite.Types</span></a><span>
+</span><a name="line-28"></a><span>    </span><span class="hs-special">(</span><span> </span><a href="Cardano.Wallet.DB.Sqlite.Types.html#AddressPoolXPub"><span class="hs-identifier hs-type">AddressPoolXPub</span></a><span class="hs-special">,</span><span> </span><a href="Cardano.Wallet.DB.Sqlite.Types.html#BlockId"><span class="hs-identifier hs-type">BlockId</span></a><span class="hs-special">,</span><span> </span><a href="Cardano.Wallet.DB.Sqlite.Types.html#TxId"><span class="hs-identifier hs-type">TxId</span></a><span class="hs-special">,</span><span> </span><a href="Cardano.Wallet.DB.Sqlite.Types.html#sqlSettings%27"><span class="hs-identifier hs-var">sqlSettings'</span></a><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-29"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Text</span><span>
+</span><a name="line-30"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">Text</span><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-31"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Time.Clock</span><span>
+</span><a name="line-32"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">UTCTime</span><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-33"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Word</span><span>
+</span><a name="line-34"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">Word16</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Word32</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">Word64</span><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-35"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Database.Persist.Class</span><span>
+</span><a name="line-36"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">AtLeastOneUniqueKey</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-type">OnlyOneUniqueKey</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-37"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Database.Persist.TH</span><span>
+</span><a name="line-38"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-var">mkDeleteCascade</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">mkMigrate</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">mkPersist</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">persistLowerCase</span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">share</span><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-39"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Generics</span><span>
+</span><a name="line-40"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">Generic</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-41"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Numeric.Natural</span><span>
+</span><a name="line-42"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">Natural</span><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-43"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Random</span><span>
+</span><a name="line-44"></a><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-identifier hs-type">StdGen</span><span> </span><span class="hs-special">)</span><span>
+</span><a name="line-45"></a><span>
+</span><a name="line-46"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><a href="Cardano.Wallet.Primitive.AddressDerivation.Sequential.html"><span class="hs-identifier">Cardano.Wallet.Primitive.AddressDerivation.Sequential</span></a><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">W</span><span>
+</span><a name="line-47"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><a href="Cardano.Wallet.Primitive.AddressDiscovery.Sequential.html"><span class="hs-identifier">Cardano.Wallet.Primitive.AddressDiscovery.Sequential</span></a><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">W</span><span>
+</span><a name="line-48"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><a href="Cardano.Wallet.Primitive.Types.html"><span class="hs-identifier">Cardano.Wallet.Primitive.Types</span></a><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">W</span><span>
+</span><a name="line-49"></a><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data.ByteString.Char8</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">B8</span><span>
+</span><a name="line-50"></a><span>
+</span><a name="line-51"></a><span class="hs-identifier hs-var">share</span><span>
+</span><a name="line-52"></a><span>    </span><span class="hs-special">[</span><span> </span><span class="hs-identifier hs-var">mkPersist</span><span> </span><span class="hs-identifier hs-var">sqlSettings'</span><span>
+</span><a name="line-53"></a><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">mkDeleteCascade</span><span> </span><span class="hs-identifier hs-var">sqlSettings'</span><span>
+</span><a name="line-54"></a><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-identifier hs-var">mkMigrate</span><span> </span><span class="hs-string">&quot;migrateAll&quot;</span><span>
+</span><a name="line-55"></a><span>    </span><span class="hs-special">]</span><span>
+</span><a name="line-56"></a><span>    </span><span class="">[persistLowerCase|
 
 -- Wallet IDs, address discovery state, and metadata.
 Wallet
@@ -72,8 +75,7 @@ PrivateKey                             sql=private_key
     privateKeyHash      B8.ByteString  sql=hash
 
     Primary privateKeyWalletId
-    Foreign Wallet fk_wallet_private_key privateKeyWalletId
-
+    Foreign Wallet fk_wallet_private_key privateKeyWalletId ! ON DELETE CASCADE
     deriving Show Generic
 
 -- Maps a transaction ID to its metadata (which is calculated when applying
@@ -91,7 +93,7 @@ TxMeta
     txMetaAmount     Natural      sql=amount
 
     Primary txMetaTxId txMetaWalletId
-    Foreign Wallet fk_wallet_tx_meta txMetaWalletId
+    Foreign Wallet fk_wallet_tx_meta txMetaWalletId ! ON DELETE CASCADE
     deriving Show Generic
 
 -- A transaction input associated with TxMeta.
@@ -137,8 +139,7 @@ Checkpoint
     checkpointEpochStability Word32       sql=epoch_stability
 
     Primary checkpointWalletId checkpointSlot
-    Foreign Wallet fk_wallet_checkpoint checkpointWalletId
-
+    Foreign Wallet checkpoint checkpointWalletId ! ON DELETE CASCADE
     deriving Show Generic
 
 -- The UTxO for a given wallet checkpoint is a one-to-one mapping from TxIn -&gt;
@@ -158,13 +159,8 @@ UTxO                                sql=utxo
     utxoOutputAddress   W.Address   sql=output_address
     utxoOutputCoin      W.Coin      sql=output_coin
 
-    Primary
-        utxoWalletId
-        utxoSlot
-        utxoInputId
-        utxoInputIndex
-
-    Foreign Checkpoint fk_checkpoint_utxo utxoWalletId utxoSlot
+    Primary utxoWalletId utxoSlot utxoInputId utxoInputIndex
+    Foreign Checkpoint utxo utxoWalletId utxoSlot ! ON DELETE CASCADE
     deriving Show Generic
 
 -- Sequential scheme address discovery state
@@ -176,7 +172,7 @@ SeqState
     seqStateAccountXPub     AddressPoolXPub   sql=account_xpub
 
     Primary seqStateWalletId
-    Foreign Wallet fk_wallet_seq_state seqStateWalletId
+    Foreign Wallet seq_state seqStateWalletId ! ON DELETE CASCADE
     deriving Show Generic
 
 -- Mapping of pool addresses to indices, and the slot
@@ -184,11 +180,17 @@ SeqState
 SeqStateAddress
     seqStateAddressWalletId     W.WalletId     sql=wallet_id
     seqStateAddressSlot         W.SlotId       sql=slot
-
     seqStateAddressAddress      W.Address      sql=address
     seqStateAddressIndex        Word32         sql=address_ix
     seqStateAddressChangeChain  W.ChangeChain  sql=change_chain
 
+    Primary
+        seqStateAddressWalletId
+        seqStateAddressSlot
+        seqStateAddressAddress
+        seqStateAddressIndex
+        seqStateAddressChangeChain
+    Foreign Checkpoint seq_state_address seqStateAddressWalletId seqStateAddressSlot ! ON DELETE CASCADE
     deriving Show Generic
 
 -- Sequential address discovery scheme -- pending change indexes
@@ -197,6 +199,7 @@ SeqStatePendingIx                            sql=seq_state_pending
     seqStatePendingIxIndex      Word32       sql=pending_ix
 
     Primary seqStatePendingWalletId seqStatePendingIxIndex
+    Foreign Wallet seq_state_address_pending seqStatePendingWalletId ! ON DELETE CASCADE
     deriving Show Generic
 
 -- Random scheme address discovery state
@@ -207,7 +210,7 @@ RndState
     rndStateGen             StdGen            sql=gen
 
     Primary rndStateWalletId
-    Foreign Wallet fk_wallet_rnd_state rndStateWalletId
+    Foreign Wallet rnd_state rndStateWalletId ! ON DELETE CASCADE
     deriving Show Generic
 
 -- The set of discovered addresses.
@@ -224,6 +227,7 @@ RndStateAddress
         rndStateAddressAccountIndex
         rndStateAddressIndex
         rndStateAddressAddress
+    Foreign Checkpoint rnd_state_address rndStateAddressWalletId rndStateAddressSlot ! ON DELETE CASCADE
     deriving Show Generic
 
 -- The set of pending change addresses.
@@ -238,6 +242,7 @@ RndStatePendingAddress
         rndStatePendingAddressAccountIndex
         rndStatePendingAddressIndex
         rndStatePendingAddressAddress
+    Foreign Wallet rnd_state_pending_address rndStatePendingAddressWalletId ! ON DELETE CASCADE
     deriving Show Generic
 |]</span><span>
-</span><a name="line-243"></a></pre></body></html>
+</span><a name="line-248"></a></pre></body></html>
