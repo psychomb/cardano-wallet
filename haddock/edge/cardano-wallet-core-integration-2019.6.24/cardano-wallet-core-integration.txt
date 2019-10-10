@@ -229,6 +229,10 @@ infixr 5 </>
 infixl 9 !!
 
 -- | Create an empty wallet
+emptyByronWallet :: Context t -> IO ApiByronWallet
+emptyByronWalletWith :: Context t -> (Text, [Text], Text) -> IO ApiByronWallet
+
+-- | Create an empty wallet
 emptyWallet :: Context t -> IO ApiWallet
 
 -- | Create an empty wallet
@@ -284,6 +288,10 @@ utcIso8601ToText :: UTCTime -> Text
 
 -- | Prepare externally signed Tx for Jormungandr
 prepExternalTxViaJcli :: Port "node" -> Text -> Natural -> IO Text
+postByronWalletEp :: (Method, Text)
+getByronWalletEp :: ApiByronWallet -> (Method, Text)
+listByronWalletEp :: (Method, Text)
+deleteByronWalletEp :: ApiByronWallet -> (Method, Text)
 getWalletEp :: ApiWallet -> (Method, Text)
 deleteWalletEp :: ApiWallet -> (Method, Text)
 getWalletUtxoEp :: ApiWallet -> (Method, Text)
@@ -332,6 +340,7 @@ mnemonics15 :: [Text]
 mnemonics18 :: [Text]
 mnemonics21 :: [Text]
 mnemonics24 :: [Text]
+specMnemonicByron :: [Text]
 specMnemonicSentence :: [Text]
 specMnemonicSecondFactor :: [Text]
 arabicWalletName :: Text
@@ -372,6 +381,9 @@ errMsg500 :: String
 
 module Test.Integration.Scenario.API.Addresses
 spec :: forall t. (DecodeAddress t, EncodeAddress t) => SpecWith (Context t)
+
+module Test.Integration.Scenario.API.ByronWallets
+spec :: forall t. (EncodeAddress t, DecodeAddress t) => SpecWith (Context t)
 
 module Test.Integration.Scenario.API.Transactions
 spec :: forall t. (EncodeAddress t, DecodeAddress t) => SpecWith (Context t)
