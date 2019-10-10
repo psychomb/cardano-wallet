@@ -3603,6 +3603,12 @@ ApiByronWallet :: !ApiT WalletId -> !ApiT WalletBalance -> !ApiT WalletName -> !
 [$sel:name:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletName
 [$sel:passphrase:ApiByronWallet] :: ApiByronWallet -> !Maybe (ApiT WalletPassphraseInfo)
 [$sel:state:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletState
+newtype ApiByronWalletMigrationInfo
+ApiByronWalletMigrationInfo :: Quantity "lovelace" Natural -> ApiByronWalletMigrationInfo
+[$sel:migrationCost:ApiByronWalletMigrationInfo] :: ApiByronWalletMigrationInfo -> Quantity "lovelace" Natural
+newtype ApiMigrateByronWalletData
+ApiMigrateByronWalletData :: ApiT (Passphrase "encryption") -> ApiMigrateByronWalletData
+[$sel:passphrase:ApiMigrateByronWalletData] :: ApiMigrateByronWalletData -> ApiT (Passphrase "encryption")
 data ByronWalletPostData
 ByronWalletPostData :: !ApiMnemonicT '[12] "seed" -> !ApiT WalletName -> !ApiT (Passphrase "encryption") -> ByronWalletPostData
 [$sel:mnemonicSentence:ByronWalletPostData] :: ByronWalletPostData -> !ApiMnemonicT '[12] "seed"
@@ -3694,9 +3700,15 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiBlockData
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiByronWallet
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiByronWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiByronWallet
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
 instance GHC.Classes.Eq a => GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiT a)
 instance GHC.Show.Show a => GHC.Show.Show (Cardano.Wallet.Api.Types.ApiT a)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiT a)
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiByronWalletMigrationInfo
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiByronWalletMigrationInfo
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiByronWalletMigrationInfo
 instance GHC.Show.Show Cardano.Wallet.Api.Types.Iso8601Time
 instance GHC.Classes.Ord Cardano.Wallet.Api.Types.Iso8601Time
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.Iso8601Time
@@ -3748,6 +3760,8 @@ instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiBlockDat
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiBlockData
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiByronWallet
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiByronWallet
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
 instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.Address, Data.Proxy.Proxy t)
 instance Cardano.Wallet.Primitive.Types.EncodeAddress t => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.Address, Data.Proxy.Proxy t)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.AddressState)
@@ -3784,6 +3798,8 @@ instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Carda
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.TxStatus)
 instance Data.Text.Class.FromText a => Web.Internal.HttpApiData.FromHttpApiData (Cardano.Wallet.Api.Types.ApiT a)
 instance Data.Text.Class.ToText a => Web.Internal.HttpApiData.ToHttpApiData (Cardano.Wallet.Api.Types.ApiT a)
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiByronWalletMigrationInfo
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiByronWalletMigrationInfo
 instance Data.Text.Class.ToText Cardano.Wallet.Api.Types.Iso8601Time
 instance Data.Text.Class.FromText Cardano.Wallet.Api.Types.Iso8601Time
 instance Web.Internal.HttpApiData.FromHttpApiData Cardano.Wallet.Api.Types.Iso8601Time
@@ -3804,7 +3820,7 @@ type Addresses t = ListAddresses t
 type Wallets = DeleteWallet :<|> GetWallet :<|> ListWallets :<|> PostWallet :<|> PutWallet :<|> PutWalletPassphrase :<|> GetUTxOsStatistics
 type Transactions t = CreateTransaction t :<|> ListTransactions t :<|> PostTransactionFee t :<|> PostExternalTransaction
 type StakePools = ListStakePools
-type CompatibilityApi t = DeleteByronWallet :<|> GetByronWallet :<|> ListByronWallets :<|> PostByronWallet
+type CompatibilityApi t = DeleteByronWallet :<|> GetByronWallet :<|> GetByronWalletMigrationInfo :<|> ListByronWallets :<|> MigrateByronWallet :<|> PostByronWallet
 data ApiLayer s t (k :: Depth -> * -> *)
 ApiLayer :: Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO (Tx t) (Block (Tx t)) -> TransactionLayer t k -> DBFactory IO s t k -> WorkerRegistry WalletId (DBLayer IO s t k) -> ApiLayer s t
 type HasWorkerRegistry s t k ctx = (HasType (WorkerRegistry WalletId (DBLayer IO s t k)) ctx, HasWorkerCtx (DBLayer IO s t k) ctx)
