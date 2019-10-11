@@ -239,15 +239,15 @@ HttpBridgeLayer :: (Hash "BlockHeader" -> ExceptT ErrNetworkUnavailable m (Block
 [$sel:postSignedTx:HttpBridgeLayer] :: HttpBridgeLayer m -> (Tx, [TxWitness]) -> ExceptT ErrPostTx m ()
 
 -- | Constructs a network layer with the given cardano-http-bridge API.
-mkNetworkLayer :: forall n m. (Monad m, KnownNetwork (n :: Network)) => HttpBridgeLayer m -> NetworkLayer m Tx (Block Tx)
+mkNetworkLayer :: forall n m t. (Monad m, KnownNetwork (n :: Network), t ~ HttpBridge n) => HttpBridgeLayer m -> NetworkLayer m t (Block Tx)
 
 -- | Creates a cardano-http-bridge <a>NetworkLayer</a> using the given
 --   connection settings.
-newNetworkLayer :: forall n. KnownNetwork (n :: Network) => PortNumber -> IO (NetworkLayer IO Tx (Block Tx))
+newNetworkLayer :: forall n t. (KnownNetwork (n :: Network), t ~ HttpBridge n) => PortNumber -> IO (NetworkLayer IO t (Block Tx))
 
 -- | Construct a new network layer
 mkHttpBridgeLayer :: Manager -> BaseUrl -> NetworkName -> HttpBridgeLayer IO
-withNetworkLayer :: forall n a. KnownNetwork n => Trace IO Text -> HttpBridgeBackend -> (Either ErrStartup (PortNumber, NetworkLayer IO Tx (Block Tx)) -> IO a) -> IO a
+withNetworkLayer :: forall n a t. (KnownNetwork n, t ~ HttpBridge n) => Trace IO Text -> HttpBridgeBackend -> (Either ErrStartup (PortNumber, NetworkLayer IO t (Block Tx)) -> IO a) -> IO a
 data HttpBridgeBackend
 UseRunning :: PortNumber -> HttpBridgeBackend
 Launch :: HttpBridgeConfig -> HttpBridgeBackend
@@ -277,4 +277,4 @@ instance GHC.Exception.Type.Exception Cardano.Wallet.HttpBridge.Network.ErrUnexp
 module Cardano.Wallet.HttpBridge
 
 -- | The <tt>cardano-wallet-http-bridge</tt> main function.
-serveWallet :: forall t k n s a. (t ~ HttpBridge n, s ~ SeqState t, k ~ SeqKey) => (KeyToAddress t k, KnownNetwork n) => (Configuration, Switchboard Text, Trace IO Text) -> Maybe FilePath -> Listen -> HttpBridgeBackend -> Maybe (PortNumber -> PortNumber -> NetworkLayer IO Tx (Block Tx) -> IO a) -> IO ExitCode
+serveWallet :: forall t k n s a. (t ~ HttpBridge n, s ~ SeqState t, k ~ SeqKey) => (KeyToAddress t k, KnownNetwork n) => (Configuration, Switchboard Text, Trace IO Text) -> Maybe FilePath -> Listen -> HttpBridgeBackend -> Maybe (PortNumber -> PortNumber -> NetworkLayer IO t (Block Tx) -> IO a) -> IO ExitCode
