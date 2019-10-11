@@ -83,18 +83,6 @@ data HttpBridge (network :: Network)
 data Network
 Mainnet :: Network
 Testnet :: Network
-
--- | An initial first block to initialize a chain using the http-bridge. We
---   do not use the <tt>blockHash</tt> and, do only use the
---   <a>$sel:prevBlockHash:BlockHeader</a> to catch up with unstable epoch
---   and therefore, the very first <a>$sel:prevBlockHash:BlockHeader</a>
---   matters not.
---   
---   It isn't impossible to retrieve the <tt>blockHash</tt> by computing a
---   blake2b 256 of the CBOR-serialized full block header, but this
---   requires us to write the full CBOR decoders (and encoders) for the all
---   BlockHeader which is, for the http-brdige implementation, a waste of
---   time at the moment.
 block0 :: Block Tx
 
 -- | Hard-coded fee policy for Cardano on Byron

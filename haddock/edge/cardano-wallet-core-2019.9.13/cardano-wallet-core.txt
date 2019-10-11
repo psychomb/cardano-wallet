@@ -272,10 +272,11 @@ Block :: !BlockHeader -> ![tx] -> Block tx
 [$sel:header:Block] :: Block tx -> !BlockHeader
 [$sel:transactions:Block] :: Block tx -> ![tx]
 data BlockHeader
-BlockHeader :: SlotId -> Quantity "block" Natural -> !Hash "BlockHeader" -> BlockHeader
+BlockHeader :: SlotId -> Quantity "block" Word32 -> !Hash "BlockHeader" -> !Hash "BlockHeader" -> BlockHeader
 [$sel:slotId:BlockHeader] :: BlockHeader -> SlotId
-[$sel:blockHeight:BlockHeader] :: BlockHeader -> Quantity "block" Natural
-[$sel:prevBlockHash:BlockHeader] :: BlockHeader -> !Hash "BlockHeader"
+[$sel:blockHeight:BlockHeader] :: BlockHeader -> Quantity "block" Word32
+[$sel:headerHash:BlockHeader] :: BlockHeader -> !Hash "BlockHeader"
+[$sel:parentHeaderHash:BlockHeader] :: BlockHeader -> !Hash "BlockHeader"
 
 -- | An abstraction for computing transaction id. The <tt>target</tt> is an
 --   open-type that can be used to discriminate on. For instance:
@@ -1998,7 +1999,7 @@ instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Model.Blockchai
 
 module Cardano.Wallet.Network
 data NetworkLayer m target block
-NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (BlockHeader -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> NetworkLayer m target block
+NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> NetworkLayer m target block
 
 -- | Starting from the given <a>Cursor</a>, fetches a contiguous sequence
 --   of blocks from the node, if they are available. An updated cursor will
@@ -2015,7 +2016,7 @@ NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target
 
 -- | Creates a cursor from the given block header so that <a>nextBlocks</a>
 --   can be used to fetch blocks.
-[initCursor] :: NetworkLayer m target block -> BlockHeader -> Cursor target
+[initCursor] :: NetworkLayer m target block -> [BlockHeader] -> Cursor target
 
 -- | Get the slot corresponding to a cursor.
 [cursorSlotId] :: NetworkLayer m target block -> Cursor target -> SlotId
@@ -2042,9 +2043,6 @@ RollForward :: Cursor target -> BlockHeader -> [block] -> NextBlocksResult targe
 -- | The chain consumer must roll back its state, then use the cursor to
 --   get the next batch of blocks.
 RollBackward :: Cursor target -> NextBlocksResult target block
-
--- | An intersection could not be found. Start from scratch.
-Recover :: NextBlocksResult target block
 
 -- | A cursor is local state kept by the chain consumer to use as the
 --   starting position for <a>nextBlocks</a>. The actual type is opaque and
@@ -2431,10 +2429,11 @@ TxOut :: !TxId -> !Word32 -> !Address -> !Coin -> TxOut
 [txOutputAmount] :: TxOut -> !Coin
 type TxOutId = Key TxOut
 data Checkpoint
-Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !Word64 -> !BlockId -> !UTCTime -> !FeePolicy -> !Word64 -> !Word16 -> !Word16 -> !Word32 -> Checkpoint
+Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !BlockId -> !Word64 -> !BlockId -> !UTCTime -> !FeePolicy -> !Word64 -> !Word16 -> !Word16 -> !Word32 -> Checkpoint
 [checkpointWalletId] :: Checkpoint -> !WalletId
 [checkpointSlot] :: Checkpoint -> !SlotId
-[checkpointParent] :: Checkpoint -> !BlockId
+[checkpointHeaderHash] :: Checkpoint -> !BlockId
+[checkpointParentHash] :: Checkpoint -> !BlockId
 [checkpointBlockHeight] :: Checkpoint -> !Word64
 [checkpointGenesisHash] :: Checkpoint -> !BlockId
 [checkpointGenesisStart] :: Checkpoint -> !UTCTime
@@ -2899,7 +2898,7 @@ cleanDB :: Monad m => DBLayer m s t k -> m ()
 --   └───┴───┴───┴─  ──┴───┘
 --    
 --   </pre>
-sparseCheckpoints :: Quantity "block" Word32 -> Quantity "block" Natural -> [Word64]
+sparseCheckpoints :: Quantity "block" Word32 -> Quantity "block" Word32 -> [Word64]
 
 -- | Can't perform given operation because there's no wallet
 newtype ErrNoSuchWallet

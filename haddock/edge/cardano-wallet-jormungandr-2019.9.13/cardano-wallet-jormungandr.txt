@@ -21,14 +21,11 @@ module Cardano.Wallet.Jormungandr.BlockHeaders
 -- | A list of block headers and their hashes. The last block in this
 --   sequence is the network tip. The first block in this sequence is the
 --   block of depth <i>k</i>, which is the last unstable block.
-data BlockHeaders
-BlockHeaders :: !Seq (Hash "BlockHeader", BlockHeader) -> !Quantity "block" Word32 -> BlockHeaders
+newtype BlockHeaders
+BlockHeaders :: Seq BlockHeader -> BlockHeaders
 
 -- | Double-ended queue of block headers, and their IDs.
-[$sel:getBlockHeaders:BlockHeaders] :: BlockHeaders -> !Seq (Hash "BlockHeader", BlockHeader)
-
--- | The block height of the tip of the sequence.
-[$sel:getBlockHeight:BlockHeaders] :: BlockHeaders -> !Quantity "block" Word32
+[$sel:getBlockHeaders:BlockHeaders] :: BlockHeaders -> Seq BlockHeader
 
 -- | Constuct an empty unstable blocks sequence.
 emptyBlockHeaders :: BlockHeaders
@@ -89,13 +86,10 @@ emptyBlockHeaders :: BlockHeaders
 --   If any errors occur while this process is running (for example,
 --   fetching a block which has been rolled back and lost from the node's
 --   state), it will immediately terminate.
-updateUnstableBlocks :: forall m. Monad m => Quantity "block" Word32 -> m (Hash "BlockHeader") -> (Hash "BlockHeader" -> m (BlockHeader, Quantity "block" Word32)) -> BlockHeaders -> m BlockHeaders
+updateUnstableBlocks :: forall m. Monad m => Quantity "block" Word32 -> m (Hash "BlockHeader") -> (Hash "BlockHeader" -> m BlockHeader) -> BlockHeaders -> m BlockHeaders
 
 -- | The tip block header of the unstable blocks, if it exists.
 blockHeadersTip :: BlockHeaders -> Maybe BlockHeader
-
--- | The tip block id of the unstable blocks, if it exists.
-blockHeadersTipId :: BlockHeaders -> Maybe (Hash "BlockHeader")
 
 -- | The base block header is the oldest block header in the unstable
 --   blocks,
@@ -107,7 +101,7 @@ blockHeadersAtGenesis :: BlockHeaders -> Bool
 -- | Add recently fetched block headers to the unstable blocks. This will
 --   drop the oldest block headers to ensure that there are at most
 --   <i>k</i> items in the sequence.
-appendBlockHeaders :: Quantity "block" Word32 -> BlockHeaders -> [(Hash "BlockHeader", BlockHeader, Quantity "block" Word32)] -> BlockHeaders
+appendBlockHeaders :: Quantity "block" Word32 -> BlockHeaders -> [BlockHeader] -> BlockHeaders
 
 -- | Remove unstable blocks which have a slot greater than or equal to the
 --   given slot.
@@ -119,6 +113,9 @@ dropAfterSlotId :: SlotId -> BlockHeaders -> BlockHeaders
 -- | If the two sequences overlap in terms of slots, return the block
 --   header of the last block that is common between the two. Otherwise
 --   return Nothing.
+--   
+--   <a>greatestCommonBlockHeader</a> works fine if one (or both) list are
+--   sparse and different length.
 --   
 --   For example: <tt> | (1) | (2) | (3) | (4) | (5) Node | abcdefg | efg |
 --   abcdefg | abcde | abc Local | cdpqrst | abc | abcdefg | | efg GCBH |
@@ -214,12 +211,13 @@ Block :: BlockHeader -> [Message] -> Block
 [header] :: Block -> BlockHeader
 [messages] :: Block -> [Message]
 data BlockHeader
-BlockHeader :: Word16 -> Word32 -> SlotId -> Word32 -> Hash "content" -> Hash "BlockHeader" -> Maybe PoolId -> BlockHeader
+BlockHeader :: Word16 -> Word32 -> SlotId -> Word32 -> Hash "content" -> Hash "BlockHeader" -> Hash "BlockHeader" -> Maybe PoolId -> BlockHeader
 [version] :: BlockHeader -> Word16
 [contentSize] :: BlockHeader -> Word32
 [slot] :: BlockHeader -> SlotId
 [chainLength] :: BlockHeader -> Word32
 [contentHash] :: BlockHeader -> Hash "content"
+[headerHash] :: BlockHeader -> Hash "BlockHeader"
 [parentHeaderHash] :: BlockHeader -> Hash "BlockHeader"
 
 -- | Will contain the VRFPubKey of the stake pool for non-genesis
@@ -413,9 +411,6 @@ data Network
 Mainnet :: Network
 Testnet :: Network
 
--- | Genesis block header, i.e. very first block header of the chain
-block0 :: BlockHeader
-
 -- | Jörmugandr's chain parameter doesn't include a transaction max size.
 --   The actual hard-limit for the size is constrained by the binary format
 --   and numbers used to represent the number of inputs and outputs
@@ -534,8 +529,8 @@ JormungandrClient :: ExceptT ErrNetworkUnavailable m (Hash "BlockHeader") -> (Ha
 mkJormungandrClient :: Manager -> BaseUrl -> JormungandrClient IO
 
 -- | Get a block header corresponding to a header hash.
-getBlockHeader :: Monad m => JormungandrClient m -> Hash "BlockHeader" -> ExceptT ErrGetBlock m (BlockHeader, Quantity "block" Word32)
-getBlocks :: Monad m => JormungandrClient m -> Quantity "block" Word32 -> BlockHeader -> ExceptT ErrGetBlock m [(Hash "BlockHeader", Block)]
+getBlockHeader :: Monad m => JormungandrClient m -> Hash "BlockHeader" -> ExceptT ErrGetBlock m BlockHeader
+getBlocks :: Monad m => JormungandrClient m -> Quantity "block" Word32 -> Hash "BlockHeader" -> ExceptT ErrGetBlock m [Block]
 
 -- | Safely lift error into a bigger type.
 class LiftError lift
