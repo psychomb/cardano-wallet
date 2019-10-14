@@ -569,6 +569,9 @@ computeUtxoStatistics :: BoundType -> UTxO -> UTxOStatistics
 
 -- | Smart-constructor to create bounds using a log-10 scale
 log10 :: BoundType
+data SyncProgress
+Ready :: SyncProgress
+Restoring :: !Quantity "percent" Percentage -> SyncProgress
 
 -- | A slot identifier is the combination of an epoch and slot.
 data SlotId
@@ -683,11 +686,11 @@ slotRangeFromTimeRange :: SlotParameters -> Range UTCTime -> Maybe (Range SlotId
 --   <a>$sel:delegation:WalletMetadata</a>...</li>
 --   </ul>
 data WalletMetadata
-WalletMetadata :: !WalletName -> !UTCTime -> !Maybe WalletPassphraseInfo -> !WalletState -> !WalletDelegation PoolId -> WalletMetadata
+WalletMetadata :: !WalletName -> !UTCTime -> !Maybe WalletPassphraseInfo -> !SyncProgress -> !WalletDelegation PoolId -> WalletMetadata
 [$sel:name:WalletMetadata] :: WalletMetadata -> !WalletName
 [$sel:creationTime:WalletMetadata] :: WalletMetadata -> !UTCTime
 [$sel:passphraseInfo:WalletMetadata] :: WalletMetadata -> !Maybe WalletPassphraseInfo
-[$sel:status:WalletMetadata] :: WalletMetadata -> !WalletState
+[$sel:status:WalletMetadata] :: WalletMetadata -> !SyncProgress
 [$sel:delegation:WalletMetadata] :: WalletMetadata -> !WalletDelegation PoolId
 newtype WalletId
 WalletId :: Digest Blake2b_160 -> WalletId
@@ -703,9 +706,6 @@ walletNameMinLength :: Int
 
 -- | Calling 'fromText @WalletName' on a longer string will fail.
 walletNameMaxLength :: Int
-data WalletState
-Ready :: WalletState
-Restoring :: !Quantity "percent" Percentage -> WalletState
 data WalletDelegation poolId
 NotDelegating :: WalletDelegation poolId
 Delegating :: !poolId -> WalletDelegation poolId
@@ -818,6 +818,40 @@ rangeUpperBound :: Range a -> RangeBound a
 -- | Magic constant associated to a given network
 newtype ProtocolMagic
 ProtocolMagic :: Int32 -> ProtocolMagic
+
+-- | Network Time Protocol status.
+--   
+--   TODO: Use a NTP-client to query some known NTP server and figure out
+--   by how much is machine's clock drifting. An existing NTP client
+--   implementation exists on `cardano-sl` and is fairly decoupled from the
+--   rest of the code:
+--   
+--   
+--   <a>https://github.com/input-output-hk/cardano-sl/blob/1a792d7cd0f0c93a0f0c28f66372bce3c3808dbd/networking/src/Ntp/Client.hs</a>
+--   
+--   The idea would be to extract that piece of code into a separate
+--   package that we could re-use to implement this functionality.
+data NtpStatus
+
+-- | Couldn't get an answer from the NTP server in a timely manner
+NtpUnavailable :: NtpStatus
+
+-- | Awaiting from a response from the NTP server
+NtpPending :: NtpStatus
+
+-- | Local clock drift is known.
+NtpAvailable :: Quantity "microsecond" Word32 -> NtpStatus
+
+-- | Status about protocol updates we've seen on the network. Protocol
+--   updates appear as "Update Proposals", and are made by nodes in order
+--   to change ongoing protocol parameters such as the slot length.
+--   
+--   FIXME: At the moment, we can't reliably provide this information
+--   because, even if we can see update proposals as we process blocks, we
+--   don't have any notion of acceptance and therefore are unable to tell
+--   if and when these updates are accepted.
+data ProtocolUpdates
+UpdatesUnavailable :: ProtocolUpdates
 newtype Hash (tag :: Symbol)
 Hash :: ByteString -> Hash
 [$sel:getHash:Hash] :: Hash -> ByteString
@@ -875,6 +909,14 @@ instance GHC.Classes.Ord (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Show.Show (Cardano.Wallet.Primitive.Types.Hash tag)
+instance GHC.Enum.Enum Cardano.Wallet.Primitive.Types.ProtocolUpdates
+instance GHC.Enum.Bounded Cardano.Wallet.Primitive.Types.ProtocolUpdates
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.ProtocolUpdates
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.ProtocolUpdates
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.ProtocolUpdates
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.NtpStatus
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.NtpStatus
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.NtpStatus
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.ProtocolMagic
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.ProtocolMagic
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SlotParameters
@@ -890,6 +932,12 @@ instance GHC.Show.Show Cardano.Wallet.Primitive.Types.EpochLength
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.SlotLength
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.SlotLength
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SlotLength
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.WalletMetadata
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.WalletMetadata
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.WalletMetadata
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SyncProgress
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.SyncProgress
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.SyncProgress
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.TxMeta
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.TxMeta
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.TxMeta
@@ -948,9 +996,6 @@ instance GHC.Show.Show Cardano.Wallet.Primitive.Types.TxStatus
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.StakeDistribution
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.StakeDistribution
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.StakeDistribution
-instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.WalletMetadata
-instance GHC.Show.Show Cardano.Wallet.Primitive.Types.WalletMetadata
-instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.WalletMetadata
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.PoolId
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.PoolId
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.PoolId
@@ -975,9 +1020,6 @@ instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.WalletPassphraseInf
 instance GHC.Show.Show poolId => GHC.Show.Show (Cardano.Wallet.Primitive.Types.WalletDelegation poolId)
 instance GHC.Classes.Eq poolId => GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.WalletDelegation poolId)
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.Types.WalletDelegation poolId)
-instance GHC.Show.Show Cardano.Wallet.Primitive.Types.WalletState
-instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.WalletState
-instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.WalletState
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.WalletId
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.WalletId
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.WalletId
@@ -1005,6 +1047,11 @@ instance GHC.TypeLits.KnownSymbol tag => Data.Text.Class.FromText (Cardano.Walle
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.StartTime
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.EpochLength
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.SlotLength
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.WalletMetadata
+instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.WalletMetadata
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.SyncProgress
+instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.SyncProgress
+instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.SyncProgress
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.TxMeta
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.TxMeta
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.SlotId
@@ -1033,8 +1080,6 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.TxStatus
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.TxStatus
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.TxStatus
 instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.TxStatus
-instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.WalletMetadata
-instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.WalletMetadata
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.PoolId
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.PoolId
 instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.PoolId
@@ -1044,9 +1089,6 @@ instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.SortOrder
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.WalletPassphraseInfo
 instance Control.DeepSeq.NFData poolId => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.Types.WalletDelegation poolId)
 instance Formatting.Buildable.Buildable poolId => Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.Types.WalletDelegation poolId)
-instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.WalletState
-instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.WalletState
-instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.WalletState
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.WalletId
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.WalletId
 instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.WalletId
@@ -2543,8 +2585,8 @@ BlockId :: Hash "BlockHeader" -> BlockId
 --   epochLength as the blockchain/. This is just for the sake of storing
 --   the 64 bit epoch and the 16 bit slot inside a single 64-bit field.
 artificialEpochLength :: EpochLength
-walletStateNum :: WalletState -> Word8
-walletStateFromNum :: Word8 -> WalletState
+walletStateNum :: SyncProgress -> Word8
+walletStateFromNum :: Word8 -> SyncProgress
 mkCoin :: Word64 -> Either Text Coin
 newtype AddressPoolXPub
 AddressPoolXPub :: SeqKey  'AccountK XPub -> AddressPoolXPub
@@ -2594,9 +2636,9 @@ instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Typ
 instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.SlotId
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Primitive.Types.SlotId
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Primitive.Types.SlotId
-instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.WalletState
-instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Types.WalletState
-instance GHC.Read.Read Cardano.Wallet.Primitive.Types.WalletState
+instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.SyncProgress
+instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Types.SyncProgress
+instance GHC.Read.Read Cardano.Wallet.Primitive.Types.SyncProgress
 instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.TxStatus
 instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Types.TxStatus
 instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.Coin
@@ -2625,12 +2667,12 @@ instance Web.PathPieces.PathPiece Cardano.Wallet.Primitive.Types.PoolId
 --   module!
 module Cardano.Wallet.DB.Sqlite.TH
 data Wallet
-Wallet :: !WalletId -> !UTCTime -> !Text -> !Maybe UTCTime -> !WalletState -> !Maybe PoolId -> Wallet
+Wallet :: !WalletId -> !UTCTime -> !Text -> !Maybe UTCTime -> !SyncProgress -> !Maybe PoolId -> Wallet
 [walId] :: Wallet -> !WalletId
 [walCreationTime] :: Wallet -> !UTCTime
 [walName] :: Wallet -> !Text
 [walPassphraseLastUpdatedAt] :: Wallet -> !Maybe UTCTime
-[walStatus] :: Wallet -> !WalletState
+[walStatus] :: Wallet -> !SyncProgress
 [walDelegation] :: Wallet -> !Maybe PoolId
 type WalletId = Key Wallet
 data PrivateKey
@@ -3757,14 +3799,14 @@ StakePoolMetrics :: !Quantity "lovelace" Natural -> !Quantity "block" Natural ->
 [$sel:controlledStake:StakePoolMetrics] :: StakePoolMetrics -> !Quantity "lovelace" Natural
 [$sel:producedBlocks:StakePoolMetrics] :: StakePoolMetrics -> !Quantity "block" Natural
 data ApiWallet
-ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !ApiT (WalletDelegation (ApiT PoolId)) -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT WalletState -> ApiWallet
+ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !ApiT (WalletDelegation (ApiT PoolId)) -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> ApiWallet
 [$sel:id:ApiWallet] :: ApiWallet -> !ApiT WalletId
 [$sel:addressPoolGap:ApiWallet] :: ApiWallet -> !ApiT AddressPoolGap
 [$sel:balance:ApiWallet] :: ApiWallet -> !ApiT WalletBalance
 [$sel:delegation:ApiWallet] :: ApiWallet -> !ApiT (WalletDelegation (ApiT PoolId))
 [$sel:name:ApiWallet] :: ApiWallet -> !ApiT WalletName
 [$sel:passphrase:ApiWallet] :: ApiWallet -> !Maybe (ApiT WalletPassphraseInfo)
-[$sel:state:ApiWallet] :: ApiWallet -> !ApiT WalletState
+[$sel:state:ApiWallet] :: ApiWallet -> !ApiT SyncProgress
 data ApiUtxoStatistics
 ApiUtxoStatistics :: !Quantity "lovelace" Natural -> !ApiT BoundType -> !Map Word64 Word64 -> ApiUtxoStatistics
 [$sel:total:ApiUtxoStatistics] :: ApiUtxoStatistics -> !Quantity "lovelace" Natural
@@ -3798,15 +3840,16 @@ PostTransactionFeeData :: NonEmpty (AddressAmount t) -> PostTransactionFeeData t
 newtype PostExternalTransactionData
 PostExternalTransactionData :: ByteString -> PostExternalTransactionData
 [$sel:payload:PostExternalTransactionData] :: PostExternalTransactionData -> ByteString
-data ApiBlockData
-ApiBlockData :: UTCTime -> !ApiT SlotId -> ApiBlockData
-[$sel:time:ApiBlockData] :: ApiBlockData -> UTCTime
-[$sel:block:ApiBlockData] :: ApiBlockData -> !ApiT SlotId
+data ApiTimeReference
+ApiTimeReference :: !UTCTime -> !ApiBlockReference -> ApiTimeReference
+[$sel:time:ApiTimeReference] :: ApiTimeReference -> !UTCTime
+[$sel:block:ApiTimeReference] :: ApiTimeReference -> !ApiBlockReference
 data ApiTransaction t
-ApiTransaction :: !ApiT (Hash "Tx") -> !Quantity "lovelace" Natural -> !Maybe ApiBlockData -> !Quantity "slot" Natural -> !ApiT Direction -> ![ApiTxInput t] -> !NonEmpty (AddressAmount t) -> !ApiT TxStatus -> ApiTransaction t
+ApiTransaction :: !ApiT (Hash "Tx") -> !Quantity "lovelace" Natural -> !Maybe ApiTimeReference -> !Maybe ApiTimeReference -> !Quantity "slot" Natural -> !ApiT Direction -> ![ApiTxInput t] -> !NonEmpty (AddressAmount t) -> !ApiT TxStatus -> ApiTransaction t
 [$sel:id:ApiTransaction] :: ApiTransaction t -> !ApiT (Hash "Tx")
 [$sel:amount:ApiTransaction] :: ApiTransaction t -> !Quantity "lovelace" Natural
-[$sel:insertedAt:ApiTransaction] :: ApiTransaction t -> !Maybe ApiBlockData
+[$sel:insertedAt:ApiTransaction] :: ApiTransaction t -> !Maybe ApiTimeReference
+[$sel:pendingSince:ApiTransaction] :: ApiTransaction t -> !Maybe ApiTimeReference
 [$sel:depth:ApiTransaction] :: ApiTransaction t -> !Quantity "slot" Natural
 [$sel:direction:ApiTransaction] :: ApiTransaction t -> !ApiT Direction
 [$sel:inputs:ApiTransaction] :: ApiTransaction t -> ![ApiTxInput t]
@@ -3853,6 +3896,16 @@ NotAcceptable :: ApiErrorCode
 StartTimeLaterThanEndTime :: ApiErrorCode
 UnsupportedMediaType :: ApiErrorCode
 UnexpectedError :: ApiErrorCode
+data ApiNetworkInformation
+ApiNetworkInformation :: !ApiT NtpStatus -> !ApiT ProtocolUpdates -> !ApiT SyncProgress -> !ApiBlockReference -> ApiNetworkInformation
+[$sel:ntpStatus:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT NtpStatus
+[$sel:protocolUpdates:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT ProtocolUpdates
+[$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
+[$sel:tip:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiBlockReference
+data ApiBlockReference
+ApiBlockReference :: !Word64 -> !Word16 -> ApiBlockReference
+[$sel:epochNumber:ApiBlockReference] :: ApiBlockReference -> !Word64
+[$sel:slotNumber:ApiBlockReference] :: ApiBlockReference -> !Word16
 
 -- | Defines a point in time that can be formatted as and parsed from an
 --   ISO 8601-compliant string.
@@ -3860,12 +3913,12 @@ newtype Iso8601Time
 Iso8601Time :: UTCTime -> Iso8601Time
 [$sel:getIso8601Time:Iso8601Time] :: Iso8601Time -> UTCTime
 data ApiByronWallet
-ApiByronWallet :: !ApiT WalletId -> !ApiT WalletBalance -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT WalletState -> ApiByronWallet
+ApiByronWallet :: !ApiT WalletId -> !ApiT WalletBalance -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> ApiByronWallet
 [$sel:id:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletId
 [$sel:balance:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletBalance
 [$sel:name:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletName
 [$sel:passphrase:ApiByronWallet] :: ApiByronWallet -> !Maybe (ApiT WalletPassphraseInfo)
-[$sel:state:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletState
+[$sel:state:ApiByronWallet] :: ApiByronWallet -> !ApiT SyncProgress
 newtype ApiByronWalletMigrationInfo
 ApiByronWalletMigrationInfo :: Quantity "lovelace" Natural -> ApiByronWalletMigrationInfo
 [$sel:migrationCost:ApiByronWalletMigrationInfo] :: ApiByronWalletMigrationInfo -> Quantity "lovelace" Natural
@@ -3957,9 +4010,9 @@ instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.PostTransactionFeeData t)
 instance GHC.Show.Show (Cardano.Wallet.Api.Types.AddressAmount t)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.AddressAmount t)
 instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.AddressAmount t)
-instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiBlockData
-instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiBlockData
-instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiBlockData
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiNetworkInformation
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiNetworkInformation
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiByronWallet
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiByronWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiByronWallet
@@ -3978,6 +4031,12 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Types.Iso8601Time
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiErrorCode
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiErrorCode
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiErrorCode
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiTimeReference
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiTimeReference
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiTimeReference
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiBlockReference
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiBlockReference
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiBlockReference
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiFee
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiFee
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiFee
@@ -4019,8 +4078,8 @@ instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Aeson.Types.From
 instance Cardano.Wallet.Primitive.Types.EncodeAddress t => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.AddressAmount t)
 instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Text.Class.FromText (Cardano.Wallet.Api.Types.AddressAmount t)
 instance Cardano.Wallet.Primitive.Types.EncodeAddress t => Data.Text.Class.ToText (Cardano.Wallet.Api.Types.AddressAmount t)
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiBlockData
-instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiBlockData
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiByronWallet
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiByronWallet
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
@@ -4045,8 +4104,8 @@ instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Carda
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.WalletName)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.WalletPassphraseInfo)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.WalletPassphraseInfo)
-instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.WalletState)
-instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.WalletState)
+instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.SyncProgress)
+instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.SyncProgress)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.BoundType)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.BoundType)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.SlotId)
@@ -4059,6 +4118,10 @@ instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Carda
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.Direction)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.TxStatus)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.TxStatus)
+instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.NtpStatus)
+instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.NtpStatus)
+instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.ProtocolUpdates)
+instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.ProtocolUpdates)
 instance Data.Text.Class.FromText a => Web.Internal.HttpApiData.FromHttpApiData (Cardano.Wallet.Api.Types.ApiT a)
 instance Data.Text.Class.ToText a => Web.Internal.HttpApiData.ToHttpApiData (Cardano.Wallet.Api.Types.ApiT a)
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiByronWalletMigrationInfo
@@ -4068,6 +4131,10 @@ instance Data.Text.Class.FromText Cardano.Wallet.Api.Types.Iso8601Time
 instance Web.Internal.HttpApiData.FromHttpApiData Cardano.Wallet.Api.Types.Iso8601Time
 instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Api.Types.Iso8601Time
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiErrorCode
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiTimeReference
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiTimeReference
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiBlockReference
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiBlockReference
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiFee
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiFee
 instance Data.Text.Class.FromText Cardano.Wallet.Api.Types.PostExternalTransactionData
@@ -4078,7 +4145,7 @@ instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.StakePoolMetric
 
 module Cardano.Wallet.Api
 type Api t = CoreApi t :<|> CompatibilityApi t
-type CoreApi t = Addresses t :<|> Wallets :<|> Transactions t :<|> StakePools
+type CoreApi t = Addresses t :<|> Wallets :<|> Transactions t :<|> StakePools :<|> Network
 type Addresses t = ListAddresses t
 type Wallets = DeleteWallet :<|> GetWallet :<|> ListWallets :<|> PostWallet :<|> PutWallet :<|> PutWalletPassphrase :<|> GetUTxOsStatistics
 type Transactions t = CreateTransaction t :<|> ListTransactions t :<|> PostTransactionFee t :<|> PostExternalTransaction
