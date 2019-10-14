@@ -2050,7 +2050,7 @@ RollBackward :: Cursor target -> NextBlocksResult target block
 data family Cursor target
 
 -- | Subscribe to a blockchain and get called with new block (in order)!
-follow :: forall target block e. Show e => NetworkLayer IO target block -> Trace IO Text -> BlockHeader -> (NonEmpty block -> BlockHeader -> ExceptT e IO ()) -> (block -> BlockHeader) -> IO ()
+follow :: forall target block e0 e1. (Show e0, Show e1) => NetworkLayer IO target block -> Trace IO Text -> [BlockHeader] -> (NonEmpty block -> BlockHeader -> ExceptT e0 IO ()) -> (SlotId -> ExceptT e1 IO ()) -> (block -> BlockHeader) -> IO ()
 
 -- | Network is unavailable
 data ErrNetworkUnavailable
@@ -2163,6 +2163,7 @@ mRemoveWallet :: Ord wid => wid -> ModelOp wid s t xprv ()
 mListWallets :: Ord wid => ModelOp wid s t xprv [wid]
 mPutCheckpoint :: Ord wid => wid -> Wallet s t -> ModelOp wid s t xprv ()
 mReadCheckpoint :: Ord wid => wid -> ModelOp wid s t xprv (Maybe (Wallet s t))
+mListCheckpoints :: Ord wid => wid -> ModelOp wid s t xprv [BlockHeader]
 mRollbackTo :: Ord wid => wid -> SlotId -> ModelOp wid s t xprv ()
 mPutWalletMeta :: Ord wid => wid -> WalletMetadata -> ModelOp wid s t xprv ()
 mReadWalletMeta :: Ord wid => wid -> ModelOp wid s t xprv (Maybe WalletMetadata)
@@ -2429,12 +2430,12 @@ TxOut :: !TxId -> !Word32 -> !Address -> !Coin -> TxOut
 [txOutputAmount] :: TxOut -> !Coin
 type TxOutId = Key TxOut
 data Checkpoint
-Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !BlockId -> !Word64 -> !BlockId -> !UTCTime -> !FeePolicy -> !Word64 -> !Word16 -> !Word16 -> !Word32 -> Checkpoint
+Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !BlockId -> !Word32 -> !BlockId -> !UTCTime -> !FeePolicy -> !Word64 -> !Word16 -> !Word16 -> !Word32 -> Checkpoint
 [checkpointWalletId] :: Checkpoint -> !WalletId
 [checkpointSlot] :: Checkpoint -> !SlotId
 [checkpointHeaderHash] :: Checkpoint -> !BlockId
 [checkpointParentHash] :: Checkpoint -> !BlockId
-[checkpointBlockHeight] :: Checkpoint -> !Word64
+[checkpointBlockHeight] :: Checkpoint -> !Word32
 [checkpointGenesisHash] :: Checkpoint -> !BlockId
 [checkpointGenesisStart] :: Checkpoint -> !UTCTime
 [checkpointFeePolicy] :: Checkpoint -> !FeePolicy
@@ -2754,7 +2755,7 @@ module Cardano.Wallet.DB
 --   serialize and unserialize it (e.g. <tt>forall s. (Serialize s) =&gt;
 --   ...</tt>)
 data DBLayer m s t k
-DBLayer :: (PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> [(Tx t, TxMeta)] -> ExceptT ErrWalletAlreadyExists m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> m [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s t -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (Wallet s t))) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe WalletMetadata)) -> (DefineTx t => PrimaryKey WalletId -> [(Tx t, TxMeta)] -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx t, TxMeta)]) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> (forall e a. () => ExceptT e m a -> ExceptT e m a) -> DBLayer m s t k
+DBLayer :: (PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> [(Tx t, TxMeta)] -> ExceptT ErrWalletAlreadyExists m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> m [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s t -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (Wallet s t))) -> (PrimaryKey WalletId -> m [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe WalletMetadata)) -> (DefineTx t => PrimaryKey WalletId -> [(Tx t, TxMeta)] -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx t, TxMeta)]) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> (forall e a. () => ExceptT e m a -> ExceptT e m a) -> DBLayer m s t k
 
 -- | Initialize a database entry for a given wallet. <a>putCheckpoint</a>,
 --   <a>putWalletMeta</a> or <a>putTxHistory</a> will actually all fail if
@@ -2779,6 +2780,10 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> [(Tx t, TxMet
 --   
 --   Return <a>Nothing</a> if there's no such wallet.
 [readCheckpoint] :: DBLayer m s t k -> PrimaryKey WalletId -> m (Maybe (Wallet s t))
+
+-- | List all known checkpoint tips, ordered by slot ids from the oldest to
+--   the newest.
+[listCheckpoints] :: DBLayer m s t k -> PrimaryKey WalletId -> m [BlockHeader]
 
 -- | Replace an existing wallet metadata with the given one.
 --   
@@ -2898,7 +2903,13 @@ cleanDB :: Monad m => DBLayer m s t k -> m ()
 --   └───┴───┴───┴─  ──┴───┘
 --    
 --   </pre>
-sparseCheckpoints :: Quantity "block" Word32 -> Quantity "block" Word32 -> [Word64]
+--   
+--   NOTE: There might be cases where the chain following "fails" (because,
+--   for example, the node has switch to a different chain, different by
+--   more than k), and in such cases, we have no choice but rolling back
+--   from genesis. Therefore, we need to keep the very first checkpoint in
+--   the database, no matter what.
+sparseCheckpoints :: Quantity "block" Word32 -> Quantity "block" Word32 -> [Word32]
 
 -- | Can't perform given operation because there's no wallet
 newtype ErrNoSuchWallet
@@ -3458,8 +3469,10 @@ instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.DB.Sqlite.DBLog
 instance GHC.Classes.Eq Cardano.Wallet.DB.Sqlite.DBLog
 instance GHC.Show.Show Cardano.Wallet.DB.Sqlite.DBLog
 instance GHC.Generics.Generic Cardano.Wallet.DB.Sqlite.DBLog
+instance GHC.Show.Show Cardano.Wallet.DB.Sqlite.ErrRollbackTo
 instance Cardano.Wallet.Primitive.AddressDerivation.KeyToAddress t Cardano.Wallet.Primitive.AddressDerivation.Sequential.SeqKey => Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState t)
 instance Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
+instance GHC.Exception.Type.Exception Cardano.Wallet.DB.Sqlite.ErrRollbackTo
 
 
 -- | Utility functions for converting time values to and from text.
