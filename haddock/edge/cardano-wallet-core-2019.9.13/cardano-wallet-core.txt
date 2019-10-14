@@ -595,10 +595,36 @@ EpochLength :: Word16 -> EpochLength
 newtype StartTime
 StartTime :: UTCTime -> StartTime
 
--- | Compute the approximate ratio / progress between two slots. This is an
---   approximation for a few reasons, one of them being that we hard code
---   the epoch length as a static number whereas it may vary in practice.
-slotRatio :: EpochLength -> SlotId -> SlotId -> Quantity "percent" Percentage
+-- | Estimate restoration progress based on:
+--   
+--   <ul>
+--   <li>The current local tip</li>
+--   <li>The last slot</li>
+--   </ul>
+--   
+--   For the sake of this calculation, we are somewhat conflating the
+--   definitions of slots and block height. Because we can't reliably
+--   _trust_ that the current node is actually itself synced with the
+--   network. So, we compute the progress as:
+--   
+--   <pre>
+--   p = h / (h + X)
+--   </pre>
+--   
+--   Where:
+--   
+--   <ul>
+--   <li><tt>h</tt>: the number of blocks we have ingested so far.</li>
+--   <li><tt>X</tt>: the estimatd remaining slots to reach the network
+--   tip.</li>
+--   </ul>
+--   
+--   Initially, <tt>X</tt> gives a relatively poor estimation of the
+--   network height, as it assumes that every next slot will be a block.
+--   But, as we ingest blocks, <tt>h</tt> becomes bigger and <tt>X</tt>
+--   becomes smaller making the progress estimation better and better. At
+--   some point, <tt>X</tt> is null, and we have `p = h / h`
+syncProgress :: EpochLength -> BlockHeader -> SlotId -> Quantity "percent" Percentage
 
 -- | Convert a <a>SlotId</a> to the number of slots since genesis.
 flatSlot :: EpochLength -> SlotId -> Word64
