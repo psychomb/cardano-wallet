@@ -435,6 +435,7 @@ localhostBaseUrl :: Int -> BaseUrl
 baseUrlToText :: BaseUrl -> Text
 instance Cardano.Wallet.Primitive.Types.DefineTx (Cardano.Wallet.Jormungandr.Compatibility.Jormungandr network)
 instance Cardano.Wallet.DB.Sqlite.PersistTx (Cardano.Wallet.Jormungandr.Compatibility.Jormungandr network)
+instance Cardano.Wallet.Primitive.AddressDerivation.KeyToAddress (Cardano.Wallet.Jormungandr.Compatibility.Jormungandr n) Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey
 instance Cardano.Wallet.Jormungandr.Environment.KnownNetwork n => Cardano.Wallet.Primitive.AddressDerivation.KeyToAddress (Cardano.Wallet.Jormungandr.Compatibility.Jormungandr n) Cardano.Wallet.Primitive.AddressDerivation.Sequential.SeqKey
 instance Cardano.Wallet.Jormungandr.Environment.KnownNetwork n => Cardano.Wallet.Primitive.Types.EncodeAddress (Cardano.Wallet.Jormungandr.Compatibility.Jormungandr n)
 instance Cardano.Wallet.Jormungandr.Environment.KnownNetwork n => Cardano.Wallet.Primitive.Types.DecodeAddress (Cardano.Wallet.Jormungandr.Compatibility.Jormungandr n)
