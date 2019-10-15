@@ -376,10 +376,11 @@ TxOut :: !Address -> !Coin -> TxOut
 [$sel:address:TxOut] :: TxOut -> !Address
 [$sel:coin:TxOut] :: TxOut -> !Coin
 data TxMeta
-TxMeta :: !TxStatus -> !Direction -> !SlotId -> !Quantity "lovelace" Natural -> TxMeta
+TxMeta :: !TxStatus -> !Direction -> !SlotId -> !Quantity "block" Word32 -> !Quantity "lovelace" Natural -> TxMeta
 [$sel:status:TxMeta] :: TxMeta -> !TxStatus
 [$sel:direction:TxMeta] :: TxMeta -> !Direction
 [$sel:slotId:TxMeta] :: TxMeta -> !SlotId
+[$sel:blockHeight:TxMeta] :: TxMeta -> !Quantity "block" Word32
 [$sel:amount:TxMeta] :: TxMeta -> !Quantity "lovelace" Natural
 
 -- | The effect of a <tt>Transaction</tt> on the wallet balance.
@@ -404,7 +405,7 @@ TxWitness :: ByteString -> TxWitness
 -- | Full expanded and resolved information about a transaction, suitable
 --   for presentation to the user.
 data TransactionInfo
-TransactionInfo :: !Hash "Tx" -> ![(TxIn, Maybe TxOut)] -> ![TxOut] -> !TxMeta -> Quantity "slot" Natural -> UTCTime -> TransactionInfo
+TransactionInfo :: !Hash "Tx" -> ![(TxIn, Maybe TxOut)] -> ![TxOut] -> !TxMeta -> Quantity "block" Natural -> UTCTime -> TransactionInfo
 
 -- | Transaction ID of this transaction
 [$sel:txInfoId:TransactionInfo] :: TransactionInfo -> !Hash "Tx"
@@ -420,7 +421,7 @@ TransactionInfo :: !Hash "Tx" -> ![(TxIn, Maybe TxOut)] -> ![TxOut] -> !TxMeta -
 [$sel:txInfoMeta:TransactionInfo] :: TransactionInfo -> !TxMeta
 
 -- | Number of slots since the transaction slot.
-[$sel:txInfoDepth:TransactionInfo] :: TransactionInfo -> Quantity "slot" Natural
+[$sel:txInfoDepth:TransactionInfo] :: TransactionInfo -> Quantity "block" Natural
 
 -- | Creation time of the block including this transaction.
 [$sel:txInfoTime:TransactionInfo] :: TransactionInfo -> UTCTime
@@ -2644,12 +2645,13 @@ PrivateKey :: !WalletId -> !ByteString -> !ByteString -> PrivateKey
 [privateKeyHash] :: PrivateKey -> !ByteString
 type PrivateKeyId = Key PrivateKey
 data TxMeta
-TxMeta :: !TxId -> !WalletId -> !TxStatus -> !Direction -> !SlotId -> !Natural -> TxMeta
+TxMeta :: !TxId -> !WalletId -> !TxStatus -> !Direction -> !SlotId -> !Word32 -> !Natural -> TxMeta
 [txMetaTxId] :: TxMeta -> !TxId
 [txMetaWalletId] :: TxMeta -> !WalletId
 [txMetaStatus] :: TxMeta -> !TxStatus
 [txMetaDirection] :: TxMeta -> !Direction
-[txMetaSlotId] :: TxMeta -> !SlotId
+[txMetaSlot] :: TxMeta -> !SlotId
+[txMetaBlockHeight] :: TxMeta -> !Word32
 [txMetaAmount] :: TxMeta -> !Natural
 type TxMetaId = Key TxMeta
 data TxIn
@@ -3762,7 +3764,7 @@ StakePoolMetrics :: !Quantity "lovelace" Natural -> !Quantity "block" Natural ->
 [$sel:controlledStake:StakePoolMetrics] :: StakePoolMetrics -> !Quantity "lovelace" Natural
 [$sel:producedBlocks:StakePoolMetrics] :: StakePoolMetrics -> !Quantity "block" Natural
 data ApiWallet
-ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !ApiT (WalletDelegation (ApiT PoolId)) -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> ApiWallet
+ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !ApiT (WalletDelegation (ApiT PoolId)) -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> !ApiBlockReference -> ApiWallet
 [$sel:id:ApiWallet] :: ApiWallet -> !ApiT WalletId
 [$sel:addressPoolGap:ApiWallet] :: ApiWallet -> !ApiT AddressPoolGap
 [$sel:balance:ApiWallet] :: ApiWallet -> !ApiT WalletBalance
@@ -3770,6 +3772,7 @@ ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !A
 [$sel:name:ApiWallet] :: ApiWallet -> !ApiT WalletName
 [$sel:passphrase:ApiWallet] :: ApiWallet -> !Maybe (ApiT WalletPassphraseInfo)
 [$sel:state:ApiWallet] :: ApiWallet -> !ApiT SyncProgress
+[$sel:tip:ApiWallet] :: ApiWallet -> !ApiBlockReference
 data ApiUtxoStatistics
 ApiUtxoStatistics :: !Quantity "lovelace" Natural -> !ApiT BoundType -> !Map Word64 Word64 -> ApiUtxoStatistics
 [$sel:total:ApiUtxoStatistics] :: ApiUtxoStatistics -> !Quantity "lovelace" Natural
@@ -3808,12 +3811,12 @@ ApiTimeReference :: !UTCTime -> !ApiBlockReference -> ApiTimeReference
 [$sel:time:ApiTimeReference] :: ApiTimeReference -> !UTCTime
 [$sel:block:ApiTimeReference] :: ApiTimeReference -> !ApiBlockReference
 data ApiTransaction t
-ApiTransaction :: !ApiT (Hash "Tx") -> !Quantity "lovelace" Natural -> !Maybe ApiTimeReference -> !Maybe ApiTimeReference -> !Quantity "slot" Natural -> !ApiT Direction -> ![ApiTxInput t] -> !NonEmpty (AddressAmount t) -> !ApiT TxStatus -> ApiTransaction t
+ApiTransaction :: !ApiT (Hash "Tx") -> !Quantity "lovelace" Natural -> !Maybe ApiTimeReference -> !Maybe ApiTimeReference -> !Quantity "block" Natural -> !ApiT Direction -> ![ApiTxInput t] -> !NonEmpty (AddressAmount t) -> !ApiT TxStatus -> ApiTransaction t
 [$sel:id:ApiTransaction] :: ApiTransaction t -> !ApiT (Hash "Tx")
 [$sel:amount:ApiTransaction] :: ApiTransaction t -> !Quantity "lovelace" Natural
 [$sel:insertedAt:ApiTransaction] :: ApiTransaction t -> !Maybe ApiTimeReference
 [$sel:pendingSince:ApiTransaction] :: ApiTransaction t -> !Maybe ApiTimeReference
-[$sel:depth:ApiTransaction] :: ApiTransaction t -> !Quantity "slot" Natural
+[$sel:depth:ApiTransaction] :: ApiTransaction t -> !Quantity "block" Natural
 [$sel:direction:ApiTransaction] :: ApiTransaction t -> !ApiT Direction
 [$sel:inputs:ApiTransaction] :: ApiTransaction t -> ![ApiTxInput t]
 [$sel:outputs:ApiTransaction] :: ApiTransaction t -> !NonEmpty (AddressAmount t)
@@ -3864,9 +3867,10 @@ ApiNetworkInformation :: !ApiT SyncProgress -> !ApiBlockReference -> ApiNetworkI
 [$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
 [$sel:tip:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiBlockReference
 data ApiBlockReference
-ApiBlockReference :: !Word64 -> !Word16 -> ApiBlockReference
+ApiBlockReference :: !Word64 -> !Word16 -> !Quantity "block" Natural -> ApiBlockReference
 [$sel:epochNumber:ApiBlockReference] :: ApiBlockReference -> !Word64
 [$sel:slotNumber:ApiBlockReference] :: ApiBlockReference -> !Word16
+[$sel:height:ApiBlockReference] :: ApiBlockReference -> !Quantity "block" Natural
 
 -- | Defines a point in time that can be formatted as and parsed from an
 --   ISO 8601-compliant string.
@@ -3874,12 +3878,13 @@ newtype Iso8601Time
 Iso8601Time :: UTCTime -> Iso8601Time
 [$sel:getIso8601Time:Iso8601Time] :: Iso8601Time -> UTCTime
 data ApiByronWallet
-ApiByronWallet :: !ApiT WalletId -> !ApiT WalletBalance -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> ApiByronWallet
+ApiByronWallet :: !ApiT WalletId -> !ApiT WalletBalance -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> !ApiBlockReference -> ApiByronWallet
 [$sel:id:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletId
 [$sel:balance:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletBalance
 [$sel:name:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletName
 [$sel:passphrase:ApiByronWallet] :: ApiByronWallet -> !Maybe (ApiT WalletPassphraseInfo)
 [$sel:state:ApiByronWallet] :: ApiByronWallet -> !ApiT SyncProgress
+[$sel:tip:ApiByronWallet] :: ApiByronWallet -> !ApiBlockReference
 newtype ApiByronWalletMigrationInfo
 ApiByronWalletMigrationInfo :: Quantity "lovelace" Natural -> ApiByronWalletMigrationInfo
 [$sel:migrationCost:ApiByronWalletMigrationInfo] :: ApiByronWalletMigrationInfo -> Quantity "lovelace" Natural

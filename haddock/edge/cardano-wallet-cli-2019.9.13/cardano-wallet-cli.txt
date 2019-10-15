@@ -27,8 +27,9 @@ cmdWallet :: forall t. (DecodeAddress t, EncodeAddress t) => Mod CommandFields (
 -- | cardano-wallet transaction
 cmdTransaction :: forall t. (DecodeAddress t, EncodeAddress t) => Mod CommandFields (IO ())
 cmdAddress :: forall t. (DecodeAddress t, EncodeAddress t) => Mod CommandFields (IO ())
-cmdVersion :: Mod CommandFields (IO ())
 cmdStakePool :: forall t. (DecodeAddress t, EncodeAddress t) => Mod CommandFields (IO ())
+cmdNetwork :: forall t. (DecodeAddress t, EncodeAddress t) => Mod CommandFields (IO ())
+cmdVersion :: Mod CommandFields (IO ())
 
 -- | Helper for writing an option <a>Parser</a> using a <a>FromText</a>
 --   instance.

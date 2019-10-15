@@ -407,6 +407,9 @@ spec :: forall t. KnownCommand t => SpecWith ()
 module Test.Integration.Scenario.CLI.Mnemonics
 spec :: forall t. KnownCommand t => SpecWith ()
 
+module Test.Integration.Scenario.CLI.Network
+spec :: forall t. KnownCommand t => SpecWith (Context t)
+
 module Test.Integration.Scenario.CLI.Port
 spec :: forall t s. (HasType (Port "wallet") s, KnownCommand t) => SpecWith s
 
