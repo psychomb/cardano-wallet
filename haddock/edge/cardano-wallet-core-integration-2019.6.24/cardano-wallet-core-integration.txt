@@ -213,10 +213,11 @@ delegation :: HasType (ApiT (WalletDelegation (ApiT PoolId))) s => Lens' s (Wall
 direction :: HasType (ApiT Direction) s => Lens' s Direction
 feeEstimator :: Lens' (Context t) (TxDescription -> (Natural, Natural))
 inputs :: HasType [ApiTxInput t] s => Lens' s [ApiTxInput t]
+outputs :: HasType (NonEmpty (AddressAmount t)) s => Lens' s [AddressAmount t]
 passphraseLastUpdate :: HasType (Maybe (ApiT WalletPassphraseInfo)) s => Lens' s (Maybe Text)
 state :: HasField' "state" s (ApiT t) => Lens' s t
 status :: HasType (ApiT TxStatus) s => Lens' s TxStatus
-outputs :: HasType (NonEmpty (AddressAmount t)) s => Lens' s [AddressAmount t]
+syncProgress :: HasType (ApiT SyncProgress) s => Lens' s SyncProgress
 walletId :: HasType (ApiT WalletId) s => Lens' s Text
 walletName :: HasType (ApiT WalletName) s => Lens' s Text
 (</>) :: ToHttpApiData a => Text -> a -> Text
@@ -288,6 +289,7 @@ utcIso8601ToText :: UTCTime -> Text
 
 -- | Prepare externally signed Tx for Jormungandr
 prepExternalTxViaJcli :: Port "node" -> Text -> Natural -> IO Text
+eventually :: IO () -> IO ()
 postByronWalletEp :: (Method, Text)
 migrateByronWalletEp :: ApiByronWallet -> ApiWallet -> (Method, Text)
 calculateByronMigrationCostEp :: ApiByronWallet -> (Method, Text)
@@ -386,6 +388,9 @@ spec :: forall t. (DecodeAddress t, EncodeAddress t) => SpecWith (Context t)
 
 module Test.Integration.Scenario.API.ByronWallets
 spec :: forall t. (EncodeAddress t, DecodeAddress t) => SpecWith (Context t)
+
+module Test.Integration.Scenario.API.Network
+spec :: forall t. SpecWith (Context t)
 
 module Test.Integration.Scenario.API.Transactions
 spec :: forall t. (EncodeAddress t, DecodeAddress t) => SpecWith (Context t)

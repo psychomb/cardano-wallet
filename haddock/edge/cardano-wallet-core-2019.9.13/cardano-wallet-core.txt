@@ -627,7 +627,7 @@ StartTime :: UTCTime -> StartTime
 --   But, as we ingest blocks, <tt>h</tt> becomes bigger and <tt>X</tt>
 --   becomes smaller making the progress estimation better and better. At
 --   some point, <tt>X</tt> is null, and we have `p = h / h`
-syncProgress :: EpochLength -> BlockHeader -> SlotId -> Quantity "percent" Percentage
+syncProgress :: EpochLength -> BlockHeader -> SlotId -> SyncProgress
 
 -- | Convert a <a>SlotId</a> to the number of slots since genesis.
 flatSlot :: EpochLength -> SlotId -> Word64
@@ -818,40 +818,6 @@ rangeUpperBound :: Range a -> RangeBound a
 -- | Magic constant associated to a given network
 newtype ProtocolMagic
 ProtocolMagic :: Int32 -> ProtocolMagic
-
--- | Network Time Protocol status.
---   
---   TODO: Use a NTP-client to query some known NTP server and figure out
---   by how much is machine's clock drifting. An existing NTP client
---   implementation exists on `cardano-sl` and is fairly decoupled from the
---   rest of the code:
---   
---   
---   <a>https://github.com/input-output-hk/cardano-sl/blob/1a792d7cd0f0c93a0f0c28f66372bce3c3808dbd/networking/src/Ntp/Client.hs</a>
---   
---   The idea would be to extract that piece of code into a separate
---   package that we could re-use to implement this functionality.
-data NtpStatus
-
--- | Couldn't get an answer from the NTP server in a timely manner
-NtpUnavailable :: NtpStatus
-
--- | Awaiting from a response from the NTP server
-NtpPending :: NtpStatus
-
--- | Local clock drift is known.
-NtpAvailable :: Quantity "microsecond" Word32 -> NtpStatus
-
--- | Status about protocol updates we've seen on the network. Protocol
---   updates appear as "Update Proposals", and are made by nodes in order
---   to change ongoing protocol parameters such as the slot length.
---   
---   FIXME: At the moment, we can't reliably provide this information
---   because, even if we can see update proposals as we process blocks, we
---   don't have any notion of acceptance and therefore are unable to tell
---   if and when these updates are accepted.
-data ProtocolUpdates
-UpdatesUnavailable :: ProtocolUpdates
 newtype Hash (tag :: Symbol)
 Hash :: ByteString -> Hash
 [$sel:getHash:Hash] :: Hash -> ByteString
@@ -909,14 +875,6 @@ instance GHC.Classes.Ord (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Show.Show (Cardano.Wallet.Primitive.Types.Hash tag)
-instance GHC.Enum.Enum Cardano.Wallet.Primitive.Types.ProtocolUpdates
-instance GHC.Enum.Bounded Cardano.Wallet.Primitive.Types.ProtocolUpdates
-instance GHC.Show.Show Cardano.Wallet.Primitive.Types.ProtocolUpdates
-instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.ProtocolUpdates
-instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.ProtocolUpdates
-instance GHC.Show.Show Cardano.Wallet.Primitive.Types.NtpStatus
-instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.NtpStatus
-instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.NtpStatus
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.ProtocolMagic
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.ProtocolMagic
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SlotParameters
@@ -3902,9 +3860,7 @@ StartTimeLaterThanEndTime :: ApiErrorCode
 UnsupportedMediaType :: ApiErrorCode
 UnexpectedError :: ApiErrorCode
 data ApiNetworkInformation
-ApiNetworkInformation :: !ApiT NtpStatus -> !ApiT ProtocolUpdates -> !ApiT SyncProgress -> !ApiBlockReference -> ApiNetworkInformation
-[$sel:ntpStatus:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT NtpStatus
-[$sel:protocolUpdates:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT ProtocolUpdates
+ApiNetworkInformation :: !ApiT SyncProgress -> !ApiBlockReference -> ApiNetworkInformation
 [$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
 [$sel:tip:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiBlockReference
 data ApiBlockReference
@@ -4123,10 +4079,6 @@ instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Carda
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.Direction)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.TxStatus)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.TxStatus)
-instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.NtpStatus)
-instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.NtpStatus)
-instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.ProtocolUpdates)
-instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.ProtocolUpdates)
 instance Data.Text.Class.FromText a => Web.Internal.HttpApiData.FromHttpApiData (Cardano.Wallet.Api.Types.ApiT a)
 instance Data.Text.Class.ToText a => Web.Internal.HttpApiData.ToHttpApiData (Cardano.Wallet.Api.Types.ApiT a)
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiByronWalletMigrationInfo
@@ -4269,6 +4221,7 @@ instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrNetwork
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrUpdatePassphrase
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrListTransactions
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrStartTimeLaterThanEndTime
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrNetworkTip
 instance Cardano.Wallet.Api.Server.LiftHandler (Network.Wai.Internal.Request, Servant.Server.Internal.ServantErr.ServantErr)
 
 module Cardano.Wallet.Version
