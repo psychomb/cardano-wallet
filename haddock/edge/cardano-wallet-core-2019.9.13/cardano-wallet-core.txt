@@ -630,6 +630,10 @@ StartTime :: UTCTime -> StartTime
 --   some point, <tt>X</tt> is null, and we have `p = h / h`
 syncProgress :: EpochLength -> BlockHeader -> SlotId -> SyncProgress
 
+-- | Helper to compare the <i>local tip</i> with the slot corresponding to
+--   a <tt>UTCTime</tt>, and calculate progress based on that.
+syncProgressRelativeToTime :: SlotParameters -> BlockHeader -> UTCTime -> SyncProgress
+
 -- | Convert a <a>SlotId</a> to the number of slots since genesis.
 flatSlot :: EpochLength -> SlotId -> Word64
 
@@ -2226,6 +2230,7 @@ utxo :: Wallet s t -> UTxO
 --   Parameters may change over time via protocol updates, so we keep track
 --   of them as part of the wallet checkpoints.
 blockchainParameters :: Wallet s t -> BlockchainParameters
+slotParams :: BlockchainParameters -> SlotParameters
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Model.BlockchainParameters
 instance GHC.Show.Show Cardano.Wallet.Primitive.Model.BlockchainParameters
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Model.BlockchainParameters

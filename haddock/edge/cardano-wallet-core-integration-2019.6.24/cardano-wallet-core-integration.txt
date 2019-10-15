@@ -305,6 +305,7 @@ postTxEp :: ApiWallet -> (Method, Text)
 postExternalTxEp :: (Method, Text)
 postTxFeeEp :: ApiWallet -> (Method, Text)
 listTxEp :: ApiWallet -> Text -> (Method, Text)
+networkInfoEp :: (Method, Text)
 updateWalletPassEp :: ApiWallet -> (Method, Text)
 runJcli :: CmdResult r => [String] -> IO r
 command :: CmdResult r => [CmdOption] -> String -> [String] -> IO r
