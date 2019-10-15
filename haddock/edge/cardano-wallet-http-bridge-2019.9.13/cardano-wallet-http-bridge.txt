@@ -265,4 +265,4 @@ instance GHC.Exception.Type.Exception Cardano.Wallet.HttpBridge.Network.ErrUnexp
 module Cardano.Wallet.HttpBridge
 
 -- | The <tt>cardano-wallet-http-bridge</tt> main function.
-serveWallet :: forall t k n s a. (t ~ HttpBridge n, s ~ SeqState t, k ~ SeqKey) => (KeyToAddress t k, KnownNetwork n) => (Configuration, Switchboard Text, Trace IO Text) -> Maybe FilePath -> Listen -> HttpBridgeBackend -> Maybe (PortNumber -> PortNumber -> NetworkLayer IO t (Block Tx) -> IO a) -> IO ExitCode
+serveWallet :: forall t n a. t ~ HttpBridge n => (KeyToAddress t RndKey, KeyToAddress t SeqKey, KnownNetwork n) => (Configuration, Switchboard Text, Trace IO Text) -> Maybe FilePath -> Listen -> HttpBridgeBackend -> Maybe (PortNumber -> PortNumber -> NetworkLayer IO t (Block Tx) -> IO a) -> IO ExitCode

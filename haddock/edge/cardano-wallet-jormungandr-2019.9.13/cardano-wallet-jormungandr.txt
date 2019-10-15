@@ -706,8 +706,8 @@ module Cardano.Wallet.Jormungandr.Transaction
 
 -- | Construct a <a>TransactionLayer</a> compatible with Shelley and
 --   <tt>Jörmungandr</tt>
-newTransactionLayer :: forall n t. (KnownNetwork n, t ~ Jormungandr n) => Hash "Genesis" -> TransactionLayer t SeqKey
-sign :: ByteString -> (SeqKey  'AddressK XPrv, Passphrase "encryption") -> TxWitness
+newTransactionLayer :: forall n k t. (t ~ Jormungandr n, KeyToAddress (Jormungandr n) k) => Hash "Genesis" -> TransactionLayer t k
+sign :: WalletKey k => ByteString -> (k  'AddressK XPrv, Passphrase "encryption") -> TxWitness
 
 -- | Transaction with improper number of inputs and outputs is tried
 data ErrExceededInpsOrOuts
@@ -733,4 +733,4 @@ module Cardano.Wallet.Jormungandr
 -- | The <tt>cardano-wallet-jormungandr</tt> main function. It takes the
 --   configuration which was passed from the CLI and environment and starts
 --   all components of the wallet.
-serveWallet :: forall t k n s. (n ~  'Testnet, t ~ Jormungandr n, s ~ SeqState t, k ~ SeqKey) => (Configuration, Switchboard Text, Trace IO Text) -> Maybe FilePath -> Listen -> JormungandrBackend -> (Port "wallet" -> Port "node" -> BlockchainParameters -> IO ()) -> IO ExitCode
+serveWallet :: forall t n. (n ~  'Testnet, t ~ Jormungandr n) => (Configuration, Switchboard Text, Trace IO Text) -> Maybe FilePath -> Listen -> JormungandrBackend -> (Port "wallet" -> Port "node" -> BlockchainParameters -> IO ()) -> IO ExitCode

@@ -1358,6 +1358,10 @@ publicKey :: WalletKey key => key depth XPrv -> key depth XPub
 -- | Hash a public key to some other representation.
 digest :: (WalletKey key, HashAlgorithm a) => key depth XPub -> Digest a
 
+-- | Get a short, human-readable string descriptor that uniquely identifies
+--   the specified key type.
+keyTypeDescriptor :: WalletKey key => Proxy key -> String
+
 -- | Unwrap the <a>WalletKey</a> to use the <a>XPrv</a> or <a>XPub</a>.
 getRawKey :: WalletKey key => key depth raw -> raw
 
@@ -3699,8 +3703,9 @@ newDBLayer :: forall s t k. (IsOurs s, NFData s, Show s, PersistState s, Persist
 -- | Instantiate a <a>DBFactory</a> from a given directory
 mkDBFactory :: forall s t k. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> DBFactory IO s t k
 
--- | Lookup file-system for existing wallet databases
-findDatabases :: Trace IO Text -> FilePath -> IO [WalletId]
+-- | Return all wallet databases that match the specified key type within
+--   the specified directory.
+findDatabases :: forall k. PersistKey k => Trace IO Text -> FilePath -> IO [WalletId]
 
 -- | Runs an action with a connection to the SQLite database.
 --   
@@ -4235,7 +4240,7 @@ ListenOnRandomPort :: Listen
 
 -- | Start the application server, using the given settings and a bound
 --   socket.
-start :: forall ctx s t k. (DefineTx t, KeyToAddress t k, EncodeAddress t, DecodeAddress t, Buildable (ErrValidateSelection t), k ~ SeqKey, s ~ SeqState t, ctx ~ ApiLayer s t k) => Settings -> Trace IO Text -> Socket -> ctx -> IO ()
+start :: forall t. (Buildable (ErrValidateSelection t), DefineTx t, DecodeAddress t, EncodeAddress t, KeyToAddress t RndKey, KeyToAddress t SeqKey) => Settings -> Trace IO Text -> Socket -> ApiLayer (RndState t) t RndKey -> ApiLayer (SeqState t) t SeqKey -> IO ()
 
 -- | Create a new instance of the wallet layer.
 newApiLayer :: forall ctx s t k. (ctx ~ ApiLayer s t k, DefineTx t) => Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO t (Block (Tx t)) -> TransactionLayer t k -> DBFactory IO s t k -> [WalletId] -> IO ctx
