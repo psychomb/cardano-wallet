@@ -572,7 +572,7 @@ computeUtxoStatistics :: BoundType -> UTxO -> UTxOStatistics
 log10 :: BoundType
 data SyncProgress
 Ready :: SyncProgress
-Restoring :: !Quantity "percent" Percentage -> SyncProgress
+Syncing :: !Quantity "percent" Percentage -> SyncProgress
 
 -- | A slot identifier is the combination of an epoch and slot.
 data SlotId
@@ -3893,14 +3893,19 @@ StartTimeLaterThanEndTime :: ApiErrorCode
 UnsupportedMediaType :: ApiErrorCode
 UnexpectedError :: ApiErrorCode
 data ApiNetworkInformation
-ApiNetworkInformation :: !ApiT SyncProgress -> !ApiBlockReference -> ApiNetworkInformation
+ApiNetworkInformation :: !ApiT SyncProgress -> !ApiBlockReference -> !ApiNetworkTip -> ApiNetworkInformation
 [$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
-[$sel:tip:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiBlockReference
+[$sel:nodeTip:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiBlockReference
+[$sel:networkTip:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiNetworkTip
 data ApiBlockReference
 ApiBlockReference :: !ApiT EpochNo -> !ApiT SlotNo -> !Quantity "block" Natural -> ApiBlockReference
 [$sel:epochNumber:ApiBlockReference] :: ApiBlockReference -> !ApiT EpochNo
 [$sel:slotNumber:ApiBlockReference] :: ApiBlockReference -> !ApiT SlotNo
 [$sel:height:ApiBlockReference] :: ApiBlockReference -> !Quantity "block" Natural
+data ApiNetworkTip
+ApiNetworkTip :: !ApiT EpochNo -> !ApiT SlotNo -> ApiNetworkTip
+[$sel:epochNumber:ApiNetworkTip] :: ApiNetworkTip -> !ApiT EpochNo
+[$sel:slotNumber:ApiNetworkTip] :: ApiNetworkTip -> !ApiT SlotNo
 
 -- | Defines a point in time that can be formatted as and parsed from an
 --   ISO 8601-compliant string.
@@ -4018,6 +4023,9 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiByronWallet
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiBlockReference
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiBlockReference
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiBlockReference
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiNetworkTip
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiNetworkTip
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiNetworkTip
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
@@ -4082,6 +4090,8 @@ instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiByronWal
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiByronWallet
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiBlockReference
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiBlockReference
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkTip
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiNetworkTip
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
 instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.Address, Data.Proxy.Proxy t)
