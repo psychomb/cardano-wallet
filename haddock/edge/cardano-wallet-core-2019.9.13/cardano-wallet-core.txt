@@ -4144,7 +4144,7 @@ type Addresses t = ListAddresses t
 type Wallets = DeleteWallet :<|> GetWallet :<|> ListWallets :<|> PostWallet :<|> PutWallet :<|> PutWalletPassphrase :<|> GetUTxOsStatistics
 type Transactions t = CreateTransaction t :<|> ListTransactions t :<|> PostTransactionFee t :<|> PostExternalTransaction
 type StakePools = ListStakePools
-type CompatibilityApi t = DeleteByronWallet :<|> GetByronWallet :<|> GetByronWalletMigrationInfo :<|> ListByronWallets :<|> MigrateByronWallet :<|> PostByronWallet
+type CompatibilityApi t = DeleteByronWallet :<|> GetByronWallet :<|> GetByronWalletMigrationInfo :<|> ListByronWallets :<|> MigrateByronWallet t :<|> PostByronWallet
 data ApiLayer s t (k :: Depth -> * -> *)
 ApiLayer :: Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO t (Block (Tx t)) -> TransactionLayer t k -> DBFactory IO s t k -> WorkerRegistry WalletId (DBLayer IO s t k) -> ApiLayer s t
 type HasWorkerRegistry s t k ctx = (HasType (WorkerRegistry WalletId (DBLayer IO s t k)) ctx, HasWorkerCtx (DBLayer IO s t k) ctx)
