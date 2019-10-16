@@ -576,9 +576,15 @@ Restoring :: !Quantity "percent" Percentage -> SyncProgress
 
 -- | A slot identifier is the combination of an epoch and slot.
 data SlotId
-SlotId :: !Word64 -> !Word16 -> SlotId
-[$sel:epochNumber:SlotId] :: SlotId -> !Word64
-[$sel:slotNumber:SlotId] :: SlotId -> !Word16
+SlotId :: !EpochNo -> !SlotNo -> SlotId
+[$sel:epochNumber:SlotId] :: SlotId -> !EpochNo
+[$sel:slotNumber:SlotId] :: SlotId -> !SlotNo
+newtype SlotNo
+SlotNo :: Word16 -> SlotNo
+[$sel:unSlotNo:SlotNo] :: SlotNo -> Word16
+newtype EpochNo
+EpochNo :: Word64 -> EpochNo
+[$sel:unEpochNo:EpochNo] :: EpochNo -> Word64
 
 -- | The essential parameters necessary for performing slot arithmetic.
 data SlotParameters
@@ -910,6 +916,24 @@ instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.SlotId
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.SlotId
 instance GHC.Read.Read Cardano.Wallet.Primitive.Types.SlotId
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SlotId
+instance GHC.Enum.Enum Cardano.Wallet.Primitive.Types.EpochNo
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.EpochNo
+instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.EpochNo
+instance GHC.Num.Num Cardano.Wallet.Primitive.Types.EpochNo
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.EpochNo
+instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.EpochNo
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.EpochNo
+instance GHC.Read.Read Cardano.Wallet.Primitive.Types.EpochNo
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.EpochNo
+instance GHC.Enum.Enum Cardano.Wallet.Primitive.Types.SlotNo
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.SlotNo
+instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.SlotNo
+instance GHC.Num.Num Cardano.Wallet.Primitive.Types.SlotNo
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.SlotNo
+instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.SlotNo
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.SlotNo
+instance GHC.Read.Read Cardano.Wallet.Primitive.Types.SlotNo
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SlotNo
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.UTxOStatistics
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.UTxOStatistics
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.UTxOStatistics
@@ -1099,7 +1123,7 @@ module Cardano.Wallet.StakePool.Metrics
 
 -- | For a given epoch, and state, this function returns <i>how many</i>
 --   blocks each pool produced.
-activityForEpoch :: Word64 -> State -> Map PoolId Int
+activityForEpoch :: EpochNo -> State -> Map PoolId Int
 
 -- | In-memory state keeping track of which pool produced blocks at which
 --   slots.
@@ -1998,7 +2022,7 @@ newtype PoolErr
 SlotAlreadyExists :: SlotId -> PoolErr
 mCleanPoolProduction :: ModelPoolOp ()
 mPutPoolProduction :: SlotId -> PoolId -> ModelPoolOp ()
-mReadPoolProduction :: Word64 -> ModelPoolOp (Map PoolId [SlotId])
+mReadPoolProduction :: EpochNo -> ModelPoolOp (Map PoolId [SlotId])
 mRollbackTo :: SlotId -> ModelPoolOp ()
 instance GHC.Classes.Eq Cardano.Pool.DB.Model.PoolErr
 instance GHC.Show.Show Cardano.Pool.DB.Model.PoolErr
@@ -2012,7 +2036,7 @@ module Cardano.Pool.DB
 
 -- | A Database interface for storing pool production in DB.
 data DBLayer m
-DBLayer :: (SlotId -> PoolId -> ExceptT ErrSlotAlreadyExists m ()) -> (Word64 -> m (Map PoolId [SlotId])) -> (SlotId -> m ()) -> m () -> DBLayer m
+DBLayer :: (SlotId -> PoolId -> ExceptT ErrSlotAlreadyExists m ()) -> (EpochNo -> m (Map PoolId [SlotId])) -> (SlotId -> m ()) -> m () -> DBLayer m
 
 -- | Write for a given slot id the id of stake pool that produced a a
 --   corresponding block
@@ -2020,7 +2044,7 @@ DBLayer :: (SlotId -> PoolId -> ExceptT ErrSlotAlreadyExists m ()) -> (Word64 ->
 
 -- | Read the all stake pools together with corresponding slot ids for a
 --   given epoch.
-[readPoolProduction] :: DBLayer m -> Word64 -> m (Map PoolId [SlotId])
+[readPoolProduction] :: DBLayer m -> EpochNo -> m (Map PoolId [SlotId])
 
 -- | Remove all entries of slot ids newer than the argument
 [rollbackTo] :: DBLayer m -> SlotId -> m ()
@@ -2601,6 +2625,10 @@ instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Typ
 instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.SlotId
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Primitive.Types.SlotId
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Primitive.Types.SlotId
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Primitive.Types.SlotNo
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Primitive.Types.SlotNo
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Primitive.Types.EpochNo
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Primitive.Types.EpochNo
 instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.SyncProgress
 instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Types.SyncProgress
 instance GHC.Read.Read Cardano.Wallet.Primitive.Types.SyncProgress
@@ -3869,9 +3897,9 @@ ApiNetworkInformation :: !ApiT SyncProgress -> !ApiBlockReference -> ApiNetworkI
 [$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
 [$sel:tip:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiBlockReference
 data ApiBlockReference
-ApiBlockReference :: !Word64 -> !Word16 -> !Quantity "block" Natural -> ApiBlockReference
-[$sel:epochNumber:ApiBlockReference] :: ApiBlockReference -> !Word64
-[$sel:slotNumber:ApiBlockReference] :: ApiBlockReference -> !Word16
+ApiBlockReference :: !ApiT EpochNo -> !ApiT SlotNo -> !Quantity "block" Natural -> ApiBlockReference
+[$sel:epochNumber:ApiBlockReference] :: ApiBlockReference -> !ApiT EpochNo
+[$sel:slotNumber:ApiBlockReference] :: ApiBlockReference -> !ApiT SlotNo
 [$sel:height:ApiBlockReference] :: ApiBlockReference -> !Quantity "block" Natural
 
 -- | Defines a point in time that can be formatted as and parsed from an
@@ -3978,12 +4006,18 @@ instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.PostTransactionFeeData t)
 instance GHC.Show.Show (Cardano.Wallet.Api.Types.AddressAmount t)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.AddressAmount t)
 instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.AddressAmount t)
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiTimeReference
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiTimeReference
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiTimeReference
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiByronWallet
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiByronWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiByronWallet
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiBlockReference
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiBlockReference
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiBlockReference
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
@@ -3999,12 +4033,6 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Types.Iso8601Time
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiErrorCode
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiErrorCode
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiErrorCode
-instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiTimeReference
-instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiTimeReference
-instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiTimeReference
-instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiBlockReference
-instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiBlockReference
-instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiBlockReference
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiFee
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiFee
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiFee
@@ -4046,10 +4074,14 @@ instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Aeson.Types.From
 instance Cardano.Wallet.Primitive.Types.EncodeAddress t => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.AddressAmount t)
 instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Text.Class.FromText (Cardano.Wallet.Api.Types.AddressAmount t)
 instance Cardano.Wallet.Primitive.Types.EncodeAddress t => Data.Text.Class.ToText (Cardano.Wallet.Api.Types.AddressAmount t)
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiTimeReference
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiTimeReference
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiByronWallet
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiByronWallet
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiBlockReference
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiBlockReference
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
 instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.Address, Data.Proxy.Proxy t)
@@ -4076,8 +4108,10 @@ instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Carda
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.SyncProgress)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.BoundType)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.BoundType)
-instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.SlotId)
-instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.SlotId)
+instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.EpochNo)
+instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.EpochNo)
+instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.SlotNo)
+instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.SlotNo)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.TxIn)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.TxIn)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT (Cardano.Wallet.Primitive.Types.Hash "Tx"))
@@ -4095,10 +4129,6 @@ instance Data.Text.Class.FromText Cardano.Wallet.Api.Types.Iso8601Time
 instance Web.Internal.HttpApiData.FromHttpApiData Cardano.Wallet.Api.Types.Iso8601Time
 instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Api.Types.Iso8601Time
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiErrorCode
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiTimeReference
-instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiTimeReference
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiBlockReference
-instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiBlockReference
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiFee
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiFee
 instance Data.Text.Class.FromText Cardano.Wallet.Api.Types.PostExternalTransactionData
