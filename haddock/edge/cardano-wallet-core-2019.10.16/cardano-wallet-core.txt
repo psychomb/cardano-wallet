@@ -3181,6 +3181,10 @@ cleanDB :: Monad m => DBLayer m s t k -> m ()
 --   the database, no matter what.
 sparseCheckpoints :: Quantity "block" Word32 -> Quantity "block" Word32 -> [Word32]
 
+-- | Can't perform given operation because there's no transaction
+newtype ErrNoSuchTransaction
+ErrNoSuchTransaction :: Hash "Tx" -> ErrNoSuchTransaction
+
 -- | Can't perform given operation because there's no wallet
 newtype ErrNoSuchWallet
 ErrNoSuchWallet :: WalletId -> ErrNoSuchWallet
@@ -3194,6 +3198,8 @@ instance GHC.Classes.Eq key => GHC.Classes.Eq (Cardano.Wallet.DB.PrimaryKey key)
 instance GHC.Show.Show key => GHC.Show.Show (Cardano.Wallet.DB.PrimaryKey key)
 instance GHC.Show.Show Cardano.Wallet.DB.ErrWalletAlreadyExists
 instance GHC.Classes.Eq Cardano.Wallet.DB.ErrWalletAlreadyExists
+instance GHC.Show.Show Cardano.Wallet.DB.ErrNoSuchTransaction
+instance GHC.Classes.Eq Cardano.Wallet.DB.ErrNoSuchTransaction
 instance GHC.Show.Show Cardano.Wallet.DB.ErrNoSuchWallet
 instance GHC.Classes.Eq Cardano.Wallet.DB.ErrNoSuchWallet
 
@@ -3288,6 +3294,10 @@ ErrWalletAlreadyExists :: WalletId -> ErrWalletAlreadyExists
 newtype ErrNoSuchWallet
 ErrNoSuchWallet :: WalletId -> ErrNoSuchWallet
 
+-- | Can't perform given operation because there's no transaction
+newtype ErrNoSuchTransaction
+ErrNoSuchTransaction :: Hash "Tx" -> ErrNoSuchTransaction
+
 -- | Errors that can occur when listing UTxO statistics.
 newtype ErrListUTxOStatistics
 ErrListUTxOStatisticsNoSuchWallet :: ErrNoSuchWallet -> ErrListUTxOStatistics
@@ -3310,6 +3320,9 @@ createUnsignedTx :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasLogger 
 -- | Estimate a transaction fee by automatically selecting inputs from the
 --   wallet to cover the requested outputs.
 estimateTxFee :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasDBLayer s t k ctx, DefineTx t, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimateTxFee e) IO Fee
+
+-- | Forget pending transaction.
+forgetPendingTx :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> Hash "Tx" -> ExceptT ErrForgetPendingTx IO ()
 
 -- | List all transactions and metadata from history for a given wallet.
 listTransactions :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]
@@ -3391,6 +3404,12 @@ data ErrSubmitExternalTx
 ErrSubmitExternalTxNetwork :: ErrPostTx -> ErrSubmitExternalTx
 ErrSubmitExternalTxDecode :: ErrDecodeSignedTx -> ErrSubmitExternalTx
 
+-- | Errors that can occur when trying to change a wallet's passphrase.
+data ErrForgetPendingTx
+ErrForgetPendingTxNoSuchWallet :: ErrNoSuchWallet -> ErrForgetPendingTx
+ErrForgetPendingTxNoSuchTransaction :: ErrNoSuchTransaction -> ErrForgetPendingTx
+ErrForgetPendingTxTransactionIsNotPending :: Hash "Tx" -> ErrForgetPendingTx
+
 -- | Error while trying to send a transaction
 data ErrPostTx
 ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
@@ -3449,6 +3468,8 @@ instance GHC.Classes.Eq Cardano.Wallet.ErrUpdatePassphrase
 instance GHC.Show.Show Cardano.Wallet.ErrUpdatePassphrase
 instance GHC.Classes.Eq Cardano.Wallet.ErrWithRootKey
 instance GHC.Show.Show Cardano.Wallet.ErrWithRootKey
+instance GHC.Classes.Eq Cardano.Wallet.ErrForgetPendingTx
+instance GHC.Show.Show Cardano.Wallet.ErrForgetPendingTx
 instance GHC.Classes.Eq Cardano.Wallet.ErrSubmitExternalTx
 instance GHC.Show.Show Cardano.Wallet.ErrSubmitExternalTx
 instance GHC.Classes.Eq Cardano.Wallet.ErrSubmitTx
@@ -3869,6 +3890,8 @@ AddressAmount :: !(ApiT Address, Proxy t) -> !Quantity "lovelace" Natural -> Add
 -- | Error codes returned by the API, in the form of snake_cased strings
 data ApiErrorCode
 NoSuchWallet :: ApiErrorCode
+NoSuchTransaction :: ApiErrorCode
+TransactionNotPending :: ApiErrorCode
 WalletAlreadyExists :: ApiErrorCode
 NoRootKey :: ApiErrorCode
 WrongEncryptionPassphrase :: ApiErrorCode
@@ -4072,6 +4095,8 @@ instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Aeson.Types.From
 instance Cardano.Wallet.Primitive.Types.EncodeAddress t => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.PostTransactionData t)
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiTxId
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiTxId
+instance Web.Internal.HttpApiData.FromHttpApiData Cardano.Wallet.Api.Types.ApiTxId
+instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Api.Types.ApiTxId
 instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiTransaction t)
 instance Cardano.Wallet.Primitive.Types.EncodeAddress t => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiTransaction t)
 instance Cardano.Wallet.Primitive.Types.DecodeAddress t => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiTxInput t)
@@ -4152,7 +4177,7 @@ type Api t = CoreApi t :<|> CompatibilityApi t
 type CoreApi t = Addresses t :<|> Wallets :<|> Transactions t :<|> StakePools :<|> Network
 type Addresses t = ListAddresses t
 type Wallets = DeleteWallet :<|> GetWallet :<|> ListWallets :<|> PostWallet :<|> PutWallet :<|> PutWalletPassphrase :<|> GetUTxOsStatistics
-type Transactions t = CreateTransaction t :<|> ListTransactions t :<|> PostTransactionFee t :<|> PostExternalTransaction
+type Transactions t = CreateTransaction t :<|> ListTransactions t :<|> PostTransactionFee t :<|> PostExternalTransaction :<|> DeleteTransaction
 type StakePools = ListStakePools
 type CompatibilityApi t = DeleteByronWallet :<|> GetByronWallet :<|> GetByronWalletMigrationInfo :<|> ListByronWallets :<|> MigrateByronWallet t :<|> PostByronWallet
 data ApiLayer s t (k :: Depth -> * -> *)
@@ -4253,6 +4278,7 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Server.Listen
 instance GHC.Show.Show Cardano.Wallet.Api.Server.Listen
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrCreateWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrNoSuchWallet
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrNoSuchTransaction
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrWalletAlreadyExists
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrWithRootKey
 instance Formatting.Buildable.Buildable e => Cardano.Wallet.Api.Server.LiftHandler (Cardano.Wallet.Primitive.CoinSelection.ErrCoinSelection e)
@@ -4263,6 +4289,7 @@ instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrListUTxOStatist
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSignTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Transaction.ErrDecodeSignedTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSubmitExternalTx
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrForgetPendingTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSubmitTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrNetworkUnavailable
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrUpdatePassphrase

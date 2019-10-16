@@ -617,7 +617,11 @@ JormungandrConnParams :: Hash "Genesis" -> BaseUrl -> JormungandrConnParams
 -- | Starts the network layer and runs the given action with a
 --   <a>NetworkLayer</a>. The caller is responsible for handling errors
 --   which may have occurred while starting the Node.
-withNetworkLayer :: forall n a t. t ~ Jormungandr n => Trace IO Text -> JormungandrBackend -> (Either ErrStartup (JormungandrConnParams, NetworkLayer IO t (Block Tx)) -> IO a) -> IO a
+withNetworkLayer :: forall n a t. t ~ Jormungandr n => Trace IO Text -> JormungandrBackend -> (Either ErrStartup (JormungandrConnParams, NetworkLayer IO t Block) -> IO a) -> IO a
+
+-- | Creates a new <a>NetworkLayer</a> connecting to an underlying
+--   <a>Jormungandr</a> backend target.
+newNetworkLayer :: forall n t. t ~ Jormungandr n => BaseUrl -> Hash "Genesis" -> ExceptT ErrGetBlockchainParams IO (NetworkLayer IO t Block)
 
 -- | A subset of the Jormungandr configuration parameters, used for
 --   starting the Jormungandr node backend.
