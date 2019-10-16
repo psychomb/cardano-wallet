@@ -454,10 +454,10 @@ ApiT :: a -> ApiT a
 [getApiT] :: ApiT a -> a
 
 -- | Retrieve a block by its id.
-type GetBlock = "v0" :> "block" :> Capture "blockHeaderHash" BlockId :> Get '[JormungandrBinary] Block
+type GetBlock = "api" :> "v0" :> "block" :> Capture "blockHeaderHash" BlockId :> Get '[JormungandrBinary] Block
 
 -- | Retrieve the header of the latest known block.
-type GetTipId = "v0" :> "tip" :> Get '[Hex] BlockId
+type GetTipId = "api" :> "v0" :> "tip" :> Get '[Hex] BlockId
 
 -- | Retrieve <tt>n</tt> descendants of a given block, sorted from closest
 --   to farthest.
@@ -471,11 +471,11 @@ type GetTipId = "v0" :> "tip" :> Get '[Hex] BlockId
 --                     \       \                  \
 --                    parent    +--- descendants ---+
 --   </pre>
-type GetBlockDescendantIds = "v0" :> "block" :> Capture "blockId" BlockId :> "next_id" :> QueryParam "count" Word :> Get '[JormungandrBinary] [BlockId]
+type GetBlockDescendantIds = "api" :> "v0" :> "block" :> Capture "blockId" BlockId :> "next_id" :> QueryParam "count" Word :> Get '[JormungandrBinary] [BlockId]
 
 -- | Retrieve stake distribution
-type GetStakeDistribution = "v0" :> "stake" :> Get '[JSON] StakeApiResponse
-type PostMessage = "v0" :> "message" :> ReqBody '[JormungandrBinary] (Tx, [TxWitness]) :> Post '[NoContent] NoContent
+type GetStakeDistribution = "api" :> "v0" :> "stake" :> Get '[JSON] StakeApiResponse
+type PostMessage = "api" :> "v0" :> "message" :> ReqBody '[JormungandrBinary] (Tx, [TxWitness]) :> Post '[NoContent] NoContent
 data StakeApiResponse
 StakeApiResponse :: Word64 -> ApiStakeDistribution -> StakeApiResponse
 [epoch] :: StakeApiResponse -> Word64
@@ -622,13 +622,13 @@ withNetworkLayer :: forall n a t. t ~ Jormungandr n => Trace IO Text -> Jormunga
 -- | A subset of the Jormungandr configuration parameters, used for
 --   starting the Jormungandr node backend.
 data JormungandrConfig
-JormungandrConfig :: FilePath -> FilePath -> FilePath -> Maybe PortNumber -> Severity -> StdStream -> JormungandrConfig
+JormungandrConfig :: FilePath -> Either (Hash "Genesis") FilePath -> Maybe PortNumber -> Severity -> StdStream -> [Text] -> JormungandrConfig
 [$sel:_stateDir:JormungandrConfig] :: JormungandrConfig -> FilePath
-[$sel:_genesisBlock:JormungandrConfig] :: JormungandrConfig -> FilePath
-[$sel:_secretFile:JormungandrConfig] :: JormungandrConfig -> FilePath
+[$sel:_genesisBlock:JormungandrConfig] :: JormungandrConfig -> Either (Hash "Genesis") FilePath
 [$sel:_restApiPort:JormungandrConfig] :: JormungandrConfig -> Maybe PortNumber
 [$sel:_minSeverity:JormungandrConfig] :: JormungandrConfig -> Severity
 [$sel:_outputStream:JormungandrConfig] :: JormungandrConfig -> StdStream
+[$sel:_extraArgs:JormungandrConfig] :: JormungandrConfig -> [Text]
 
 -- | Launches a Jörmungandr node backend with the given configuration
 withJormungandr :: Trace IO Text -> JormungandrConfig -> (JormungandrConnParams -> IO a) -> IO (Either ErrStartup a)
@@ -670,9 +670,10 @@ ErrPostTxBadRequest :: Text -> ErrPostTx
 ErrPostTxProtocolFailure :: Text -> ErrPostTx
 data ErrStartup
 ErrStartupNodeNotListening :: ErrStartup
-ErrStartupGetBlockchainParameters :: ErrGetBlockchainParams -> ErrStartup
-ErrStartupGenesisBlockFailed :: FilePath -> ErrStartup
 ErrStartupCommandExited :: ProcessHasExited -> ErrStartup
+ErrStartupGetBlockchainParameters :: ErrGetBlockchainParams -> ErrStartup
+ErrStartupInvalidGenesisBlock :: FilePath -> ErrStartup
+ErrStartupInvalidGenesisHash :: String -> ErrStartup
 data ErrUnexpectedNetworkFailure
 ErrUnexpectedNetworkFailure :: Link -> ServantError -> ErrUnexpectedNetworkFailure
 
