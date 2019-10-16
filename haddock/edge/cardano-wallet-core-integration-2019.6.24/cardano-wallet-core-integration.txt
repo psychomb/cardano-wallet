@@ -158,11 +158,11 @@ expectResponseCode :: MonadIO m => Status -> (Status, a) -> m ()
 
 -- | Expects wallet from the request to eventually reach the given state or
 --   beyond
-expectEventually :: (MonadIO m, MonadCatch m, MonadFail m) => (Ord a, Show a) => HasType (Text, Manager) ctx => ctx -> Lens' ApiWallet a -> a -> (Status, Either RequestException ApiWallet) -> m ()
+expectEventually :: forall ctx s a m. (MonadIO m, MonadCatch m, MonadFail m) => (Ord a, Show a, FromJSON s) => HasType (Text, Manager) ctx => ctx -> (s -> (Method, Text)) -> Lens' s a -> a -> (Status, Either RequestException s) -> m ()
 
 -- | Same as <a>expectEventually</a> but work directly on ApiWallet , not
 --   response from the API
-expectEventually' :: (MonadIO m, MonadCatch m, MonadFail m) => (Ord a, Show a) => HasType (Text, Manager) ctx => ctx -> Lens' ApiWallet a -> a -> ApiWallet -> m ()
+expectEventually' :: forall ctx s a m. (MonadIO m, MonadCatch m, MonadFail m) => (Ord a, Show a, FromJSON s) => HasType (Text, Manager) ctx => ctx -> (s -> (Method, Text)) -> Lens' s a -> a -> s -> m ()
 
 -- | Expects a given string to be a valid JSON output corresponding to some
 --   given data-type <tt>a</tt>. Returns this type if successful.
@@ -307,6 +307,7 @@ postTxFeeEp :: ApiWallet -> (Method, Text)
 listTxEp :: ApiWallet -> Text -> (Method, Text)
 networkInfoEp :: (Method, Text)
 updateWalletPassEp :: ApiWallet -> (Method, Text)
+listWalletsEp :: (Method, Text)
 runJcli :: CmdResult r => [String] -> IO r
 command :: CmdResult r => [CmdOption] -> String -> [String] -> IO r
 
@@ -364,6 +365,7 @@ payloadWith :: Text -> [Text] -> Payload
 simplePayload :: Payload
 updateNamePayload :: Text -> Payload
 updatePassPayload :: Text -> Text -> Payload
+getHeaderCases :: forall a. Show a => Status -> [(String, Headers, [(Status, Either RequestException a) -> IO ()])]
 errMsgWalletIdEncoding :: String
 errMsg400StartTimeLaterThanEndTime :: String -> String -> String
 errMsg403Fee :: String
