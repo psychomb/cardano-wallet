@@ -1915,40 +1915,6 @@ instance Cardano.Wallet.Primitive.AddressDerivation.WalletKey Cardano.Wallet.Pri
 instance Cardano.Wallet.Primitive.AddressDerivation.PersistKey Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey
 
 
--- | This module can fold over a blockchain to collect metrics about Stake
---   pools.
---   
---   It interacts with: - <a>Cardano.Wallet.Network</a> which provides the
---   chain - <a>Cardano.Pool.DB</a> - which can persist the metrics -
---   <a>Cardano.Wallet.Api.Server</a> - which presents the results in an
---   endpoint
-module Cardano.Pool.Metrics
-
--- | For a given epoch, and state, this function returns <i>how many</i>
---   blocks each pool produced.
-activityForEpoch :: EpochNo -> State -> Map PoolId Int
-
--- | In-memory state keeping track of which pool produced blocks at which
---   slots.
-data State
-State :: BlockHeader -> Map PoolId [SlotId] -> State
-
--- | The blockHeader of the most recently applied block. Used to resume
---   restoration from <tt>NetworkLayer</tt>.
-[tip] :: State -> BlockHeader
-
--- | Mapping from pools to the slots where pool produced blocks.
---   
---   This is needed internally to support rollback, but publicly, only the
---   <i>length of</i> the SlotId-list is likely needed.
-[activity] :: State -> Map PoolId [SlotId]
-applyBlock :: (BlockHeader, PoolId) -> State -> State
-instance GHC.Generics.Generic Cardano.Pool.Metrics.State
-instance GHC.Show.Show Cardano.Pool.Metrics.State
-instance GHC.Classes.Eq Cardano.Pool.Metrics.State
-instance Formatting.Buildable.Buildable Cardano.Pool.Metrics.State
-
-
 -- | This module contains instances and types necessary for storing wallets
 --   in a SQL database with Persistent.
 --   
@@ -3549,6 +3515,60 @@ class HasType resource (WorkerCtx ctx) => HasWorkerCtx resource ctx where {
 }
 hoistResource :: HasWorkerCtx resource ctx => resource -> ctx -> WorkerCtx ctx
 instance GHC.Generics.Generic (Cardano.Wallet.Registry.Worker key resource)
+
+
+-- | This module can fold over a blockchain to collect metrics about Stake
+--   pools.
+--   
+--   It interacts with: - <a>Cardano.Wallet.Network</a> which provides the
+--   chain - <a>Cardano.Pool.DB</a> - which can persist the metrics -
+--   <a>Cardano.Wallet.Api.Server</a> - which presents the results in an
+--   endpoint
+module Cardano.Pool.Metrics
+
+-- | For a given epoch, and state, this function returns <i>how many</i>
+--   blocks each pool produced.
+activityForEpoch :: EpochNo -> State -> Map PoolId Int
+
+-- | Combines two different sources of data into one:
+--   
+--   <ol>
+--   <li>A stake-distribution map</li>
+--   <li>A pool-production map</li>
+--   </ol>
+--   
+--   If a pool has produced a block without existing in the
+--   stake-distribution, i.e it exists in (2) but not (1), this function
+--   will return <tt>Left
+--   ErrMetricsInconsistencyBlockProducerNotInStakeDistr</tt>.
+--   
+--   If a pool is in (1) but not (2), it simply means it has produced 0
+--   blocks so far.
+combineMetrics :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Natural) -> Either ErrMetricsInconsistency (Map PoolId (Quantity "lovelace" Word64, Quantity "block" Natural))
+data ErrMetricsInconsistency
+ErrMetricsInconsistencyBlockProducerNotInStakeDistr :: PoolId -> Quantity "block" Natural -> ErrMetricsInconsistency
+
+-- | In-memory state keeping track of which pool produced blocks at which
+--   slots.
+data State
+State :: BlockHeader -> Map PoolId [SlotId] -> State
+
+-- | The blockHeader of the most recently applied block. Used to resume
+--   restoration from <tt>NetworkLayer</tt>.
+[tip] :: State -> BlockHeader
+
+-- | Mapping from pools to the slots where pool produced blocks.
+--   
+--   This is needed internally to support rollback, but publicly, only the
+--   <i>length of</i> the SlotId-list is likely needed.
+[activity] :: State -> Map PoolId [SlotId]
+applyBlock :: (BlockHeader, PoolId) -> State -> State
+instance GHC.Generics.Generic Cardano.Pool.Metrics.State
+instance GHC.Show.Show Cardano.Pool.Metrics.State
+instance GHC.Classes.Eq Cardano.Pool.Metrics.State
+instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMetricsInconsistency
+instance GHC.Show.Show Cardano.Pool.Metrics.ErrMetricsInconsistency
+instance Formatting.Buildable.Buildable Cardano.Pool.Metrics.State
 
 
 -- | These are (partial) CBOR decoders for Byron binary types. Note that we
