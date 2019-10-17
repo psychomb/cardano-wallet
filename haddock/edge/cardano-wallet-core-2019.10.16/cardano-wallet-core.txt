@@ -3548,6 +3548,19 @@ combineMetrics :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantit
 data ErrMetricsInconsistency
 ErrMetricsInconsistencyBlockProducerNotInStakeDistr :: PoolId -> Quantity "block" Natural -> ErrMetricsInconsistency
 
+-- | Runs an action by making sure that the network header hasn't changed
+--   before and after the action. This is useful in order to combine data
+--   from different sources and make sure that all data retrieval and
+--   computations happens on a same version.
+--   
+--   The action <b>must</b> be retry-able (i.e. read-only) for it will be
+--   retried if the tip has changed before and after the call.
+withinSameTip :: forall m header a. (MonadIO m, Eq header) => RetryPolicyM m -> m header -> (header -> m a) -> ExceptT ErrWithinSameTip m a
+data ErrWithinSameTip
+
+-- | Retried too many times
+ErrWithinSameTipMaxRetries :: ErrWithinSameTip
+
 -- | In-memory state keeping track of which pool produced blocks at which
 --   slots.
 data State
@@ -3566,6 +3579,9 @@ applyBlock :: (BlockHeader, PoolId) -> State -> State
 instance GHC.Generics.Generic Cardano.Pool.Metrics.State
 instance GHC.Show.Show Cardano.Pool.Metrics.State
 instance GHC.Classes.Eq Cardano.Pool.Metrics.State
+instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrWithinSameTip
+instance GHC.Show.Show Cardano.Pool.Metrics.ErrWithinSameTip
+instance GHC.Generics.Generic Cardano.Pool.Metrics.ErrWithinSameTip
 instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance GHC.Show.Show Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance Formatting.Buildable.Buildable Cardano.Pool.Metrics.State
