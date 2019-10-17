@@ -1112,40 +1112,6 @@ unsafeMkMnemonic :: forall mw n csz. (ConsistentEntropy n mw csz, EntropySize mw
 unsafeDeserialiseCbor :: HasCallStack => (forall s. Decoder s a) -> ByteString -> a
 
 
--- | This module can fold over a blockchain to collect metrics about Stake
---   pools.
---   
---   It interacts with: - <a>Cardano.Wallet.Network</a> which provides the
---   chain - <a>Cardano.Wallet.DB</a> - which can persist the metrics -
---   <a>Cardano.Wallet.Api.Server</a> - which presents the results in an
---   endpoint
-module Cardano.Wallet.StakePool.Metrics
-
--- | For a given epoch, and state, this function returns <i>how many</i>
---   blocks each pool produced.
-activityForEpoch :: EpochNo -> State -> Map PoolId Int
-
--- | In-memory state keeping track of which pool produced blocks at which
---   slots.
-data State
-State :: BlockHeader -> Map PoolId [SlotId] -> State
-
--- | The blockHeader of the most recently applied block. Used to resume
---   restoration from <tt>NetworkLayer</tt>.
-[tip] :: State -> BlockHeader
-
--- | Mapping from pools to the slots where pool produced blocks.
---   
---   This is needed internally to support rollback, but publicly, only the
---   <i>length of</i> the SlotId-list is likely needed.
-[activity] :: State -> Map PoolId [SlotId]
-applyBlock :: (BlockHeader, PoolId) -> State -> State
-instance GHC.Generics.Generic Cardano.Wallet.StakePool.Metrics.State
-instance GHC.Show.Show Cardano.Wallet.StakePool.Metrics.State
-instance GHC.Classes.Eq Cardano.Wallet.StakePool.Metrics.State
-instance Formatting.Buildable.Buildable Cardano.Wallet.StakePool.Metrics.State
-
-
 -- | Provides the API of Coin Selection algorithm and Fee Calculation This
 --   module contains the implementation of adjusting coin selection for a
 --   fee. The sender pays for the fee and additional inputs are picked
@@ -1947,6 +1913,40 @@ instance (GHC.Classes.Eq key, GHC.Classes.Eq (Cardano.Wallet.Primitive.AddressDe
 instance (Control.DeepSeq.NFData key, Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDerivation.Random.DerivationPath depth)) => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey depth key)
 instance Cardano.Wallet.Primitive.AddressDerivation.WalletKey Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey
 instance Cardano.Wallet.Primitive.AddressDerivation.PersistKey Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey
+
+
+-- | This module can fold over a blockchain to collect metrics about Stake
+--   pools.
+--   
+--   It interacts with: - <a>Cardano.Wallet.Network</a> which provides the
+--   chain - <a>Cardano.Pool.DB</a> - which can persist the metrics -
+--   <a>Cardano.Wallet.Api.Server</a> - which presents the results in an
+--   endpoint
+module Cardano.Pool.Metrics
+
+-- | For a given epoch, and state, this function returns <i>how many</i>
+--   blocks each pool produced.
+activityForEpoch :: EpochNo -> State -> Map PoolId Int
+
+-- | In-memory state keeping track of which pool produced blocks at which
+--   slots.
+data State
+State :: BlockHeader -> Map PoolId [SlotId] -> State
+
+-- | The blockHeader of the most recently applied block. Used to resume
+--   restoration from <tt>NetworkLayer</tt>.
+[tip] :: State -> BlockHeader
+
+-- | Mapping from pools to the slots where pool produced blocks.
+--   
+--   This is needed internally to support rollback, but publicly, only the
+--   <i>length of</i> the SlotId-list is likely needed.
+[activity] :: State -> Map PoolId [SlotId]
+applyBlock :: (BlockHeader, PoolId) -> State -> State
+instance GHC.Generics.Generic Cardano.Pool.Metrics.State
+instance GHC.Show.Show Cardano.Pool.Metrics.State
+instance GHC.Classes.Eq Cardano.Pool.Metrics.State
+instance Formatting.Buildable.Buildable Cardano.Pool.Metrics.State
 
 
 -- | This module contains instances and types necessary for storing wallets
