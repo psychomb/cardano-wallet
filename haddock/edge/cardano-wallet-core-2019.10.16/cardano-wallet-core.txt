@@ -2282,6 +2282,11 @@ type ModelOp wid s t xprv a = Database wid s t xprv -> (Either (Err wid) a, Data
 data Err wid
 NoSuchWallet :: wid -> Err wid
 WalletAlreadyExists :: wid -> Err wid
+CannotRemovePendingTx :: ErrErasePendingTx wid -> Err wid
+data ErrErasePendingTx wid
+ErrErasePendingTxNoSuchWallet :: wid -> ErrErasePendingTx wid
+ErrErasePendingTxNoTx :: Hash "Tx" -> ErrErasePendingTx wid
+ErrErasePendingTxNoPendingTx :: Hash "Tx" -> ErrErasePendingTx wid
 mCleanDB :: Ord wid => ModelOp wid s t xprv ()
 mCreateWallet :: forall wid s t xprv. (Ord wid, DefineTx t) => wid -> Wallet s t -> WalletMetadata -> [(Tx t, TxMeta)] -> ModelOp wid s t xprv ()
 mRemoveWallet :: Ord wid => wid -> ModelOp wid s t xprv ()
@@ -2296,11 +2301,17 @@ mPutTxHistory :: forall wid s t xprv. (Ord wid, DefineTx t) => wid -> TxHistory 
 mReadTxHistory :: forall wid s t xprv. (Ord wid, DefineTx t) => wid -> SortOrder -> Range SlotId -> Maybe TxStatus -> ModelOp wid s t xprv (TxHistory t)
 mPutPrivateKey :: Ord wid => wid -> xprv -> ModelOp wid s t xprv ()
 mReadPrivateKey :: Ord wid => wid -> ModelOp wid s t xprv (Maybe xprv)
+mRemovePendingTx :: Ord wid => wid -> Hash "Tx" -> ModelOp wid s t xprv ()
 instance Data.Traversable.Traversable Cardano.Wallet.DB.Model.Err
 instance Data.Foldable.Foldable Cardano.Wallet.DB.Model.Err
 instance GHC.Base.Functor Cardano.Wallet.DB.Model.Err
 instance GHC.Classes.Eq wid => GHC.Classes.Eq (Cardano.Wallet.DB.Model.Err wid)
 instance GHC.Show.Show wid => GHC.Show.Show (Cardano.Wallet.DB.Model.Err wid)
+instance Data.Traversable.Traversable Cardano.Wallet.DB.Model.ErrErasePendingTx
+instance Data.Foldable.Foldable Cardano.Wallet.DB.Model.ErrErasePendingTx
+instance GHC.Base.Functor Cardano.Wallet.DB.Model.ErrErasePendingTx
+instance GHC.Classes.Eq wid => GHC.Classes.Eq (Cardano.Wallet.DB.Model.ErrErasePendingTx wid)
+instance GHC.Show.Show wid => GHC.Show.Show (Cardano.Wallet.DB.Model.ErrErasePendingTx wid)
 instance GHC.Generics.Generic (Cardano.Wallet.DB.Model.Database wid s t xprv)
 instance GHC.Generics.Generic (Cardano.Wallet.DB.Model.WalletDatabase s t xprv)
 instance (GHC.Classes.Eq s, GHC.Classes.Eq xprv) => GHC.Classes.Eq (Cardano.Wallet.DB.Model.WalletDatabase s t xprv)
@@ -2992,7 +3003,7 @@ module Cardano.Wallet.DB
 --   serialize and unserialize it (e.g. <tt>forall s. (Serialize s) =&gt;
 --   ...</tt>)
 data DBLayer m s t k
-DBLayer :: (PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> [(Tx t, TxMeta)] -> ExceptT ErrWalletAlreadyExists m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> m [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s t -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (Wallet s t))) -> (PrimaryKey WalletId -> m [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe WalletMetadata)) -> (DefineTx t => PrimaryKey WalletId -> [(Tx t, TxMeta)] -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx t, TxMeta)]) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> (forall e a. () => ExceptT e m a -> ExceptT e m a) -> DBLayer m s t k
+DBLayer :: (PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> [(Tx t, TxMeta)] -> ExceptT ErrWalletAlreadyExists m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> m [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s t -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (Wallet s t))) -> (PrimaryKey WalletId -> m [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe WalletMetadata)) -> (DefineTx t => PrimaryKey WalletId -> [(Tx t, TxMeta)] -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx t, TxMeta)]) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx m ()) -> (forall e a. () => ExceptT e m a -> ExceptT e m a) -> DBLayer m s t k
 
 -- | Initialize a database entry for a given wallet. <a>putCheckpoint</a>,
 --   <a>putWalletMeta</a> or <a>putTxHistory</a> will actually all fail if
@@ -3061,6 +3072,9 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> [(Tx t, TxMet
 
 -- | Prune database entities and remove entities that can be discarded.
 [prune] :: DBLayer m s t k -> PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()
+
+-- | Remove a pending transaction.
+[removePendingTx] :: DBLayer m s t k -> PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx m ()
 [withLock] :: DBLayer m s t k -> forall e a. () => ExceptT e m a -> ExceptT e m a
 
 -- | Instantiate database layers at will
@@ -3148,9 +3162,11 @@ cleanDB :: Monad m => DBLayer m s t k -> m ()
 --   the database, no matter what.
 sparseCheckpoints :: Quantity "block" Word32 -> Quantity "block" Word32 -> [Word32]
 
--- | Can't perform given operation because there's no transaction
-newtype ErrNoSuchTransaction
-ErrNoSuchTransaction :: Hash "Tx" -> ErrNoSuchTransaction
+-- | Can't perform removing pending transaction
+data ErrRemovePendingTx
+ErrRemovePendingTxNoSuchWallet :: WalletId -> ErrRemovePendingTx
+ErrRemovePendingTxNoSuchTransaction :: Hash "Tx" -> ErrRemovePendingTx
+ErrRemovePendingTxTransactionNoMorePending :: Hash "Tx" -> ErrRemovePendingTx
 
 -- | Can't perform given operation because there's no wallet
 newtype ErrNoSuchWallet
@@ -3167,6 +3183,8 @@ instance GHC.Show.Show Cardano.Wallet.DB.ErrWalletAlreadyExists
 instance GHC.Classes.Eq Cardano.Wallet.DB.ErrWalletAlreadyExists
 instance GHC.Show.Show Cardano.Wallet.DB.ErrNoSuchTransaction
 instance GHC.Classes.Eq Cardano.Wallet.DB.ErrNoSuchTransaction
+instance GHC.Show.Show Cardano.Wallet.DB.ErrRemovePendingTx
+instance GHC.Classes.Eq Cardano.Wallet.DB.ErrRemovePendingTx
 instance GHC.Show.Show Cardano.Wallet.DB.ErrNoSuchWallet
 instance GHC.Classes.Eq Cardano.Wallet.DB.ErrNoSuchWallet
 
@@ -3260,10 +3278,6 @@ ErrWalletAlreadyExists :: WalletId -> ErrWalletAlreadyExists
 -- | Can't perform given operation because there's no wallet
 newtype ErrNoSuchWallet
 ErrNoSuchWallet :: WalletId -> ErrNoSuchWallet
-
--- | Can't perform given operation because there's no transaction
-newtype ErrNoSuchTransaction
-ErrNoSuchTransaction :: Hash "Tx" -> ErrNoSuchTransaction
 
 -- | Errors that can occur when listing UTxO statistics.
 newtype ErrListUTxOStatistics
@@ -3374,7 +3388,7 @@ ErrSubmitExternalTxDecode :: ErrDecodeSignedTx -> ErrSubmitExternalTx
 -- | Errors that can occur when trying to change a wallet's passphrase.
 data ErrForgetPendingTx
 ErrForgetPendingTxNoSuchWallet :: ErrNoSuchWallet -> ErrForgetPendingTx
-ErrForgetPendingTxNoSuchTransaction :: ErrNoSuchTransaction -> ErrForgetPendingTx
+ErrForgetPendingTxNoSuchTransaction :: Hash "Tx" -> ErrForgetPendingTx
 ErrForgetPendingTxTransactionIsNotPending :: Hash "Tx" -> ErrForgetPendingTx
 
 -- | Error while trying to send a transaction
@@ -3555,7 +3569,7 @@ ErrMetricsInconsistencyBlockProducerNotInStakeDistr :: PoolId -> Quantity "block
 --   
 --   The action <b>must</b> be retry-able (i.e. read-only) for it will be
 --   retried if the tip has changed before and after the call.
-withinSameTip :: forall m header a. (MonadIO m, Eq header) => RetryPolicyM m -> m header -> (header -> m a) -> ExceptT ErrWithinSameTip m a
+withinSameTip :: forall m header a. (MonadIO m, Eq header) => RetryPolicyM m -> (ErrWithinSameTip -> m a) -> m header -> (header -> m a) -> m a
 data ErrWithinSameTip
 
 -- | Retried too many times
@@ -4315,7 +4329,6 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Server.Listen
 instance GHC.Show.Show Cardano.Wallet.Api.Server.Listen
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrCreateWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrNoSuchWallet
-instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrNoSuchTransaction
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrWalletAlreadyExists
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrWithRootKey
 instance Formatting.Buildable.Buildable e => Cardano.Wallet.Api.Server.LiftHandler (Cardano.Wallet.Primitive.CoinSelection.ErrCoinSelection e)
