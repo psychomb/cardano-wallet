@@ -2262,112 +2262,6 @@ instance Formatting.Buildable.Buildable s => Formatting.Buildable.Buildable (Car
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Model.BlockchainParameters
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Model.BlockchainParameters
 
-module Cardano.Wallet.Network
-data NetworkLayer m target block
-NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> NetworkLayer m target block
-
--- | Starting from the given <a>Cursor</a>, fetches a contiguous sequence
---   of blocks from the node, if they are available. An updated cursor will
---   be returned with a <tt>RollFoward</tt> result.
---   
---   Blocks are returned in ascending slot order, without skipping blocks.
---   
---   If the node does not have any blocks after the specified cursor point,
---   it will return <a>AwaitReply</a>.
---   
---   If the node has adopted an alternate fork of the chain, it will return
---   <a>RollBackward</a> with a new cursor.
-[nextBlocks] :: NetworkLayer m target block -> Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)
-
--- | Creates a cursor from the given block header so that <a>nextBlocks</a>
---   can be used to fetch blocks.
-[initCursor] :: NetworkLayer m target block -> [BlockHeader] -> Cursor target
-
--- | Get the slot corresponding to a cursor.
-[cursorSlotId] :: NetworkLayer m target block -> Cursor target -> SlotId
-
--- | Get the current network tip from the chain producer
-[networkTip] :: NetworkLayer m target block -> ExceptT ErrNetworkTip m BlockHeader
-
--- | Broadcast a transaction to the chain producer
-[postTx] :: NetworkLayer m target block -> (Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()
-[staticBlockchainParameters] :: NetworkLayer m target block -> (block, BlockchainParameters)
-
--- | The result of <a>nextBlocks</a>, which is instructions for what the
---   chain consumer should do next.
-data NextBlocksResult target block
-
--- | There are no blocks available from the node, so wait.
-AwaitReply :: NextBlocksResult target block
-
--- | Apply the given contiguous non-empty sequence of blocks. Use the
---   updated cursor to get the next batch. The given block header is the
---   current tip of the node.
-RollForward :: Cursor target -> BlockHeader -> [block] -> NextBlocksResult target block
-
--- | The chain consumer must roll back its state, then use the cursor to
---   get the next batch of blocks.
-RollBackward :: Cursor target -> NextBlocksResult target block
-
--- | A cursor is local state kept by the chain consumer to use as the
---   starting position for <a>nextBlocks</a>. The actual type is opaque and
---   determined by the backend <tt>target</tt>.
-data family Cursor target
-
--- | Subscribe to a blockchain and get called with new block (in order)!
-follow :: forall target block e0 e1. (Show e0, Show e1) => NetworkLayer IO target block -> Trace IO Text -> [BlockHeader] -> (NonEmpty block -> BlockHeader -> ExceptT e0 IO ()) -> (SlotId -> ExceptT e1 IO ()) -> (block -> BlockHeader) -> IO ()
-
--- | Network is unavailable
-data ErrNetworkUnavailable
-
--- | Cannot connect to network backend.
-ErrNetworkUnreachable :: Text -> ErrNetworkUnavailable
-
--- | Network backend reports that the requested network is invalid.
-ErrNetworkInvalid :: Text -> ErrNetworkUnavailable
-
--- | Error while trying to get the network tip
-data ErrNetworkTip
-ErrNetworkTipNetworkUnreachable :: ErrNetworkUnavailable -> ErrNetworkTip
-ErrNetworkTipNotFound :: ErrNetworkTip
-
--- | Error while trying to get one or more blocks
-data ErrGetBlock
-ErrGetBlockNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetBlock
-ErrGetBlockNotFound :: Hash "BlockHeader" -> ErrGetBlock
-
--- | Error while trying to send a transaction
-data ErrPostTx
-ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
-ErrPostTxBadRequest :: Text -> ErrPostTx
-ErrPostTxProtocolFailure :: Text -> ErrPostTx
-
--- | Exception predicate for <a>ErrNetworkUnreachable</a>.
-isNetworkUnreachable :: ErrNetworkUnavailable -> Bool
-
--- | A default <tt>RetryPolicy</tt> with a delay that starts short, and
---   that retries for no longer than a minute.
-defaultRetryPolicy :: Monad m => RetryPolicyM m
-
--- | Wait until 'networkTip networkLayer' succeeds according to a given
---   retry policy. Throws an exception otherwise.
-waitForNetwork :: NetworkLayer IO tx block -> RetryPolicyM IO -> IO ()
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrPostTx
-instance GHC.Show.Show Cardano.Wallet.Network.ErrPostTx
-instance GHC.Generics.Generic Cardano.Wallet.Network.ErrPostTx
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrGetBlock
-instance GHC.Show.Show Cardano.Wallet.Network.ErrGetBlock
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkTip
-instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkTip
-instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkTip
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkUnavailable
-instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkUnavailable
-instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkUnavailable
-instance GHC.Base.Functor m => GHC.Base.Functor (Cardano.Wallet.Network.NetworkLayer m target)
-instance GHC.Base.Functor (Cardano.Wallet.Network.NextBlocksResult target)
-instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrPostTx
-instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkTip
-
 
 -- | An implementation of the wallet database using only pure functions.
 --   
@@ -2535,6 +2429,113 @@ instance GHC.Generics.Generic Cardano.Wallet.Primitive.Fee.FeeOptions
 instance GHC.Show.Show Cardano.Wallet.Primitive.Fee.Fee
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Fee.Fee
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Fee.Fee
+
+module Cardano.Wallet.Network
+data NetworkLayer m target block
+NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> NetworkLayer m target block
+
+-- | Starting from the given <a>Cursor</a>, fetches a contiguous sequence
+--   of blocks from the node, if they are available. An updated cursor will
+--   be returned with a <tt>RollFoward</tt> result.
+--   
+--   Blocks are returned in ascending slot order, without skipping blocks.
+--   
+--   If the node does not have any blocks after the specified cursor point,
+--   it will return <a>AwaitReply</a>.
+--   
+--   If the node has adopted an alternate fork of the chain, it will return
+--   <a>RollBackward</a> with a new cursor.
+[nextBlocks] :: NetworkLayer m target block -> Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)
+
+-- | Creates a cursor from the given block header so that <a>nextBlocks</a>
+--   can be used to fetch blocks.
+[initCursor] :: NetworkLayer m target block -> [BlockHeader] -> Cursor target
+
+-- | Get the slot corresponding to a cursor.
+[cursorSlotId] :: NetworkLayer m target block -> Cursor target -> SlotId
+
+-- | Get the current network tip from the chain producer
+[networkTip] :: NetworkLayer m target block -> ExceptT ErrNetworkTip m BlockHeader
+
+-- | Broadcast a transaction to the chain producer
+[postTx] :: NetworkLayer m target block -> (Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()
+[staticBlockchainParameters] :: NetworkLayer m target block -> (block, BlockchainParameters)
+[stakeDistribution] :: NetworkLayer m target block -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64))
+
+-- | The result of <a>nextBlocks</a>, which is instructions for what the
+--   chain consumer should do next.
+data NextBlocksResult target block
+
+-- | There are no blocks available from the node, so wait.
+AwaitReply :: NextBlocksResult target block
+
+-- | Apply the given contiguous non-empty sequence of blocks. Use the
+--   updated cursor to get the next batch. The given block header is the
+--   current tip of the node.
+RollForward :: Cursor target -> BlockHeader -> [block] -> NextBlocksResult target block
+
+-- | The chain consumer must roll back its state, then use the cursor to
+--   get the next batch of blocks.
+RollBackward :: Cursor target -> NextBlocksResult target block
+
+-- | A cursor is local state kept by the chain consumer to use as the
+--   starting position for <a>nextBlocks</a>. The actual type is opaque and
+--   determined by the backend <tt>target</tt>.
+data family Cursor target
+
+-- | Subscribe to a blockchain and get called with new block (in order)!
+follow :: forall target block e0 e1. (Show e0, Show e1) => NetworkLayer IO target block -> Trace IO Text -> [BlockHeader] -> (NonEmpty block -> BlockHeader -> ExceptT e0 IO ()) -> (SlotId -> ExceptT e1 IO ()) -> (block -> BlockHeader) -> IO ()
+
+-- | Network is unavailable
+data ErrNetworkUnavailable
+
+-- | Cannot connect to network backend.
+ErrNetworkUnreachable :: Text -> ErrNetworkUnavailable
+
+-- | Network backend reports that the requested network is invalid.
+ErrNetworkInvalid :: Text -> ErrNetworkUnavailable
+
+-- | Error while trying to get the network tip
+data ErrNetworkTip
+ErrNetworkTipNetworkUnreachable :: ErrNetworkUnavailable -> ErrNetworkTip
+ErrNetworkTipNotFound :: ErrNetworkTip
+
+-- | Error while trying to get one or more blocks
+data ErrGetBlock
+ErrGetBlockNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetBlock
+ErrGetBlockNotFound :: Hash "BlockHeader" -> ErrGetBlock
+
+-- | Error while trying to send a transaction
+data ErrPostTx
+ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
+ErrPostTxBadRequest :: Text -> ErrPostTx
+ErrPostTxProtocolFailure :: Text -> ErrPostTx
+
+-- | Exception predicate for <a>ErrNetworkUnreachable</a>.
+isNetworkUnreachable :: ErrNetworkUnavailable -> Bool
+
+-- | A default <tt>RetryPolicy</tt> with a delay that starts short, and
+--   that retries for no longer than a minute.
+defaultRetryPolicy :: Monad m => RetryPolicyM m
+
+-- | Wait until 'networkTip networkLayer' succeeds according to a given
+--   retry policy. Throws an exception otherwise.
+waitForNetwork :: NetworkLayer IO tx block -> RetryPolicyM IO -> IO ()
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrPostTx
+instance GHC.Show.Show Cardano.Wallet.Network.ErrPostTx
+instance GHC.Generics.Generic Cardano.Wallet.Network.ErrPostTx
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrGetBlock
+instance GHC.Show.Show Cardano.Wallet.Network.ErrGetBlock
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkTip
+instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkTip
+instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkTip
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkUnavailable
+instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkUnavailable
+instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkUnavailable
+instance GHC.Base.Functor m => GHC.Base.Functor (Cardano.Wallet.Network.NetworkLayer m target)
+instance GHC.Base.Functor (Cardano.Wallet.Network.NextBlocksResult target)
+instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrPostTx
+instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkTip
 
 
 -- | This module contains instances and types necessary for storing wallets

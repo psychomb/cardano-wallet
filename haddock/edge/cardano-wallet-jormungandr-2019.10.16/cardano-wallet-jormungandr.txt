@@ -477,8 +477,8 @@ type GetBlockDescendantIds = "api" :> "v0" :> "block" :> Capture "blockId" Block
 type GetStakeDistribution = "api" :> "v0" :> "stake" :> Get '[JSON] StakeApiResponse
 type PostMessage = "api" :> "v0" :> "message" :> ReqBody '[JormungandrBinary] (Tx, [TxWitness]) :> Post '[NoContent] NoContent
 data StakeApiResponse
-StakeApiResponse :: Word64 -> ApiStakeDistribution -> StakeApiResponse
-[epoch] :: StakeApiResponse -> Word64
+StakeApiResponse :: ApiT EpochNo -> ApiStakeDistribution -> StakeApiResponse
+[epoch] :: StakeApiResponse -> ApiT EpochNo
 [stake] :: StakeApiResponse -> ApiStakeDistribution
 data ApiStakeDistribution
 ApiStakeDistribution :: ApiT (Quantity "lovelace" Word64) -> [(ApiT PoolId, ApiT (Quantity "lovelace" Word64))] -> ApiT (Quantity "lovelace" Word64) -> ApiStakeDistribution
@@ -507,6 +507,7 @@ instance Servant.API.ContentTypes.MimeRender Cardano.Wallet.Jormungandr.Api.Jorm
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.StakeApiResponse
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.ApiStakeDistribution
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.ApiT (Data.Quantity.Quantity "lovelace" GHC.Word.Word64))
+instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.ApiT Cardano.Wallet.Primitive.Types.EpochNo)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.ApiT Cardano.Wallet.Primitive.Types.PoolId)
 instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Jormungandr.Api.BlockId
 
