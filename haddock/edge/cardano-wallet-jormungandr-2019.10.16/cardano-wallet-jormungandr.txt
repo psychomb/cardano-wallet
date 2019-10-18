@@ -414,7 +414,7 @@ mkJormungandrClient :: Manager -> BaseUrl -> JormungandrClient IO
 
 -- | Get a block header corresponding to a header hash.
 getBlockHeader :: Monad m => JormungandrClient m -> Hash "BlockHeader" -> ExceptT ErrGetBlock m BlockHeader
-getBlocks :: Monad m => JormungandrClient m -> Quantity "block" Word32 -> Hash "BlockHeader" -> ExceptT ErrGetBlock m [Block]
+getBlocks :: Monad m => JormungandrClient m -> Word -> Hash "BlockHeader" -> ExceptT ErrGetBlock m [Block]
 
 -- | Safely lift error into a bigger type.
 class LiftError lift
@@ -568,7 +568,7 @@ ErrUnexpectedNetworkFailure :: Link -> ServantError -> ErrUnexpectedNetworkFailu
 --   
 --   This version provides the full, raw blocks from
 --   <a>Cardano.Wallet.Jormungandr.Binary</a>.
-mkRawNetworkLayer :: forall m n t block. (MonadBaseControl IO m, t ~ Jormungandr n, block ~ Block) => (block, BlockchainParameters) -> MVar BlockHeaders -> JormungandrClient m -> NetworkLayer m t block
+mkRawNetworkLayer :: forall m n t block. (MonadBaseControl IO m, t ~ Jormungandr n, block ~ Block) => (block, BlockchainParameters) -> Word -> MVar BlockHeaders -> JormungandrClient m -> NetworkLayer m t block
 data BaseUrl
 BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
 [baseUrlScheme] :: BaseUrl -> Scheme

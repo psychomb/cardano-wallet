@@ -2521,7 +2521,7 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Network.BlockHeaders.BlockHeaders
 
 module Cardano.Wallet.Network
 data NetworkLayer m target block
-NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> NetworkLayer m target block
+NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (Cursor target -> m (Maybe BlockHeader)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> NetworkLayer m target block
 
 -- | Starting from the given <a>Cursor</a>, fetches a contiguous sequence
 --   of blocks from the node, if they are available. An updated cursor will
@@ -2535,6 +2535,11 @@ NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target
 --   If the node has adopted an alternate fork of the chain, it will return
 --   <a>RollBackward</a> with a new cursor.
 [nextBlocks] :: NetworkLayer m target block -> Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)
+
+-- | Attempt to find an intersection between the node's unstable blocks and
+--   a given list of headers. This can be useful if we need to know whether
+--   we are 'in sync' with the node or, close enough.
+[findIntersection] :: NetworkLayer m target block -> Cursor target -> m (Maybe BlockHeader)
 
 -- | Creates a cursor from the given block header so that <a>nextBlocks</a>
 --   can be used to fetch blocks.
