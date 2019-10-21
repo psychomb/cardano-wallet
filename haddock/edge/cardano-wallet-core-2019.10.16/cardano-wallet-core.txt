@@ -4491,6 +4491,12 @@ ListenOnPort :: Port -> Listen
 
 -- | Listen on an unused TCP port, selected at random
 ListenOnRandomPort :: Listen
+data ListenError
+ListenErrorAddressAlreadyInUse :: Maybe Port -> ListenError
+ListenErrorOperationNotPermitted :: ListenError
+ListenErrorHostDoesNotExist :: HostPreference -> ListenError
+ListenErrorInvalidAddress :: HostPreference -> ListenError
+data HostPreference
 
 -- | Start the application server, using the given settings and a bound
 --   socket.
@@ -4501,9 +4507,11 @@ newApiLayer :: forall ctx s t k. (ctx ~ ApiLayer s t k, DefineTx t) => Trace IO 
 
 -- | Run an action with a TCP socket bound to a port specified by the
 --   <a>Listen</a> parameter.
-withListeningSocket :: Listen -> ((Port, Socket) -> IO ()) -> IO ()
+withListeningSocket :: HostPreference -> Listen -> (Either ListenError (Port, Socket) -> IO a) -> IO a
 instance GHC.Show.Show Cardano.Wallet.Api.Server.ErrCreateWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Server.ErrCreateWallet
+instance GHC.Classes.Eq Cardano.Wallet.Api.Server.ListenError
+instance GHC.Show.Show Cardano.Wallet.Api.Server.ListenError
 instance GHC.Classes.Eq Cardano.Wallet.Api.Server.Listen
 instance GHC.Show.Show Cardano.Wallet.Api.Server.Listen
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrCreateWallet

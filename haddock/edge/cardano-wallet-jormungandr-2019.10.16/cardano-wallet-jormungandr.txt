@@ -621,4 +621,4 @@ module Cardano.Wallet.Jormungandr
 -- | The <tt>cardano-wallet-jormungandr</tt> main function. It takes the
 --   configuration which was passed from the CLI and environment and starts
 --   all components of the wallet.
-serveWallet :: forall t n. (n ~  'Testnet, t ~ Jormungandr n) => (Configuration, Trace IO Text) -> Maybe FilePath -> Listen -> JormungandrBackend -> (Port "wallet" -> Port "node" -> BlockchainParameters -> IO ()) -> IO ExitCode
+serveWallet :: forall t n. (n ~  'Testnet, t ~ Jormungandr n) => (Configuration, Trace IO Text) -> Maybe FilePath -> HostPreference -> Listen -> JormungandrBackend -> (SockAddr -> Port "node" -> BlockchainParameters -> IO ()) -> IO ExitCode

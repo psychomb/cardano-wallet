@@ -45,6 +45,11 @@ argumentT :: FromText a => Mod ArgumentFields a -> Parser a
 databaseOption :: Parser FilePath
 
 -- | <ul>
+--   <li><i>--listen-address=HOSTSPEC</i> , default: 127.0.0.1</li>
+--   </ul>
+hostPreferenceOption :: Parser HostPreference
+
+-- | <ul>
 --   <li><i>--random-port|--port=INT</i></li>
 --   </ul>
 listenOption :: Parser Listen
