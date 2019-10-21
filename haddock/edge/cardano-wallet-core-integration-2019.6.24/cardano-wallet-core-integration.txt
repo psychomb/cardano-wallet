@@ -295,6 +295,7 @@ migrateByronWalletEp :: ApiByronWallet -> ApiWallet -> (Method, Text)
 calculateByronMigrationCostEp :: ApiByronWallet -> (Method, Text)
 getByronWalletEp :: ApiByronWallet -> (Method, Text)
 listByronWalletEp :: (Method, Text)
+listByronTxEp :: ApiByronWallet -> Text -> (Method, Text)
 deleteByronWalletEp :: ApiByronWallet -> (Method, Text)
 getWalletEp :: ApiWallet -> (Method, Text)
 deleteWalletEp :: ApiWallet -> (Method, Text)
@@ -388,6 +389,9 @@ errMsg500 :: String
 
 module Test.Integration.Scenario.API.Addresses
 spec :: forall t. (DecodeAddress t, EncodeAddress t) => SpecWith (Context t)
+
+module Test.Integration.Scenario.API.ByronTransactions
+spec :: forall t. (EncodeAddress t, DecodeAddress t) => SpecWith (Context t)
 
 module Test.Integration.Scenario.API.ByronWallets
 spec :: forall t. (EncodeAddress t, DecodeAddress t) => SpecWith (Context t)
