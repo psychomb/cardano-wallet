@@ -2533,7 +2533,26 @@ RollBackward :: Cursor target -> NextBlocksResult target block
 data family Cursor target
 
 -- | Subscribe to a blockchain and get called with new block (in order)!
-follow :: forall target block e0 e1. (Show e0, Show e1) => NetworkLayer IO target block -> Trace IO Text -> [BlockHeader] -> (NonEmpty block -> BlockHeader -> ExceptT e0 IO ()) -> (SlotId -> ExceptT e1 IO ()) -> (block -> BlockHeader) -> IO ()
+follow :: forall target block e0 e1. (Show e0, Show e1) => NetworkLayer IO target block -> Trace IO Text -> [BlockHeader] -> (NonEmpty block -> BlockHeader -> IO (FollowAction e0)) -> (SlotId -> IO (FollowAction e1)) -> (block -> BlockHeader) -> IO ()
+
+-- | <tt>FollowAction</tt> enables the callback of <tt>follow</tt> to
+--   signal if the chain-following should <tt>ExitWith</tt>,
+--   <tt>Continue</tt>, or if the current callback should be forgotten and
+--   retried (<tt>Retry</tt>).
+--   
+--   NOTE: <tt>Retry</tt> is needed to handle data-races in <a>Metrics</a>,
+--   where it is essensial that we fetch the stake distribution while the
+--   node-tip
+data FollowAction err
+
+-- | Stop following the chain.
+ExitWith :: err -> FollowAction err
+
+-- | Continue following the chain.
+Continue :: FollowAction err
+
+-- | Forget about the blocks in the current callback, and retry again.
+Retry :: FollowAction err
 
 -- | Network is unavailable
 data ErrNetworkUnavailable
@@ -2570,6 +2589,8 @@ defaultRetryPolicy :: Monad m => RetryPolicyM m
 -- | Wait until 'networkTip networkLayer' succeeds according to a given
 --   retry policy. Throws an exception otherwise.
 waitForNetwork :: NetworkLayer IO tx block -> RetryPolicyM IO -> IO ()
+instance GHC.Show.Show err => GHC.Show.Show (Cardano.Wallet.Network.FollowAction err)
+instance GHC.Classes.Eq err => GHC.Classes.Eq (Cardano.Wallet.Network.FollowAction err)
 instance GHC.Classes.Eq Cardano.Wallet.Network.ErrPostTx
 instance GHC.Show.Show Cardano.Wallet.Network.ErrPostTx
 instance GHC.Generics.Generic Cardano.Wallet.Network.ErrPostTx
