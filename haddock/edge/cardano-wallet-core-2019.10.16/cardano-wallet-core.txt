@@ -3721,6 +3721,7 @@ mReadPoolProduction :: EpochNo -> ModelPoolOp (Map PoolId [BlockHeader])
 mPutStakeDistribution :: EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> ModelPoolOp ()
 mReadStakeDistribution :: EpochNo -> ModelPoolOp [(PoolId, Quantity "lovelace" Word64)]
 mRollbackTo :: SlotId -> ModelPoolOp ()
+mReadCursor :: Int -> ModelPoolOp [BlockHeader]
 instance GHC.Classes.Eq Cardano.Pool.DB.Model.PoolErr
 instance GHC.Show.Show Cardano.Pool.DB.Model.PoolErr
 instance GHC.Classes.Eq Cardano.Pool.DB.Model.PoolDatabase
@@ -3733,7 +3734,7 @@ module Cardano.Pool.DB
 
 -- | A Database interface for storing pool production in DB.
 data DBLayer m
-DBLayer :: (BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists m ()) -> (EpochNo -> m (Map PoolId [BlockHeader])) -> (EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> m ()) -> (EpochNo -> m [(PoolId, Quantity "lovelace" Word64)]) -> (SlotId -> m ()) -> m () -> DBLayer m
+DBLayer :: (BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists m ()) -> (EpochNo -> m (Map PoolId [BlockHeader])) -> (EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> m ()) -> (EpochNo -> m [(PoolId, Quantity "lovelace" Word64)]) -> (Int -> m [BlockHeader]) -> (SlotId -> m ()) -> m () -> DBLayer m
 
 -- | Write for a given slot id the id of stake pool that produced a a
 --   corresponding block
@@ -3749,6 +3750,13 @@ DBLayer :: (BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists m ()) -> (Epo
 --   If there's no existing distribution, simply inserts it.
 [putStakeDistribution] :: DBLayer m -> EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> m ()
 [readStakeDistribution] :: DBLayer m -> EpochNo -> m [(PoolId, Quantity "lovelace" Word64)]
+
+-- | Read the latest <tt>k</tt> blockheaders in ascending order. The tip
+--   will be the last element in the list.
+--   
+--   This is useful for the <tt>NetworkLayer</tt> to know how far we have
+--   synced.
+[readCursor] :: DBLayer m -> Int -> m [BlockHeader]
 
 -- | Remove all entries of slot ids newer than the argument
 [rollbackTo] :: DBLayer m -> SlotId -> m ()
