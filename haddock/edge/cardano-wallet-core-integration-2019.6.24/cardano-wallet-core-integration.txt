@@ -309,6 +309,7 @@ listTxEp :: ApiWallet -> Text -> (Method, Text)
 networkInfoEp :: (Method, Text)
 updateWalletPassEp :: ApiWallet -> (Method, Text)
 listWalletsEp :: (Method, Text)
+deleteTxEp :: ApiWallet -> ApiTxId -> (Method, Text)
 runJcli :: CmdResult r => [String] -> IO r
 command :: CmdResult r => [CmdOption] -> String -> [String] -> IO r
 
@@ -329,6 +330,7 @@ postTransactionViaCLI :: forall t s. (HasType (Port "wallet") s, KnownCommand t)
 postTransactionFeeViaCLI :: forall t s. (HasType (Port "wallet") s, KnownCommand t) => s -> [String] -> IO (ExitCode, String, Text)
 listTransactionsViaCLI :: forall t r s. (CmdResult r, HasType (Port "wallet") s, KnownCommand t) => s -> [String] -> IO r
 postExternalTransactionViaCLI :: forall t r s. (CmdResult r, HasType (Port "wallet") s, KnownCommand t) => s -> [String] -> IO r
+deleteTransactionViaCLI :: forall t r s. (CmdResult r, KnownCommand t, HasType (Port "wallet") s) => s -> String -> String -> IO r
 
 module Test.Integration.Framework.TestData
 chineseMnemonics9 :: [Text]
@@ -373,7 +375,9 @@ errMsg403Fee :: String
 errMsg403NotEnoughMoney :: Int -> Int -> String
 errMsg403UTxO :: String
 errMsg403WrongPass :: String
+errMsg403NoPendingAnymore :: Text -> String
 errMsg404NoEndpoint :: String
+errMsg404CannotFindTx :: Text -> String
 errMsg404NoRootKey :: Text -> String
 errMsg404NoWallet :: Text -> String
 errMsg403InputsDepleted :: String

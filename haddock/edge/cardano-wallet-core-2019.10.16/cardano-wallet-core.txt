@@ -3396,7 +3396,7 @@ createUnsignedTx :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasLogger 
 estimateTxFee :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasDBLayer s t k ctx, DefineTx t, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimateTxFee e) IO Fee
 
 -- | Forget pending transaction.
-forgetPendingTx :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> Hash "Tx" -> ExceptT ErrForgetPendingTx IO ()
+forgetPendingTx :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx IO ()
 
 -- | List all transactions and metadata from history for a given wallet.
 listTransactions :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]
@@ -3478,11 +3478,11 @@ data ErrSubmitExternalTx
 ErrSubmitExternalTxNetwork :: ErrPostTx -> ErrSubmitExternalTx
 ErrSubmitExternalTxDecode :: ErrDecodeSignedTx -> ErrSubmitExternalTx
 
--- | Errors that can occur when trying to change a wallet's passphrase.
-data ErrForgetPendingTx
-ErrForgetPendingTxNoSuchWallet :: ErrNoSuchWallet -> ErrForgetPendingTx
-ErrForgetPendingTxNoSuchTransaction :: Hash "Tx" -> ErrForgetPendingTx
-ErrForgetPendingTxTransactionIsNotPending :: Hash "Tx" -> ErrForgetPendingTx
+-- | Can't perform removing pending transaction
+data ErrRemovePendingTx
+ErrRemovePendingTxNoSuchWallet :: WalletId -> ErrRemovePendingTx
+ErrRemovePendingTxNoSuchTransaction :: Hash "Tx" -> ErrRemovePendingTx
+ErrRemovePendingTxTransactionNoMorePending :: Hash "Tx" -> ErrRemovePendingTx
 
 -- | Error while trying to send a transaction
 data ErrPostTx
@@ -3542,8 +3542,6 @@ instance GHC.Classes.Eq Cardano.Wallet.ErrUpdatePassphrase
 instance GHC.Show.Show Cardano.Wallet.ErrUpdatePassphrase
 instance GHC.Classes.Eq Cardano.Wallet.ErrWithRootKey
 instance GHC.Show.Show Cardano.Wallet.ErrWithRootKey
-instance GHC.Classes.Eq Cardano.Wallet.ErrForgetPendingTx
-instance GHC.Show.Show Cardano.Wallet.ErrForgetPendingTx
 instance GHC.Classes.Eq Cardano.Wallet.ErrSubmitExternalTx
 instance GHC.Show.Show Cardano.Wallet.ErrSubmitExternalTx
 instance GHC.Classes.Eq Cardano.Wallet.ErrSubmitTx
@@ -4555,7 +4553,7 @@ instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrListUTxOStatist
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSignTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Transaction.ErrDecodeSignedTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSubmitExternalTx
-instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrForgetPendingTx
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrRemovePendingTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSubmitTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrNetworkUnavailable
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrUpdatePassphrase
