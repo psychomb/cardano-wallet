@@ -564,7 +564,7 @@ ErrUnexpectedNetworkFailure :: Link -> ServantError -> ErrUnexpectedNetworkFailu
 --   
 --   This version provides the full, raw blocks from
 --   <a>Cardano.Wallet.Jormungandr.Binary</a>.
-mkRawNetworkLayer :: forall m n t block. (MonadBaseControl IO m, t ~ Jormungandr n, block ~ Block) => (block, BlockchainParameters) -> Word -> MVar BlockHeaders -> JormungandrClient m -> NetworkLayer m t block
+mkRawNetworkLayer :: forall m n t block. (MonadBaseControl IO m, t ~ Jormungandr n, block ~ Block) => (Block Tx, BlockchainParameters) -> Word -> MVar BlockHeaders -> JormungandrClient m -> NetworkLayer m t block
 data BaseUrl
 BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
 [baseUrlScheme] :: BaseUrl -> Scheme

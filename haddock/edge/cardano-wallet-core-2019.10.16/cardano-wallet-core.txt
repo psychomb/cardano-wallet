@@ -2532,7 +2532,7 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Network.BlockHeaders.BlockHeaders
 
 module Cardano.Wallet.Network
 data NetworkLayer m target block
-NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (Cursor target -> m (Maybe BlockHeader)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> NetworkLayer m target block
+NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (Cursor target -> m (Maybe BlockHeader)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (Block (Tx target), BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> NetworkLayer m target block
 
 -- | Starting from the given <a>Cursor</a>, fetches a contiguous sequence
 --   of blocks from the node, if they are available. An updated cursor will
@@ -2564,7 +2564,15 @@ NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target
 
 -- | Broadcast a transaction to the chain producer
 [postTx] :: NetworkLayer m target block -> (Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()
-[staticBlockchainParameters] :: NetworkLayer m target block -> (block, BlockchainParameters)
+
+-- | Get the genesis block and blockchain parameters.
+--   
+--   Note: The genesis block is a Wallet <tt>Block</tt>-type and not the
+--   <tt>block</tt> type-parameter used in <tt>nextBlocks</tt>. This is due
+--   to: 1. <a>Cardano.Pool.Metrics</a> wanting to use a
+--   <tt>block</tt>-type specific to non-genesis blocks. 2. The genesis
+--   block only being needed in the Wallet (currently).
+[staticBlockchainParameters] :: NetworkLayer m target block -> (Block (Tx target), BlockchainParameters)
 [stakeDistribution] :: NetworkLayer m target block -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64))
 
 -- | The result of <a>nextBlocks</a>, which is instructions for what the
@@ -2607,8 +2615,12 @@ ExitWith :: err -> FollowAction err
 -- | Continue following the chain.
 Continue :: FollowAction err
 
--- | Forget about the blocks in the current callback, and retry again.
-Retry :: FollowAction err
+-- | Forget about the blocks in the current callback, and retry
+--   immediately.
+RetryImmediately :: FollowAction err
+
+-- | Like <a>RetryImmediately</a> but only retries after a short delay
+RetryLater :: FollowAction err
 
 -- | Network is unavailable
 data ErrNetworkUnavailable
@@ -3678,76 +3690,6 @@ hoistResource :: HasWorkerCtx resource ctx => resource -> ctx -> WorkerCtx ctx
 instance GHC.Generics.Generic (Cardano.Wallet.Registry.Worker key resource)
 
 
--- | This module can fold over a blockchain to collect metrics about Stake
---   pools.
---   
---   It interacts with: - <a>Cardano.Wallet.Network</a> which provides the
---   chain - <a>Cardano.Pool.DB</a> - which can persist the metrics -
---   <a>Cardano.Wallet.Api.Server</a> - which presents the results in an
---   endpoint
-module Cardano.Pool.Metrics
-
--- | For a given epoch, and state, this function returns <i>how many</i>
---   blocks each pool produced.
-activityForEpoch :: EpochNo -> State -> Map PoolId Int
-
--- | Combines two different sources of data into one:
---   
---   <ol>
---   <li>A stake-distribution map</li>
---   <li>A pool-production map</li>
---   </ol>
---   
---   If a pool has produced a block without existing in the
---   stake-distribution, i.e it exists in (2) but not (1), this function
---   will return <tt>Left
---   ErrMetricsInconsistencyBlockProducerNotInStakeDistr</tt>.
---   
---   If a pool is in (1) but not (2), it simply means it has produced 0
---   blocks so far.
-combineMetrics :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Natural) -> Either ErrMetricsInconsistency (Map PoolId (Quantity "lovelace" Word64, Quantity "block" Natural))
-data ErrMetricsInconsistency
-ErrMetricsInconsistencyBlockProducerNotInStakeDistr :: PoolId -> Quantity "block" Natural -> ErrMetricsInconsistency
-
--- | Runs an action by making sure that the network header hasn't changed
---   before and after the action. This is useful in order to combine data
---   from different sources and make sure that all data retrieval and
---   computations happens on a same version.
---   
---   The action <b>must</b> be retry-able (i.e. read-only) for it will be
---   retried if the tip has changed before and after the call.
-withinSameTip :: forall m header a. (MonadIO m, Eq header) => RetryPolicyM m -> (ErrWithinSameTip -> m a) -> m header -> (header -> m a) -> m a
-data ErrWithinSameTip
-
--- | Retried too many times
-ErrWithinSameTipMaxRetries :: ErrWithinSameTip
-
--- | In-memory state keeping track of which pool produced blocks at which
---   slots.
-data State
-State :: BlockHeader -> Map PoolId [SlotId] -> State
-
--- | The blockHeader of the most recently applied block. Used to resume
---   restoration from <tt>NetworkLayer</tt>.
-[tip] :: State -> BlockHeader
-
--- | Mapping from pools to the slots where pool produced blocks.
---   
---   This is needed internally to support rollback, but publicly, only the
---   <i>length of</i> the SlotId-list is likely needed.
-[activity] :: State -> Map PoolId [SlotId]
-applyBlock :: (BlockHeader, PoolId) -> State -> State
-instance GHC.Generics.Generic Cardano.Pool.Metrics.State
-instance GHC.Show.Show Cardano.Pool.Metrics.State
-instance GHC.Classes.Eq Cardano.Pool.Metrics.State
-instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrWithinSameTip
-instance GHC.Show.Show Cardano.Pool.Metrics.ErrWithinSameTip
-instance GHC.Generics.Generic Cardano.Pool.Metrics.ErrWithinSameTip
-instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMetricsInconsistency
-instance GHC.Show.Show Cardano.Pool.Metrics.ErrMetricsInconsistency
-instance Formatting.Buildable.Buildable Cardano.Pool.Metrics.State
-
-
 -- | An implementation of the production pool database using only pure
 --   functions.
 --   
@@ -3823,6 +3765,69 @@ newtype ErrPointAlreadyExists
 ErrPointAlreadyExists :: BlockHeader -> ErrPointAlreadyExists
 instance GHC.Show.Show Cardano.Pool.DB.ErrPointAlreadyExists
 instance GHC.Classes.Eq Cardano.Pool.DB.ErrPointAlreadyExists
+
+
+-- | This module can fold over a blockchain to collect metrics about Stake
+--   pools.
+--   
+--   It interacts with: - <a>Cardano.Wallet.Network</a> which provides the
+--   chain - <a>Cardano.Pool.DB</a> - which can persist the metrics -
+--   <a>Cardano.Wallet.Api.Server</a> - which presents the results in an
+--   endpoint
+module Cardano.Pool.Metrics
+data Block
+Block :: BlockHeader -> PoolId -> Block
+[header] :: Block -> BlockHeader
+[producer] :: Block -> PoolId
+
+-- | <a>monitorStakePools</a> follows the chain and puts pool productions
+--   and stake distributions to a <a>DBLayer</a>, such that the data in the
+--   database is always consistent.
+--   
+--   The pool productions and stake distrubtions in the db can <i>never</i>
+--   be from different forks such that it's safe for readers to access it.
+--   
+--   FIXME: This last statement is only true if <tt>putStakeProduction</tt>
+--   and <a>putPoolProduction</a> are running in the same db transaction,
+--   which would be the case if we make <tt>SqlPersistT</tt> the top-level
+--   monad for the <a>DBLayer</a> instead of <a>IO</a>.
+monitorStakePools :: NetworkLayer IO t Block -> DBLayer IO -> Trace IO Text -> IO ()
+
+-- | Possible errors returned by <a>combineMetrics</a>.
+data ErrMetricsInconsistency
+
+-- | Somehow, we tried to combine invalid metrics together and passed a
+--   passed a block production that doesn't match the producers found in
+--   the stake activity.
+--   
+--   Note that the opposite case is okay as we only observe pools that have
+--   produced blocks. So it could be the case that a pool exists in the
+--   distribution but not in the production! (In which case, we'll assign
+--   it a production of '0').
+ErrProducerNotInDistribution :: PoolId -> Quantity "block" Natural -> ErrMetricsInconsistency
+
+-- | Combines two different sources of data into one:
+--   
+--   <ol>
+--   <li>A stake-distribution map</li>
+--   <li>A pool-production map</li>
+--   </ol>
+--   
+--   If a pool has produced a block without existing in the
+--   stake-distribution, i.e it exists in (2) but not (1), this function
+--   will return <tt>Left
+--   ErrMetricsInconsistencyBlockProducerNotInStakeDistr</tt>.
+--   
+--   If a pool is in (1) but not (2), it simply means it has produced 0
+--   blocks so far.
+combineMetrics :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Natural) -> Either ErrMetricsInconsistency (Map PoolId (Quantity "lovelace" Word64, Quantity "block" Natural))
+instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMetricsInconsistency
+instance GHC.Show.Show Cardano.Pool.Metrics.ErrMetricsInconsistency
+instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMonitorStakePools
+instance GHC.Show.Show Cardano.Pool.Metrics.ErrMonitorStakePools
+instance GHC.Generics.Generic Cardano.Pool.Metrics.Block
+instance GHC.Show.Show Cardano.Pool.Metrics.Block
+instance GHC.Classes.Eq Cardano.Pool.Metrics.Block
 
 
 -- | An implementation of the DBLayer which uses Persistent and SQLite.
