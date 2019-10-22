@@ -196,6 +196,24 @@ getTransaction :: Int -> Get (Tx, [TxWitness])
 putSignedTx :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
 putTx :: [(TxIn, Coin)] -> [TxOut] -> Put
 
+-- | See <a>fragmentId</a>. This computes the signing data required for
+--   producing transaction witnesses.
+signData :: [(TxIn, Coin)] -> [TxOut] -> Hash "SignData"
+
+-- | Construct a UTxO witness from a signature
+utxoWitness :: ByteString -> TxWitness
+
+-- | Construct a legacy UTxO witness from a public key and a signature
+legacyUtxoWitness :: XPub -> ByteString -> TxWitness
+data TxWitnessTag
+TxWitnessLegacyUTxO :: TxWitnessTag
+TxWitnessUTxO :: TxWitnessTag
+TxWitnessAccount :: TxWitnessTag
+TxWitnessMultisig :: TxWitnessTag
+putTxWitnessTag :: TxWitnessTag -> Put
+getTxWitnessTag :: Get TxWitnessTag
+txWitnessSize :: TxWitnessTag -> Int
+
 -- | Convert the Jörmungandr binary format block into a simpler Wallet
 --   block.
 convertBlock :: Block -> Block Tx
@@ -226,10 +244,6 @@ estimateMaxNumberOfInputsParams :: EstimateMaxNumberOfInputsParams t
 fragmentId :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Hash "Tx"
 maxNumberOfInputs :: Int
 maxNumberOfOutputs :: Int
-
--- | See <a>fragmentId</a>. This computes the signing data required for
---   producing transaction witnesses.
-signData :: [(TxIn, Coin)] -> [TxOut] -> Hash "SignData"
 
 -- | Add a corresponding header to a message. Every message is encoded as:
 --   
@@ -590,8 +604,11 @@ module Cardano.Wallet.Jormungandr.Transaction
 
 -- | Construct a <a>TransactionLayer</a> compatible with Shelley and
 --   <tt>Jörmungandr</tt>
-newTransactionLayer :: forall n k t. (t ~ Jormungandr n, KeyToAddress (Jormungandr n) k) => Hash "Genesis" -> TransactionLayer t k
-sign :: WalletKey k => ByteString -> (k  'AddressK XPrv, Passphrase "encryption") -> TxWitness
+newTransactionLayer :: forall n k t. (t ~ Jormungandr n, KeyToAddress (Jormungandr n) k, MkTxWitness k) => Hash "Genesis" -> TransactionLayer t k
+
+-- | Sign some arbitrary binary data using a private key.
+sign :: WalletKey k => ByteString -> (k  'AddressK XPrv, Passphrase "encryption") -> ByteString
+mkTxWitness :: MkTxWitness k => k  'AddressK XPrv -> ByteString -> TxWitness
 
 -- | Transaction with improper number of inputs and outputs is tried
 data ErrExceededInpsOrOuts
@@ -599,6 +616,8 @@ ErrExceededInpsOrOuts :: ErrExceededInpsOrOuts
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Transaction.ErrExceededInpsOrOuts
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Transaction.ErrExceededInpsOrOuts
 instance Formatting.Buildable.Buildable Cardano.Wallet.Jormungandr.Transaction.ErrExceededInpsOrOuts
+instance Cardano.Wallet.Jormungandr.Transaction.MkTxWitness Cardano.Wallet.Primitive.AddressDerivation.Sequential.SeqKey
+instance Cardano.Wallet.Jormungandr.Transaction.MkTxWitness Cardano.Wallet.Primitive.AddressDerivation.Random.RndKey
 
 
 -- | This module provides the main wallet server function for the
