@@ -308,9 +308,6 @@ BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
 data Scheme
 Http :: Scheme
 Https :: Scheme
-
--- | Generate a configuration file for Jörmungandr@0.3.999
-genConfigFile :: FilePath -> PortNumber -> BaseUrl -> Value
 localhostBaseUrl :: Int -> BaseUrl
 
 -- | Format an API <a>BaseUrl</a>, for logging, etc.
@@ -509,13 +506,12 @@ newNetworkLayer :: forall n t. t ~ Jormungandr n => BaseUrl -> Hash "Genesis" ->
 -- | A subset of the Jormungandr configuration parameters, used for
 --   starting the Jormungandr node backend.
 data JormungandrConfig
-JormungandrConfig :: FilePath -> Either (Hash "Genesis") FilePath -> Maybe PortNumber -> Severity -> StdStream -> [Text] -> JormungandrConfig
+JormungandrConfig :: FilePath -> Either (Hash "Genesis") FilePath -> Maybe PortNumber -> StdStream -> [String] -> JormungandrConfig
 [$sel:_stateDir:JormungandrConfig] :: JormungandrConfig -> FilePath
 [$sel:_genesisBlock:JormungandrConfig] :: JormungandrConfig -> Either (Hash "Genesis") FilePath
 [$sel:_restApiPort:JormungandrConfig] :: JormungandrConfig -> Maybe PortNumber
-[$sel:_minSeverity:JormungandrConfig] :: JormungandrConfig -> Severity
 [$sel:_outputStream:JormungandrConfig] :: JormungandrConfig -> StdStream
-[$sel:_extraArgs:JormungandrConfig] :: JormungandrConfig -> [Text]
+[$sel:_extraArgs:JormungandrConfig] :: JormungandrConfig -> [String]
 
 -- | Launches a Jörmungandr node backend with the given configuration
 withJormungandr :: Trace IO Text -> JormungandrConfig -> (JormungandrConnParams -> IO a) -> IO (Either ErrStartup a)
