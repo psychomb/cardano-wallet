@@ -231,7 +231,7 @@ mkNetworkLayer :: forall n m t. (Monad m, KnownNetwork (n :: Network), t ~ HttpB
 
 -- | Creates a cardano-http-bridge <a>NetworkLayer</a> using the given
 --   connection settings.
-newNetworkLayer :: forall n t. (KnownNetwork (n :: Network), t ~ HttpBridge n) => PortNumber -> IO (NetworkLayer IO t (Block Tx))
+newNetworkLayer :: forall n t. (KnownNetwork (n :: Network), t ~ HttpBridge n) => Trace IO Text -> PortNumber -> IO (NetworkLayer IO t (Block Tx))
 
 -- | Construct a new network layer
 mkHttpBridgeLayer :: Manager -> BaseUrl -> NetworkName -> HttpBridgeLayer IO

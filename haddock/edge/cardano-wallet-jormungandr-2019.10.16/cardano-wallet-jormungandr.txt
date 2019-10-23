@@ -515,7 +515,7 @@ withNetworkLayer :: forall n a t. t ~ Jormungandr n => Trace IO Text -> Jormunga
 
 -- | Creates a new <a>NetworkLayer</a> connecting to an underlying
 --   <a>Jormungandr</a> backend target.
-newNetworkLayer :: forall n t. t ~ Jormungandr n => BaseUrl -> Hash "Genesis" -> ExceptT ErrGetBlockchainParams IO (NetworkLayer IO t Block)
+newNetworkLayer :: forall n t. t ~ Jormungandr n => Trace IO Text -> BaseUrl -> Hash "Genesis" -> ExceptT ErrGetBlockchainParams IO (NetworkLayer IO t Block)
 
 -- | A subset of the Jormungandr configuration parameters, used for
 --   starting the Jormungandr node backend.

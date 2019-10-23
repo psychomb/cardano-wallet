@@ -2647,16 +2647,13 @@ ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
 ErrPostTxBadRequest :: Text -> ErrPostTx
 ErrPostTxProtocolFailure :: Text -> ErrPostTx
 
--- | Exception predicate for <a>ErrNetworkUnreachable</a>.
-isNetworkUnreachable :: ErrNetworkUnavailable -> Bool
-
 -- | A default <tt>RetryPolicy</tt> with a delay that starts short, and
 --   that retries for no longer than a minute.
 defaultRetryPolicy :: Monad m => RetryPolicyM m
 
 -- | Wait until 'networkTip networkLayer' succeeds according to a given
 --   retry policy. Throws an exception otherwise.
-waitForNetwork :: NetworkLayer IO tx block -> RetryPolicyM IO -> IO ()
+waitForNetwork :: ExceptT ErrNetworkUnavailable IO () -> RetryPolicyM IO -> IO ()
 instance GHC.Show.Show err => GHC.Show.Show (Cardano.Wallet.Network.FollowAction err)
 instance GHC.Classes.Eq err => GHC.Classes.Eq (Cardano.Wallet.Network.FollowAction err)
 instance GHC.Classes.Eq Cardano.Wallet.Network.ErrPostTx
@@ -2674,6 +2671,7 @@ instance GHC.Base.Functor m => GHC.Base.Functor (Cardano.Wallet.Network.NetworkL
 instance GHC.Base.Functor (Cardano.Wallet.Network.NextBlocksResult target)
 instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrPostTx
 instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkTip
+instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkUnavailable
 
 
 -- | This module contains instances and types necessary for storing wallets
