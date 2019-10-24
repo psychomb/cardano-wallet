@@ -394,7 +394,6 @@ Incoming :: Direction
 data TxStatus
 Pending :: TxStatus
 InLedger :: TxStatus
-Invalidated :: TxStatus
 
 -- | <tt>TxWitness</tt> is proof that transaction inputs are allowed to be
 --   spent
@@ -3325,7 +3324,7 @@ sparseCheckpoints :: Quantity "block" Word32 -> Quantity "block" Word32 -> [Word
 
 -- | Can't perform removing pending transaction
 data ErrRemovePendingTx
-ErrRemovePendingTxNoSuchWallet :: WalletId -> ErrRemovePendingTx
+ErrRemovePendingTxNoSuchWallet :: ErrNoSuchWallet -> ErrRemovePendingTx
 ErrRemovePendingTxNoSuchTransaction :: Hash "Tx" -> ErrRemovePendingTx
 ErrRemovePendingTxTransactionNoMorePending :: Hash "Tx" -> ErrRemovePendingTx
 
@@ -3569,7 +3568,7 @@ ErrSubmitExternalTxDecode :: ErrDecodeSignedTx -> ErrSubmitExternalTx
 
 -- | Can't perform removing pending transaction
 data ErrRemovePendingTx
-ErrRemovePendingTxNoSuchWallet :: WalletId -> ErrRemovePendingTx
+ErrRemovePendingTxNoSuchWallet :: ErrNoSuchWallet -> ErrRemovePendingTx
 ErrRemovePendingTxNoSuchTransaction :: Hash "Tx" -> ErrRemovePendingTx
 ErrRemovePendingTxTransactionNoMorePending :: Hash "Tx" -> ErrRemovePendingTx
 
@@ -4536,7 +4535,7 @@ type Wallets = DeleteWallet :<|> GetWallet :<|> ListWallets :<|> PostWallet :<|>
 type Transactions t = CreateTransaction t :<|> ListTransactions t :<|> PostTransactionFee t :<|> PostExternalTransaction :<|> DeleteTransaction
 type StakePoolApi = StakePools
 type StakePools = ListStakePools
-type CompatibilityApi t = DeleteByronWallet :<|> GetByronWallet :<|> GetByronWalletMigrationInfo :<|> ListByronWallets :<|> ListByronTransactions t :<|> MigrateByronWallet t :<|> PostByronWallet
+type CompatibilityApi t = DeleteByronWallet :<|> GetByronWallet :<|> GetByronWalletMigrationInfo :<|> ListByronWallets :<|> ListByronTransactions t :<|> MigrateByronWallet t :<|> PostByronWallet :<|> DeleteByronTransaction
 data ApiLayer s t (k :: Depth -> * -> *)
 ApiLayer :: Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO t (Block (Tx t)) -> TransactionLayer t k -> DBFactory IO s t k -> WorkerRegistry WalletId (DBLayer IO s t k) -> ApiLayer s t
 type HasWorkerRegistry s t k ctx = (HasType (WorkerRegistry WalletId (DBLayer IO s t k)) ctx, HasWorkerCtx (DBLayer IO s t k) ctx)

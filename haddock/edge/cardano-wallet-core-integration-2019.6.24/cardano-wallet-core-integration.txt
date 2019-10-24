@@ -263,11 +263,11 @@ listAllTransactions :: forall t. DecodeAddress t => Context t -> ApiWallet -> IO
 -- | teardown after each test (currently only deleting all wallets)
 tearDown :: Context t -> IO ()
 
--- | Restore a faucet and wait until funds are available.
-fixtureWallet :: Context t -> IO ApiWallet
-
 -- | Restore a Byron faucet and wait until funds are available.
 fixtureByronWallet :: Context t -> IO ApiByronWallet
+
+-- | Restore a faucet and wait until funds are available.
+fixtureWallet :: Context t -> IO ApiWallet
 
 -- | Restore a wallet with the given UTxO distribution. Note that there's a
 --   limitation to what can be done here. We only have 10 UTxO available in
@@ -308,12 +308,14 @@ utcIso8601ToText :: UTCTime -> Text
 prepExternalTxViaJcli :: Port "node" -> Text -> Natural -> IO Text
 eventually :: IO () -> IO ()
 postByronWalletEp :: (Method, Text)
+postByronTxEp :: ApiByronWallet -> (Method, Text)
 migrateByronWalletEp :: ApiByronWallet -> ApiWallet -> (Method, Text)
 calculateByronMigrationCostEp :: ApiByronWallet -> (Method, Text)
 getByronWalletEp :: ApiByronWallet -> (Method, Text)
 listByronWalletEp :: (Method, Text)
 listByronTxEp :: ApiByronWallet -> Text -> (Method, Text)
 deleteByronWalletEp :: ApiByronWallet -> (Method, Text)
+deleteByronTxEp :: ApiByronWallet -> ApiTxId -> (Method, Text)
 getWalletEp :: ApiWallet -> (Method, Text)
 deleteWalletEp :: ApiWallet -> (Method, Text)
 getWalletUtxoEp :: ApiWallet -> (Method, Text)
