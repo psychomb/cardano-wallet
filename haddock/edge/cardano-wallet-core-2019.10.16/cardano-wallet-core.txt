@@ -3773,7 +3773,7 @@ DBLayer :: (BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists m ()) -> (Epo
 --   
 --   This is useful for the <tt>NetworkLayer</tt> to know how far we have
 --   synced.
-[readCursor] :: DBLayer m -> Int -> m [BlockHeader]
+[readPoolProductionCursor] :: DBLayer m -> Int -> m [BlockHeader]
 
 -- | Remove all entries of slot ids newer than the argument
 [rollbackTo] :: DBLayer m -> SlotId -> m ()
@@ -3800,6 +3800,18 @@ data Block
 Block :: BlockHeader -> PoolId -> Block
 [header] :: Block -> BlockHeader
 [producer] :: Block -> PoolId
+
+-- | <tt>StakePoolLayer</tt> is a thin layer ontop of the DB. It is
+--   <i>one</i> value that can easily be passed to the API-server, where it
+--   can be used in a simple way.
+newtype StakePoolLayer m
+StakePoolLayer :: ExceptT ErrListStakePools m [(PoolId, (Quantity "lovelace" Word64, Quantity "block" Natural))] -> StakePoolLayer m
+[listStakePools] :: StakePoolLayer m -> ExceptT ErrListStakePools m [(PoolId, (Quantity "lovelace" Word64, Quantity "block" Natural))]
+newStakePoolLayer :: DBLayer IO -> NetworkLayer IO t block -> Trace IO Text -> IO (StakePoolLayer IO)
+data ErrListStakePools
+ErrMetricsIsUnsynced :: Quantity "percent" Percentage -> ErrListStakePools
+ErrListStakePoolsMetricsInconsistency :: ErrMetricsInconsistency -> ErrListStakePools
+ErrListStakePoolsErrNetworkTip :: ErrNetworkTip -> ErrListStakePools
 
 -- | <a>monitorStakePools</a> follows the chain and puts pool productions
 --   and stake distributions to a <a>DBLayer</a>, such that the data in the
@@ -3874,6 +3886,10 @@ newDBLayer :: Configuration -> Trace IO Text -> Maybe FilePath -> IO (SqliteCont
 --   If the given file path does not exist, it will be created by the
 --   sqlite library.
 withDBLayer :: Configuration -> Trace IO Text -> Maybe FilePath -> (DBLayer IO -> IO a) -> IO a
+
+-- | Return the preferred <tt>FilePath</tt> for the stake pool .sqlite
+--   file, given a parent directory.
+defaultFilePath :: FilePath -> FilePath
 
 
 -- | Dummy implementation of the database-layer, using <a>MVar</a>. This
@@ -4254,6 +4270,7 @@ NotAcceptable :: ApiErrorCode
 StartTimeLaterThanEndTime :: ApiErrorCode
 UnsupportedMediaType :: ApiErrorCode
 UnexpectedError :: ApiErrorCode
+NotSynced :: ApiErrorCode
 data ApiNetworkInformation
 ApiNetworkInformation :: !ApiT SyncProgress -> !ApiBlockReference -> !ApiNetworkTip -> ApiNetworkInformation
 [$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
@@ -4512,11 +4529,12 @@ instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.StakePoolMe
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.StakePoolMetrics
 
 module Cardano.Wallet.Api
-type Api t = CoreApi t :<|> CompatibilityApi t
-type CoreApi t = Addresses t :<|> Wallets :<|> Transactions t :<|> StakePools :<|> Network
+type Api t = CoreApi t :<|> CompatibilityApi t :<|> StakePoolApi
+type CoreApi t = Addresses t :<|> Wallets :<|> Transactions t :<|> Network
 type Addresses t = ListAddresses t
 type Wallets = DeleteWallet :<|> GetWallet :<|> ListWallets :<|> PostWallet :<|> PutWallet :<|> PutWalletPassphrase :<|> GetUTxOsStatistics
 type Transactions t = CreateTransaction t :<|> ListTransactions t :<|> PostTransactionFee t :<|> PostExternalTransaction :<|> DeleteTransaction
+type StakePoolApi = StakePools
 type StakePools = ListStakePools
 type CompatibilityApi t = DeleteByronWallet :<|> GetByronWallet :<|> GetByronWalletMigrationInfo :<|> ListByronWallets :<|> ListByronTransactions t :<|> MigrateByronWallet t :<|> PostByronWallet
 data ApiLayer s t (k :: Depth -> * -> *)
@@ -4609,7 +4627,7 @@ data HostPreference
 
 -- | Start the application server, using the given settings and a bound
 --   socket.
-start :: forall t. (Buildable (ErrValidateSelection t), DefineTx t, DecodeAddress t, EncodeAddress t, KeyToAddress t RndKey, KeyToAddress t SeqKey) => Settings -> Trace IO Text -> Socket -> ApiLayer (RndState t) t RndKey -> ApiLayer (SeqState t) t SeqKey -> IO ()
+start :: forall t. (Buildable (ErrValidateSelection t), DefineTx t, DecodeAddress t, EncodeAddress t, KeyToAddress t RndKey, KeyToAddress t SeqKey) => Settings -> Trace IO Text -> Socket -> ApiLayer (RndState t) t RndKey -> ApiLayer (SeqState t) t SeqKey -> StakePoolLayer IO -> IO ()
 
 -- | Create a new instance of the wallet layer.
 newApiLayer :: forall ctx s t k. (ctx ~ ApiLayer s t k, DefineTx t) => Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO t (Block (Tx t)) -> TransactionLayer t k -> DBFactory IO s t k -> [WalletId] -> IO ctx
@@ -4642,6 +4660,8 @@ instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrUpdatePassphras
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrListTransactions
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrStartTimeLaterThanEndTime
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrNetworkTip
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Pool.Metrics.ErrListStakePools
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance Cardano.Wallet.Api.Server.LiftHandler (Network.Wai.Internal.Request, Servant.Server.Internal.ServantErr.ServantErr)
 
 module Cardano.Wallet.Version

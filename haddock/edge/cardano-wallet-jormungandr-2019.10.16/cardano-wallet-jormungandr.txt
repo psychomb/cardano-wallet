@@ -637,3 +637,7 @@ module Cardano.Wallet.Jormungandr
 --   configuration which was passed from the CLI and environment and starts
 --   all components of the wallet.
 serveWallet :: forall t n. (n ~  'Testnet, t ~ Jormungandr n) => (Configuration, Trace IO Text) -> Maybe FilePath -> HostPreference -> Listen -> JormungandrBackend -> (SockAddr -> Port "node" -> BlockchainParameters -> IO ()) -> IO ExitCode
+
+-- | Covert a raw block to one that the <a>Cardano.Pool.Metrics</a> module
+--   accepts.
+toSPBlock :: Block -> Block
