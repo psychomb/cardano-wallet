@@ -3824,7 +3824,7 @@ ErrListStakePoolsErrNetworkTip :: ErrNetworkTip -> ErrListStakePools
 --   and <a>putPoolProduction</a> are running in the same db transaction,
 --   which would be the case if we make <tt>SqlPersistT</tt> the top-level
 --   monad for the <a>DBLayer</a> instead of <a>IO</a>.
-monitorStakePools :: NetworkLayer IO t Block -> DBLayer IO -> Trace IO Text -> IO ()
+monitorStakePools :: Trace IO Text -> NetworkLayer IO t Block -> DBLayer IO -> IO ()
 
 -- | Possible errors returned by <a>combineMetrics</a>.
 data ErrMetricsInconsistency
@@ -4635,6 +4635,7 @@ newApiLayer :: forall ctx s t k. (ctx ~ ApiLayer s t k, DefineTx t) => Trace IO 
 -- | Run an action with a TCP socket bound to a port specified by the
 --   <a>Listen</a> parameter.
 withListeningSocket :: HostPreference -> Listen -> (Either ListenError (Port, Socket) -> IO a) -> IO a
+defaultWorkerAfter :: Trace IO Text -> Either SomeException a -> IO ()
 instance GHC.Show.Show Cardano.Wallet.Api.Server.ErrCreateWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Server.ErrCreateWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Server.ListenError

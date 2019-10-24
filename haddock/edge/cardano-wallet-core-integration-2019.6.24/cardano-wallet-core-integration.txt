@@ -25,12 +25,13 @@ module Test.Integration.Faucet
 
 -- | An opaque <a>Faucet</a> type from which one can get a wallet with
 --   funds
-newtype Faucet
-Faucet :: MVar [Mnemonic 15] -> Faucet
-
--- | Get the next faucet wallet. Requires the <tt>initFaucet</tt> to be
---   called in order to get a hand on a <a>Faucet</a>.
-nextWallet :: Faucet -> IO (Mnemonic 15)
+data Faucet
+Faucet :: MVar [Mnemonic 15] -> MVar [Mnemonic 12] -> Faucet
+[sequential] :: Faucet -> MVar [Mnemonic 15]
+[random] :: Faucet -> MVar [Mnemonic 12]
+nextWallet :: NextWallet scheme => Faucet -> IO (Mnemonic (MnemonicSize scheme))
+instance Test.Integration.Faucet.NextWallet "seq"
+instance Test.Integration.Faucet.NextWallet "rnd"
 
 module Test.Integration.Framework.Request
 
@@ -264,6 +265,9 @@ tearDown :: Context t -> IO ()
 
 -- | Restore a faucet and wait until funds are available.
 fixtureWallet :: Context t -> IO ApiWallet
+
+-- | Restore a Byron faucet and wait until funds are available.
+fixtureByronWallet :: Context t -> IO ApiByronWallet
 
 -- | Restore a wallet with the given UTxO distribution. Note that there's a
 --   limitation to what can be done here. We only have 10 UTxO available in
