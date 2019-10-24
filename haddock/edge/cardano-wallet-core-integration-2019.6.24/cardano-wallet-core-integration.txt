@@ -8,6 +8,10 @@
 @package cardano-wallet-core-integration
 @version 2019.6.24
 
+module Cardano.Wallet.TransactionSpecShared
+propMaxNumberOfInputsEstimation :: TransactionLayer t key -> Quantity "byte" Word16 -> Quantity "byte" Word16 -> Word8 -> Word8 -> Property
+instance Test.QuickCheck.Arbitrary.Arbitrary (Data.Quantity.Quantity "byte" GHC.Word.Word16)
+
 
 -- | Helper functions for testing.
 module Test.Hspec.Extra
