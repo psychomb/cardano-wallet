@@ -9,10 +9,8 @@
 @version 2019.10.16
 
 
--- | This module contains a mechanism for launching external processes
---   together, and provides the functionality needed to kill them all if
---   one goes down. (would be achieved using <tt>monitor</tt> and
---   <tt>kill</tt> in combination)
+-- | This module contains a mechanism for launching external processes,
+--   ensuring that they are terminated on exceptions.
 module Cardano.Launcher
 
 -- | Represent a command to execute. Args are provided as a list where
@@ -81,6 +79,13 @@ withBackendProcess :: Trace IO LauncherLog -> Command -> IO a -> IO (Either Proc
 -- | Convert any SIGTERM received to SIGINT, for which the runtime system
 --   has handlers that will correctly clean up sub-processes.
 installSignalHandlers :: Trace IO Text -> IO ()
+
+-- | Force the locale text encoding to UTF-8. This is needed because the
+--   CLI prints UTF-8 characters regardless of the <tt>LANG</tt>
+--   environment variable or any other settings.
+--   
+--   On Windows the current console code page is changed to UTF-8.
+setUtf8Encoding :: IO ()
 data LauncherLog
 MsgLauncherStart :: Command -> LauncherLog
 MsgLauncherStarted :: String -> Text -> LauncherLog
