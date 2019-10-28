@@ -223,12 +223,15 @@ addressPoolGap :: HasType (ApiT AddressPoolGap) s => Lens' s Int
 amount :: HasType (Quantity "lovelace" Natural) s => Lens' s Natural
 balanceAvailable :: HasType (ApiT WalletBalance) s => Lens' s Natural
 balanceTotal :: HasType (ApiT WalletBalance) s => Lens' s Natural
+blocks :: HasField' "producedBlocks" s (Quantity "block" Natural) => Lens' s Natural
 delegation :: HasType (ApiT (WalletDelegation (ApiT PoolId))) s => Lens' s (WalletDelegation (ApiT PoolId))
 direction :: HasType (ApiT Direction) s => Lens' s Direction
 feeEstimator :: Lens' (Context t) (TxDescription -> (Natural, Natural))
 inputs :: HasType [ApiTxInput t] s => Lens' s [ApiTxInput t]
+metrics :: HasType StakePoolMetrics s => Lens' s StakePoolMetrics
 outputs :: HasType (NonEmpty (AddressAmount t)) s => Lens' s [AddressAmount t]
 passphraseLastUpdate :: HasType (Maybe (ApiT WalletPassphraseInfo)) s => Lens' s (Maybe Text)
+stake :: HasField' "controlledStake" s (Quantity "lovelace" Natural) => Lens' s Natural
 state :: HasField' "state" s (ApiT t) => Lens' s t
 status :: HasType (ApiT TxStatus) s => Lens' s TxStatus
 syncProgress :: HasType (ApiT SyncProgress) s => Lens' s SyncProgress
@@ -307,6 +310,7 @@ utcIso8601ToText :: UTCTime -> Text
 -- | Prepare externally signed Tx for Jormungandr
 prepExternalTxViaJcli :: Port "node" -> Text -> Natural -> IO Text
 eventually :: IO () -> IO ()
+eventuallyUsingDelay :: Int -> IO () -> IO ()
 postByronWalletEp :: (Method, Text)
 postByronTxEp :: ApiByronWallet -> (Method, Text)
 migrateByronWalletEp :: ApiByronWallet -> ApiWallet -> (Method, Text)
