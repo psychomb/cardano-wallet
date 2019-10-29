@@ -192,7 +192,7 @@ getBlockId :: Get (Hash "BlockHeader")
 getMessage :: Get Message
 
 -- | Decode the contents of a <tt>Transaction</tt>-message.
-getTransaction :: Int -> Get (Tx, [TxWitness])
+getTransaction :: Hash "Tx" -> Get (Tx, [TxWitness])
 putSignedTx :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
 putTx :: [(TxIn, Coin)] -> [TxOut] -> Put
 
