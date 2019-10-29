@@ -4239,6 +4239,9 @@ ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !A
 [$sel:passphrase:ApiWallet] :: ApiWallet -> !Maybe (ApiT WalletPassphraseInfo)
 [$sel:state:ApiWallet] :: ApiWallet -> !ApiT SyncProgress
 [$sel:tip:ApiWallet] :: ApiWallet -> !ApiBlockReference
+newtype ApiWalletPassphrase
+ApiWalletPassphrase :: ApiT (Passphrase "encryption") -> ApiWalletPassphrase
+[$sel:passphrase:ApiWalletPassphrase] :: ApiWalletPassphrase -> ApiT (Passphrase "encryption")
 data ApiUtxoStatistics
 ApiUtxoStatistics :: !Quantity "lovelace" Natural -> !ApiT BoundType -> !Map Word64 Word64 -> ApiUtxoStatistics
 [$sel:total:ApiUtxoStatistics] :: ApiUtxoStatistics -> !Quantity "lovelace" Natural
@@ -4362,9 +4365,6 @@ ApiByronWallet :: !ApiT WalletId -> !ApiT WalletBalance -> !ApiT WalletName -> !
 newtype ApiByronWalletMigrationInfo
 ApiByronWalletMigrationInfo :: Quantity "lovelace" Natural -> ApiByronWalletMigrationInfo
 [$sel:migrationCost:ApiByronWalletMigrationInfo] :: ApiByronWalletMigrationInfo -> Quantity "lovelace" Natural
-newtype ApiMigrateByronWalletData
-ApiMigrateByronWalletData :: ApiT (Passphrase "encryption") -> ApiMigrateByronWalletData
-[$sel:passphrase:ApiMigrateByronWalletData] :: ApiMigrateByronWalletData -> ApiT (Passphrase "encryption")
 data ByronWalletPostData
 ByronWalletPostData :: !ApiMnemonicT '[12] "seed" -> !ApiT WalletName -> !ApiT (Passphrase "encryption") -> ByronWalletPostData
 [$sel:mnemonicSentence:ByronWalletPostData] :: ByronWalletPostData -> !ApiMnemonicT '[12] "seed"
@@ -4420,6 +4420,9 @@ instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiAddress n)
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiWallet
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiWallet
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiWalletPassphrase
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiWalletPassphrase
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiWalletPassphrase
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiStakePool
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiStakePool
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiStakePool
@@ -4465,9 +4468,6 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiBlockReference
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiNetworkTip
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiNetworkTip
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiNetworkTip
-instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
-instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
-instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
 instance GHC.Classes.Eq a => GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiT a)
 instance GHC.Show.Show a => GHC.Show.Show (Cardano.Wallet.Api.Types.ApiT a)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiT a)
@@ -4499,6 +4499,8 @@ instance Cardano.Wallet.Primitive.AddressDiscovery.DecodeAddress n => Data.Aeson
 instance Cardano.Wallet.Primitive.AddressDiscovery.EncodeAddress n => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiAddress n)
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWallet
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiWallet
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWalletPassphrase
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiWalletPassphrase
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiStakePool
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiStakePool
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiUtxoStatistics
@@ -4533,8 +4535,6 @@ instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiBlockRef
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiBlockReference
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkTip
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiNetworkTip
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
-instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiMigrateByronWalletData
 instance Cardano.Wallet.Primitive.AddressDiscovery.DecodeAddress n => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.Address, Data.Proxy.Proxy n)
 instance Cardano.Wallet.Primitive.AddressDiscovery.EncodeAddress n => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.Address, Data.Proxy.Proxy n)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.AddressState)
@@ -4589,13 +4589,12 @@ instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.StakePoolMe
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.StakePoolMetrics
 
 module Cardano.Wallet.Api
-type Api t = CoreApi t :<|> CompatibilityApi t :<|> StakePoolApi
+type Api t = CoreApi t :<|> CompatibilityApi t :<|> StakePoolApi t
 type CoreApi t = Addresses t :<|> Wallets :<|> Transactions t :<|> Network
 type Addresses t = ListAddresses t
 type Wallets = DeleteWallet :<|> GetWallet :<|> ListWallets :<|> PostWallet :<|> PutWallet :<|> PutWalletPassphrase :<|> GetUTxOsStatistics
 type Transactions n = CreateTransaction n :<|> ListTransactions n :<|> PostTransactionFee n :<|> PostExternalTransaction :<|> DeleteTransaction
-type StakePoolApi = StakePools
-type StakePools = ListStakePools
+type StakePoolApi t = ListStakePools :<|> JoinStakePool t :<|> QuitStakePool t
 type CompatibilityApi n = DeleteByronWallet :<|> GetByronWallet :<|> GetByronWalletMigrationInfo :<|> ListByronWallets :<|> ListByronTransactions n :<|> MigrateByronWallet n :<|> PostByronWallet :<|> DeleteByronTransaction
 data ApiLayer s t (k :: Depth -> * -> *)
 ApiLayer :: Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO t (Block (Tx t)) -> TransactionLayer t k -> DBFactory IO s t k -> WorkerRegistry WalletId (DBLayer IO s t k) -> ApiLayer s t
