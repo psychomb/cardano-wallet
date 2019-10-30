@@ -682,15 +682,14 @@ slotRangeFromTimeRange :: SlotParameters -> Range UTCTime -> Maybe (Range SlotId
 --   <tt>applyBlock</tt>, <tt>WalletMetadata</tt> is not*.
 --   
 --   <ul>
---   <li>) Except for possibly <a>WalletMetadata</a> and
+--   <li>) Except for possibly <a>$sel:status:TxMeta</a> and
 --   <a>$sel:delegation:WalletMetadata</a>...</li>
 --   </ul>
 data WalletMetadata
-WalletMetadata :: !WalletName -> !UTCTime -> !Maybe WalletPassphraseInfo -> !SyncProgress -> !WalletDelegation PoolId -> WalletMetadata
+WalletMetadata :: !WalletName -> !UTCTime -> !Maybe WalletPassphraseInfo -> !WalletDelegation PoolId -> WalletMetadata
 [$sel:name:WalletMetadata] :: WalletMetadata -> !WalletName
 [$sel:creationTime:WalletMetadata] :: WalletMetadata -> !UTCTime
 [$sel:passphraseInfo:WalletMetadata] :: WalletMetadata -> !Maybe WalletPassphraseInfo
-[$sel:status:WalletMetadata] :: WalletMetadata -> !SyncProgress
 [$sel:delegation:WalletMetadata] :: WalletMetadata -> !WalletDelegation PoolId
 newtype WalletId
 WalletId :: Digest Blake2b_160 -> WalletId
@@ -890,9 +889,6 @@ instance GHC.Show.Show Cardano.Wallet.Primitive.Types.EpochLength
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.SlotLength
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.SlotLength
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SlotLength
-instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.WalletMetadata
-instance GHC.Show.Show Cardano.Wallet.Primitive.Types.WalletMetadata
-instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.WalletMetadata
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SyncProgress
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.SyncProgress
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.SyncProgress
@@ -972,6 +968,9 @@ instance GHC.Show.Show Cardano.Wallet.Primitive.Types.TxStatus
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.StakeDistribution
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.StakeDistribution
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.StakeDistribution
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.WalletMetadata
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.WalletMetadata
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.WalletMetadata
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.PoolId
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.PoolId
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.PoolId
@@ -1023,8 +1022,6 @@ instance GHC.TypeLits.KnownSymbol tag => Data.Text.Class.FromText (Cardano.Walle
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.StartTime
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.EpochLength
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.SlotLength
-instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.WalletMetadata
-instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.WalletMetadata
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.SyncProgress
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.SyncProgress
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.SyncProgress
@@ -1056,6 +1053,8 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.TxStatus
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.TxStatus
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.TxStatus
 instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.TxStatus
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.WalletMetadata
+instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.WalletMetadata
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.PoolId
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.PoolId
 instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.PoolId
@@ -3365,12 +3364,11 @@ instance Web.PathPieces.PathPiece Cardano.Wallet.Primitive.Types.PoolId
 --   module!
 module Cardano.Wallet.DB.Sqlite.TH
 data Wallet
-Wallet :: !WalletId -> !UTCTime -> !Text -> !Maybe UTCTime -> !SyncProgress -> !Maybe PoolId -> Wallet
+Wallet :: !WalletId -> !UTCTime -> !Text -> !Maybe UTCTime -> !Maybe PoolId -> Wallet
 [walId] :: Wallet -> !WalletId
 [walCreationTime] :: Wallet -> !UTCTime
 [walName] :: Wallet -> !Text
 [walPassphraseLastUpdatedAt] :: Wallet -> !Maybe UTCTime
-[walStatus] :: Wallet -> !SyncProgress
 [walDelegation] :: Wallet -> !Maybe PoolId
 type WalletId = Key Wallet
 data PrivateKey
@@ -3830,6 +3828,7 @@ updateWallet :: forall ctx s t k. HasDBLayer s t k ctx => ctx -> WalletId -> (Wa
 
 -- | Change a wallet's passphrase to the given passphrase.
 updateWalletPassphrase :: forall ctx s t k. (HasDBLayer s t k ctx, WalletKey k) => ctx -> WalletId -> (Passphrase "encryption-old", Passphrase "encryption-new") -> ExceptT ErrUpdatePassphrase IO ()
+walletSyncProgress :: Wallet s t -> IO SyncProgress
 
 -- | Forbidden operation was executed on an already existing wallet
 newtype ErrWalletAlreadyExists
