@@ -3871,7 +3871,7 @@ listTransactions :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx 
 --   Requires the encryption passphrase in order to decrypt the root
 --   private key. Note that this doesn't broadcast the transaction to the
 --   network. In order to do so, use <a>submitTx</a>.
-signTx :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s t k ctx, Show s, NFData s, IsOwned s k, GenChange s) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignTx IO (Tx t, TxMeta, [TxWitness])
+signTx :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s t k ctx, Show s, NFData s, IsOwned s k, GenChange s) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignTx IO (Tx t, TxMeta, UTCTime, [TxWitness])
 
 -- | Broadcast an externally-signed transaction to the network.
 submitExternalTx :: forall ctx t k. (HasNetworkLayer t ctx, HasTransactionLayer t k ctx) => ctx -> ByteString -> ExceptT ErrSubmitExternalTx IO (Tx t)
