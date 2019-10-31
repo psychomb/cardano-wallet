@@ -429,9 +429,9 @@ TransactionInfo :: !Hash "Tx" -> ![(TxIn, Maybe TxOut)] -> ![TxOut] -> !TxMeta -
 --   -&gt; a + b*x</tt> function where <tt>x</tt> can be the transaction
 --   size in bytes or, a number of inputs + outputs.
 --   
---   <tt>a</tt> and <tt>b</tt> are constant coefficients.
+--   <tt>a</tt>, <tt>b</tt> and <tt>c</tt> are constant coefficients.
 data FeePolicy
-LinearFee :: Quantity "lovelace" Double -> Quantity "lovelace/x" Double -> FeePolicy
+LinearFee :: Quantity "lovelace" Double -> Quantity "lovelace/byte" Double -> Quantity "lovelace/certificate" Double -> FeePolicy
 txIns :: forall t. DefineTx t => Set (Tx t) -> Set TxIn
 
 -- | True if the given tuple refers to a pending transaction
@@ -1766,9 +1766,9 @@ Fee :: Word64 -> Fee
 --   -&gt; a + b*x</tt> function where <tt>x</tt> can be the transaction
 --   size in bytes or, a number of inputs + outputs.
 --   
---   <tt>a</tt> and <tt>b</tt> are constant coefficients.
+--   <tt>a</tt>, <tt>b</tt> and <tt>c</tt> are constant coefficients.
 data FeePolicy
-LinearFee :: Quantity "lovelace" Double -> Quantity "lovelace/x" Double -> FeePolicy
+LinearFee :: Quantity "lovelace" Double -> Quantity "lovelace/byte" Double -> Quantity "lovelace/certificate" Double -> FeePolicy
 
 -- | Compute fee for a given payload. Fee follows a simple linear equation:
 --   
