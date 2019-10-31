@@ -1331,11 +1331,13 @@ deserializeXPrv :: PersistKey key => (ByteString, ByteString) -> Either String (
 
 -- | Access constituants of an address.
 class InspectAddress (key :: Depth -> * -> *) where {
-    type family SpendingKey key :: *;
-    type family DelegationKey key :: *;
+    
+    -- | Something that uniquely identifies a public key. Typically, a hash of
+    --   that key or the key itself.
+    type family KeyFingerprint (s :: Symbol) key :: *;
 }
-getSpendingKey :: InspectAddress key => Address -> SpendingKey key
-getDelegationKey :: InspectAddress key => Address -> Maybe (DelegationKey key)
+paymentKeyFingerprint :: InspectAddress key => Address -> KeyFingerprint "payment" key
+delegationKeyFingerprint :: InspectAddress key => Address -> Maybe (KeyFingerprint "delegation" key)
 
 -- | Produce a fake address of representative size for the target and key
 --   type. This can be used in transaction size estimations.
@@ -1558,6 +1560,15 @@ data ChangeChain
 ExternalChain :: ChangeChain
 InternalChain :: ChangeChain
 
+-- | The minimum seed length for <a>generateKeyFromSeed</a> and
+--   <a>unsafeGenerateKeyFromSeed</a>.
+minSeedLengthBytes :: Int
+
+-- | Size, in bytes, of a public key (without chain code)
+publicKeySize :: Int
+addrSingleSize :: Int
+addrGroupedSize :: Int
+
 -- | Generate a root key from a corresponding seed. The seed should be at
 --   least 16 bytes.
 generateKeyFromSeed :: (Passphrase "seed", Passphrase "generation") -> Passphrase "encryption" -> ShelleyKey  'RootK XPrv
@@ -1567,10 +1578,6 @@ generateKeyFromSeed :: (Passphrase "seed", Passphrase "generation") -> Passphras
 --   is mostly for testing, in practice, seeds are used to represent root
 --   keys, and one should use <a>generateKeyFromSeed</a>.
 unsafeGenerateKeyFromSeed :: (Passphrase "seed", Passphrase "generation") -> Passphrase "encryption" -> ShelleyKey depth XPrv
-
--- | The minimum seed length for <a>generateKeyFromSeed</a> and
---   <a>unsafeGenerateKeyFromSeed</a>.
-minSeedLengthBytes :: Int
 
 -- | Derives account private key from the given root private key, using
 --   derivation scheme 2 (see <a>cardano-crypto</a> package for more
@@ -1603,14 +1610,8 @@ deriveAddressPrivateKey :: Passphrase "encryption" -> ShelleyKey  'AccountK XPrv
 --   keys.
 deriveAddressPublicKey :: ShelleyKey  'AccountK XPub -> ChangeChain -> Index  'Soft  'AddressK -> ShelleyKey  'AddressK XPub
 
--- | Re-encrypt a private key using a different passphrase.
---   
---   <ul>
---   <li>*Important**: This function doesn't check that the old passphrase
---   is correct! Caller is expected to have already checked that. Using an
---   incorrect passphrase here will lead to very bad thing.</li>
---   </ul>
-changePassphraseSeq :: Passphrase "encryption-old" -> Passphrase "encryption-new" -> ShelleyKey depth XPrv -> ShelleyKey depth XPrv
+-- | Verify the structure of a payload decoded from a Bech32 text string
+decodeShelleyAddress :: forall n. (KnownNetwork n, NetworkDiscriminantVal n) => ByteString -> Either TextDecodingError Address
 
 -- | The reverse of <tt>serializeXPub</tt>. This will fail if the input is
 --   not hexadecimal string of the correct length.
@@ -1619,9 +1620,6 @@ deserializeXPubSeq :: ByteString -> Either String (ShelleyKey purpose XPub)
 -- | Convert a public key into a hexadecimal string suitable for storing in
 --   a text file or database column.
 serializeXPubSeq :: ShelleyKey purpose XPub -> ByteString
-
--- | Verify the structure of a payload decoded from a Bech32 text string
-decodeShelleyAddress :: forall n. (KnownNetwork n, NetworkDiscriminantVal n) => ByteString -> Either TextDecodingError Address
 instance GHC.Enum.Bounded Cardano.Wallet.Primitive.AddressDerivation.Shelley.ChangeChain
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.AddressDerivation.Shelley.ChangeChain
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.AddressDerivation.Shelley.ChangeChain
