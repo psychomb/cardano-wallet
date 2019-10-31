@@ -82,6 +82,7 @@ verbosityOption :: Parser Verbosity
 
 -- | Wrapper type around <a>Text</a> to make its semantic more explicit
 data Service
+data TxId
 
 -- | Represents the number of words in a mnemonic sentence.
 --   
@@ -163,6 +164,8 @@ setupDirectory :: (Text -> IO ()) -> FilePath -> IO ()
 failWith :: Trace IO Text -> Text -> IO ExitCode
 instance GHC.Show.Show Cardano.CLI.Verbosity
 instance GHC.Classes.Eq Cardano.CLI.Verbosity
+instance GHC.Show.Show Cardano.CLI.TxId
+instance GHC.Classes.Eq Cardano.CLI.TxId
 instance Data.String.IsString Cardano.CLI.Service
 instance GHC.Show.Show (Cardano.CLI.Port tag)
 instance GHC.Classes.Ord (Cardano.CLI.Port tag)
@@ -174,6 +177,7 @@ instance GHC.Generics.Generic Cardano.CLI.MnemonicSize
 instance GHC.Classes.Eq Cardano.CLI.MnemonicSize
 instance GHC.Enum.Enum Cardano.CLI.MnemonicSize
 instance GHC.Enum.Bounded Cardano.CLI.MnemonicSize
+instance Data.Text.Class.FromText Cardano.CLI.TxId
 instance GHC.Enum.Bounded (Cardano.CLI.Port tag)
 instance Data.Text.Class.FromText (Cardano.CLI.Port tag)
 instance Data.Text.Class.ToText (Cardano.CLI.Port tag)
