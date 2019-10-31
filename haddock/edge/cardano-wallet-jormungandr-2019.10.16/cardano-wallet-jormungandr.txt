@@ -172,10 +172,14 @@ Initial :: [ConfigParam] -> Message
 
 -- | A standard signed transaction
 Transaction :: (Tx, [TxWitness]) -> Message
+
+-- | A signed transaction with stake pool delegation
+TransactionWithDelegation :: (PoolId, ChimericAccount, Tx, [TxWitness]) -> Message
 UnimplementedMessage :: Int -> Message
 data MessageType
 MsgTypeInitial :: MessageType
 MsgTypeTransaction :: MessageType
+MsgTypeDelegation :: MessageType
 
 -- | Used to represent (&gt;= 0) rational numbers as (&gt;= 0) integers, by
 --   just multiplying by 1000. For instance: '3.141592' is represented as
@@ -195,6 +199,7 @@ getMessage :: Get Message
 getTransaction :: Hash "Tx" -> Get (Tx, [TxWitness])
 putSignedTx :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
 putTx :: [(TxIn, Coin)] -> [TxOut] -> Put
+putStakeDelegationTx :: PoolId -> ChimericAccount -> [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
 
 -- | See <a>fragmentId</a>. This computes the signing data required for
 --   producing transaction witnesses.
@@ -236,6 +241,7 @@ estimateMaxNumberOfInputsParams :: EstimateMaxNumberOfInputsParams t
 --   corresponds to a signed transaction (inputs, outputs and witnesses).
 --   So, the witnesses are required to compute a <a>txid</a>.
 fragmentId :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Hash "Tx"
+delegationFragmentId :: PoolId -> ChimericAccount -> [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Hash "Tx"
 maxNumberOfInputs :: Int
 maxNumberOfOutputs :: Int
 

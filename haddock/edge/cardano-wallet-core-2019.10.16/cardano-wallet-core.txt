@@ -501,6 +501,12 @@ data AddressState
 Used :: AddressState
 Unused :: AddressState
 
+-- | Also known as a staking key, chimeric account is used in group-type
+--   address for staking purposes. It is a public key of the account
+--   address
+newtype ChimericAccount
+ChimericAccount :: ByteString -> ChimericAccount
+
 -- | Coins are stored as Lovelace (reminder: 1 Lovelace = 1e-6 ADA)
 newtype Coin
 Coin :: Word64 -> Coin
@@ -874,6 +880,8 @@ instance GHC.Classes.Ord (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Show.Show (Cardano.Wallet.Primitive.Types.Hash tag)
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.ChimericAccount
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.ChimericAccount
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.ProtocolMagic
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.ProtocolMagic
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SlotParameters
