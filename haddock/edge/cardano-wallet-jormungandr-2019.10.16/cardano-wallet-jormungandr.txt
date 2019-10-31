@@ -561,7 +561,7 @@ module Cardano.Wallet.Jormungandr.Transaction
 
 -- | Construct a <a>TransactionLayer</a> compatible with Shelley and
 --   <tt>Jörmungandr</tt>
-newTransactionLayer :: forall n k t. (t ~ Jormungandr, PaymentAddress n k, MkTxWitness k) => Hash "Genesis" -> TransactionLayer t k
+newTransactionLayer :: forall n k t. (t ~ Jormungandr, PaymentAddress n k, MkTxWitness k, WalletKey k) => Hash "Genesis" -> TransactionLayer t k
 
 -- | Sign some arbitrary binary data using a private key.
 sign :: WalletKey k => ByteString -> (k  'AddressK XPrv, Passphrase "encryption") -> ByteString
