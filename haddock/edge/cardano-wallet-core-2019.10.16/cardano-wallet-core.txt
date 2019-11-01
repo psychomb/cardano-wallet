@@ -2786,13 +2786,19 @@ data Block
 Block :: BlockHeader -> PoolId -> Block
 [header] :: Block -> BlockHeader
 [producer] :: Block -> PoolId
+data StakePool
+StakePool :: PoolId -> Quantity "lovelace" Word64 -> Quantity "block" Word64 -> Double -> StakePool
+[poolId] :: StakePool -> PoolId
+[stake] :: StakePool -> Quantity "lovelace" Word64
+[production] :: StakePool -> Quantity "block" Word64
+[apparentPerformance] :: StakePool -> Double
 
 -- | <tt>StakePoolLayer</tt> is a thin layer ontop of the DB. It is
 --   <i>one</i> value that can easily be passed to the API-server, where it
 --   can be used in a simple way.
 newtype StakePoolLayer m
-StakePoolLayer :: ExceptT ErrListStakePools m [(PoolId, (Quantity "lovelace" Word64, Quantity "block" Natural))] -> StakePoolLayer m
-[listStakePools] :: StakePoolLayer m -> ExceptT ErrListStakePools m [(PoolId, (Quantity "lovelace" Word64, Quantity "block" Natural))]
+StakePoolLayer :: ExceptT ErrListStakePools m [StakePool] -> StakePoolLayer m
+[listStakePools] :: StakePoolLayer m -> ExceptT ErrListStakePools m [StakePool]
 newStakePoolLayer :: DBLayer IO -> NetworkLayer IO t block -> Trace IO Text -> IO (StakePoolLayer IO)
 data ErrListStakePools
 ErrMetricsIsUnsynced :: Quantity "percent" Percentage -> ErrListStakePools
@@ -2813,7 +2819,7 @@ ErrListStakePoolsErrNetworkTip :: ErrNetworkTip -> ErrListStakePools
 monitorStakePools :: Trace IO Text -> NetworkLayer IO t Block -> DBLayer IO -> IO ()
 
 -- | Possible errors returned by <a>combineMetrics</a>.
-data ErrMetricsInconsistency
+newtype ErrMetricsInconsistency
 
 -- | Somehow, we tried to combine invalid metrics together and passed a
 --   passed a block production that doesn't match the producers found in
@@ -2823,27 +2829,52 @@ data ErrMetricsInconsistency
 --   produced blocks. So it could be the case that a pool exists in the
 --   distribution but not in the production! (In which case, we'll assign
 --   it a production of '0').
-ErrProducerNotInDistribution :: PoolId -> Quantity "block" Natural -> ErrMetricsInconsistency
+ErrProducerNotInDistribution :: PoolId -> ErrMetricsInconsistency
 
--- | Combines two different sources of data into one:
+-- | Combines three different sources of data into one:
 --   
 --   <ol>
 --   <li>A stake-distribution map</li>
 --   <li>A pool-production map</li>
+--   <li>A pool-performance map</li>
 --   </ol>
 --   
 --   If a pool has produced a block without existing in the
 --   stake-distribution, i.e it exists in (2) but not (1), this function
---   will return <tt>Left
---   ErrMetricsInconsistencyBlockProducerNotInStakeDistr</tt>.
+--   will return <tt>Left ErrMetricsInconsistency</tt>.
 --   
 --   If a pool is in (1) but not (2), it simply means it has produced 0
 --   blocks so far.
-combineMetrics :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Natural) -> Either ErrMetricsInconsistency (Map PoolId (Quantity "lovelace" Word64, Quantity "block" Natural))
+--   
+--   Similarly, if we do have metrics about a pool in (3), but this pool is
+--   unknown from (1) &amp; (2), this function also returns <tt>Left
+--   ErrMetricsInconsistency</tt>.
+--   
+--   If a pool is in (1+2) but not in (3), it simply means it has produced
+--   0 blocks so far.
+combineMetrics :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Word64) -> Map PoolId Double -> Either ErrMetricsInconsistency (Map PoolId (Quantity "lovelace" Word64, Quantity "block" Word64, Double))
+
+-- | Calculate pool apparent performance over the given data. The
+--   performance is a <a>Double</a> between 0 and 1 as:
+--   
+--   <pre>
+--     p = n <i> N * S </i> s
+--   where
+--     n = number of blocks produced in an epoch e
+--     N = number of slots in e
+--     s = stake owned by the pool in e
+--     S = total stake delegated to pools in e
+--   </pre>
+--   
+--   Note that, this apparent performance is clamped to [0,1] as it may in
+--   practice, be greater than 1 if a stake pool produces more than it is
+--   expected.
+calculatePerformance :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Word64) -> Map PoolId Double
 instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance GHC.Show.Show Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMonitorStakePools
 instance GHC.Show.Show Cardano.Pool.Metrics.ErrMonitorStakePools
+instance GHC.Generics.Generic Cardano.Pool.Metrics.StakePool
 instance GHC.Generics.Generic Cardano.Pool.Metrics.Block
 instance GHC.Show.Show Cardano.Pool.Metrics.Block
 instance GHC.Classes.Eq Cardano.Pool.Metrics.Block
@@ -4280,13 +4311,14 @@ ApiAddress :: !(ApiT Address, Proxy n) -> !ApiT AddressState -> ApiAddress
 [$sel:id:ApiAddress] :: ApiAddress -> !(ApiT Address, Proxy n)
 [$sel:state:ApiAddress] :: ApiAddress -> !ApiT AddressState
 data ApiStakePool
-ApiStakePool :: !ApiT PoolId -> !StakePoolMetrics -> ApiStakePool
+ApiStakePool :: !ApiT PoolId -> !ApiStakePoolMetrics -> !Double -> ApiStakePool
 [$sel:id:ApiStakePool] :: ApiStakePool -> !ApiT PoolId
-[$sel:metrics:ApiStakePool] :: ApiStakePool -> !StakePoolMetrics
-data StakePoolMetrics
-StakePoolMetrics :: !Quantity "lovelace" Natural -> !Quantity "block" Natural -> StakePoolMetrics
-[$sel:controlledStake:StakePoolMetrics] :: StakePoolMetrics -> !Quantity "lovelace" Natural
-[$sel:producedBlocks:StakePoolMetrics] :: StakePoolMetrics -> !Quantity "block" Natural
+[$sel:metrics:ApiStakePool] :: ApiStakePool -> !ApiStakePoolMetrics
+[$sel:apparentPerformance:ApiStakePool] :: ApiStakePool -> !Double
+data ApiStakePoolMetrics
+ApiStakePoolMetrics :: !Quantity "lovelace" Natural -> !Quantity "block" Natural -> ApiStakePoolMetrics
+[$sel:controlledStake:ApiStakePoolMetrics] :: ApiStakePoolMetrics -> !Quantity "lovelace" Natural
+[$sel:producedBlocks:ApiStakePoolMetrics] :: ApiStakePoolMetrics -> !Quantity "block" Natural
 data ApiWallet
 ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !ApiT (WalletDelegation (ApiT PoolId)) -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> !ApiBlockReference -> ApiWallet
 [$sel:id:ApiWallet] :: ApiWallet -> !ApiT WalletId
@@ -4544,9 +4576,9 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiFee
 instance GHC.Show.Show Cardano.Wallet.Api.Types.PostExternalTransactionData
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.PostExternalTransactionData
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.PostExternalTransactionData
-instance GHC.Show.Show Cardano.Wallet.Api.Types.StakePoolMetrics
-instance GHC.Generics.Generic Cardano.Wallet.Api.Types.StakePoolMetrics
-instance GHC.Classes.Eq Cardano.Wallet.Api.Types.StakePoolMetrics
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiStakePoolMetrics
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiStakePoolMetrics
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiStakePoolMetrics
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.WalletPostData
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.WalletPostData
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ByronWalletPostData
@@ -4643,8 +4675,8 @@ instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiFee
 instance Data.Text.Class.FromText Cardano.Wallet.Api.Types.PostExternalTransactionData
 instance Servant.API.ContentTypes.MimeUnrender Servant.API.ContentTypes.OctetStream Cardano.Wallet.Api.Types.PostExternalTransactionData
 instance Servant.API.ContentTypes.MimeRender Servant.API.ContentTypes.OctetStream Cardano.Wallet.Api.Types.PostExternalTransactionData
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.StakePoolMetrics
-instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.StakePoolMetrics
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiStakePoolMetrics
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiStakePoolMetrics
 
 module Cardano.Wallet.Api
 type Api t = CoreApi t :<|> CompatibilityApi t :<|> StakePoolApi t

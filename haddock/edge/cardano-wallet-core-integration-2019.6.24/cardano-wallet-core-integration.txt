@@ -222,6 +222,7 @@ ClientError :: Value -> RequestException
 HttpException :: HttpExceptionContent -> RequestException
 addressPoolGap :: HasType (ApiT AddressPoolGap) s => Lens' s Int
 amount :: HasType (Quantity "lovelace" Natural) s => Lens' s Natural
+apparentPerformance :: HasType Double s => Lens' s Double
 balanceAvailable :: HasType (ApiT WalletBalance) s => Lens' s Natural
 balanceTotal :: HasType (ApiT WalletBalance) s => Lens' s Natural
 blocks :: HasField' "producedBlocks" s (Quantity "block" Natural) => Lens' s Natural
@@ -229,7 +230,7 @@ delegation :: HasType (ApiT (WalletDelegation (ApiT PoolId))) s => Lens' s (Wall
 direction :: HasType (ApiT Direction) s => Lens' s Direction
 feeEstimator :: Lens' (Context t) (TxDescription -> (Natural, Natural))
 inputs :: HasType [ApiTxInput t] s => Lens' s [ApiTxInput t]
-metrics :: HasType StakePoolMetrics s => Lens' s StakePoolMetrics
+metrics :: HasType ApiStakePoolMetrics s => Lens' s ApiStakePoolMetrics
 outputs :: HasType (NonEmpty (AddressAmount t)) s => Lens' s [AddressAmount t]
 passphraseLastUpdate :: HasType (Maybe (ApiT WalletPassphraseInfo)) s => Lens' s (Maybe Text)
 stake :: HasField' "controlledStake" s (Quantity "lovelace" Natural) => Lens' s Natural
