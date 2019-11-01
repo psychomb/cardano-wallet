@@ -156,6 +156,7 @@ expectError :: (MonadIO m, MonadFail m, Show a) => (s, Either RequestException a
 expectErrorMessage :: (MonadIO m, MonadFail m, Show a) => String -> (s, Either RequestException a) -> m ()
 expectFieldEqual :: (MonadIO m, MonadFail m, Show a, Eq a) => Lens' s a -> a -> (Status, Either RequestException s) -> m ()
 expectFieldNotEqual :: (MonadIO m, MonadFail m, Show a, Eq a) => Lens' s a -> a -> (Status, Either RequestException s) -> m ()
+expectFieldSatisfy :: (MonadIO m, MonadFail m, Show a) => Lens' s a -> (a -> Bool) -> (Status, Either RequestException s) -> m ()
 expectFieldBetween :: (MonadIO m, MonadFail m, Show a, Ord a) => Lens' s a -> (a, a) -> (Status, Either RequestException s) -> m ()
 expectListItemFieldBetween :: (MonadIO m, MonadFail m, Show a, Eq a, Ord a) => Int -> Lens' s a -> (a, a) -> (Status, Either RequestException [s]) -> m ()
 

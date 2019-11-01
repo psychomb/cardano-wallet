@@ -1425,8 +1425,10 @@ unsafeDeserializeXPub :: PersistPublicKey key => ByteString -> key XPub
 --   the payment key within a single or grouped address.</li>
 --   </ol>
 class MkKeyFingerprint (key :: Depth -> * -> *)
-paymentKeyFingerprint :: MkKeyFingerprint key => Address -> KeyFingerprint "payment" key
-delegationKeyFingerprint :: MkKeyFingerprint key => Address -> Maybe (KeyFingerprint "delegation" key)
+paymentKeyFingerprint :: MkKeyFingerprint key => Address -> Either (ErrMkKeyFingerprint key) (KeyFingerprint "payment" key)
+delegationKeyFingerprint :: MkKeyFingerprint key => Address -> Either (ErrMkKeyFingerprint key) (Maybe (KeyFingerprint "delegation" key))
+data ErrMkKeyFingerprint key
+ErrInvalidAddress :: Address -> Proxy key -> ErrMkKeyFingerprint key
 
 -- | Something that uniquely identifies a public key. Typically, a hash of
 --   that key or the key itself.
@@ -1483,6 +1485,8 @@ encryptPassphrase :: MonadRandom m => Passphrase purpose -> m (Hash purpose)
 
 -- | Check whether a <a>Passphrase</a> matches with a stored <a>Hash</a>
 checkPassphrase :: Passphrase purpose -> Hash purpose -> Either ErrWrongPassphrase ()
+instance forall k (key :: k). GHC.Classes.Eq (Cardano.Wallet.Primitive.AddressDerivation.ErrMkKeyFingerprint key)
+instance forall k (key :: k). GHC.Show.Show (Cardano.Wallet.Primitive.AddressDerivation.ErrMkKeyFingerprint key)
 instance forall (s :: GHC.Types.Symbol) k (key :: k). GHC.Classes.Ord (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint s key)
 instance forall (s :: GHC.Types.Symbol) k (key :: k). GHC.Classes.Eq (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint s key)
 instance forall (s :: GHC.Types.Symbol) k (key :: k). GHC.Show.Show (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint s key)
@@ -3215,6 +3219,8 @@ accountPubKey :: AddressPool network chain key -> key  'AccountK XPub
 --   The pool will grow from the start if less than <tt>g ::
 --   AddressPoolGap</tt> are given, such that, there are always <tt>g</tt>
 --   undiscovered addresses in the pool.
+--   
+--   FIXME: Don't construct from addresses but from fingerprints!
 mkAddressPool :: forall n c k. (PaymentAddress n k, SoftDerivation k, Typeable c) => k  'AccountK XPub -> AddressPoolGap -> [Address] -> AddressPool n c k
 
 -- | Lookup an address in the pool. When we find an address in a pool, the
@@ -4738,7 +4744,7 @@ data HostPreference
 
 -- | Start the application server, using the given settings and a bound
 --   socket.
-start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DefineTx t, DecodeAddress n, EncodeAddress n, PaymentAddress n ByronKey, PaymentAddress n ShelleyKey) => Settings -> Trace IO Text -> Socket -> ApiLayer (RndState n) t ByronKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
+start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DefineTx t, DecodeAddress n, EncodeAddress n, PaymentAddress n ShelleyKey) => Settings -> Trace IO Text -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
 
 -- | Create a new instance of the wallet layer.
 newApiLayer :: forall ctx s t k. (ctx ~ ApiLayer s t k, DefineTx t) => Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO t (Block (Tx t)) -> TransactionLayer t k -> DBFactory IO s t k -> [WalletId] -> IO ctx
