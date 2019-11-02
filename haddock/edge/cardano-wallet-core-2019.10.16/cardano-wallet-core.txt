@@ -4320,13 +4320,14 @@ ApiStakePoolMetrics :: !Quantity "lovelace" Natural -> !Quantity "block" Natural
 [$sel:controlledStake:ApiStakePoolMetrics] :: ApiStakePoolMetrics -> !Quantity "lovelace" Natural
 [$sel:producedBlocks:ApiStakePoolMetrics] :: ApiStakePoolMetrics -> !Quantity "block" Natural
 data ApiWallet
-ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !ApiT (WalletDelegation (ApiT PoolId)) -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> !ApiBlockReference -> ApiWallet
+ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !ApiT (WalletDelegation (ApiT PoolId)) -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !Quantity "lovelace" Natural -> !ApiT SyncProgress -> !ApiBlockReference -> ApiWallet
 [$sel:id:ApiWallet] :: ApiWallet -> !ApiT WalletId
 [$sel:addressPoolGap:ApiWallet] :: ApiWallet -> !ApiT AddressPoolGap
 [$sel:balance:ApiWallet] :: ApiWallet -> !ApiT WalletBalance
 [$sel:delegation:ApiWallet] :: ApiWallet -> !ApiT (WalletDelegation (ApiT PoolId))
 [$sel:name:ApiWallet] :: ApiWallet -> !ApiT WalletName
 [$sel:passphrase:ApiWallet] :: ApiWallet -> !Maybe (ApiT WalletPassphraseInfo)
+[$sel:reward:ApiWallet] :: ApiWallet -> !Quantity "lovelace" Natural
 [$sel:state:ApiWallet] :: ApiWallet -> !ApiT SyncProgress
 [$sel:tip:ApiWallet] :: ApiWallet -> !ApiBlockReference
 newtype ApiWalletPassphrase

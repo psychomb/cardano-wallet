@@ -226,19 +226,20 @@ apparentPerformance :: HasType Double s => Lens' s Double
 balanceAvailable :: HasType (ApiT WalletBalance) s => Lens' s Natural
 balanceTotal :: HasType (ApiT WalletBalance) s => Lens' s Natural
 blocks :: HasField' "producedBlocks" s (Quantity "block" Natural) => Lens' s Natural
-delegation :: HasType (ApiT (WalletDelegation (ApiT PoolId))) s => Lens' s (WalletDelegation (ApiT PoolId))
+delegation :: forall s d. (d ~ WalletDelegation (ApiT PoolId), HasType (ApiT d) s) => Lens' s (WalletDelegation (ApiT PoolId))
 direction :: HasType (ApiT Direction) s => Lens' s Direction
 feeEstimator :: Lens' (Context t) (TxDescription -> (Natural, Natural))
 inputs :: HasType [ApiTxInput t] s => Lens' s [ApiTxInput t]
 metrics :: HasType ApiStakePoolMetrics s => Lens' s ApiStakePoolMetrics
-outputs :: HasType (NonEmpty (AddressAmount t)) s => Lens' s [AddressAmount t]
-passphraseLastUpdate :: HasType (Maybe (ApiT WalletPassphraseInfo)) s => Lens' s (Maybe Text)
+outputs :: forall s t a. (a ~ AddressAmount t, HasType (NonEmpty a) s) => Lens' s [a]
+passphraseLastUpdate :: forall s i. (i ~ WalletPassphraseInfo, HasType (Maybe (ApiT i)) s) => Lens' s (Maybe Text)
 stake :: HasField' "controlledStake" s (Quantity "lovelace" Natural) => Lens' s Natural
 state :: HasField' "state" s (ApiT t) => Lens' s t
 status :: HasType (ApiT TxStatus) s => Lens' s TxStatus
 syncProgress :: HasType (ApiT SyncProgress) s => Lens' s SyncProgress
 walletId :: HasType (ApiT WalletId) s => Lens' s Text
 walletName :: HasType (ApiT WalletName) s => Lens' s Text
+walletReward :: forall s q. (q ~ Quantity "lovelace" Natural, HasType q s) => Lens' s Natural
 (</>) :: ToHttpApiData a => Text -> a -> Text
 infixr 5 </>
 
