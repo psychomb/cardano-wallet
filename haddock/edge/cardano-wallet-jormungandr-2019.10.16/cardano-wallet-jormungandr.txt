@@ -9,74 +9,6 @@
 @version 2019.10.16
 
 
--- | Declaration of primitive types that are specific to a particular
---   backend. Likely, the shape of all types is similar and will eventually
---   converge to one unified design. Though, in the meantime, we have to
---   support different primitive representations for some of them.
---   
---   In the case of <tt>Jormungandr</tt> at the moment, inputs also holds
---   their corresponding resolved value as <a>Coin</a>.
-module Cardano.Wallet.Jormungandr.Primitive.Types
-data Tx
-Tx :: Hash "Tx" -> ![(TxIn, Coin)] -> ![TxOut] -> Tx
-
--- | Jörmungandr computes transaction id by hashing the full content of the
---   transaction, which includes witnesses. Therefore, we need either to
---   keep track of the witnesses to be able to re-compute the tx id every
---   time, or, simply keep track of the id itself.
-[txid] :: Tx -> Hash "Tx"
-
--- | NOTE: Order of inputs matters in the transaction representation. The
---   transaction id is computed from the binary representation of a tx, for
---   which inputs are serialized in a specific order.
-[inputs] :: Tx -> ![(TxIn, Coin)]
-
--- | NOTE: Order of outputs matter in the transaction representations.
---   Outputs are used as inputs for next transactions which refer to them
---   using their indexes. It matters also for serialization.
-[outputs] :: Tx -> ![TxOut]
-instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Primitive.Types.Tx
-instance GHC.Classes.Ord Cardano.Wallet.Jormungandr.Primitive.Types.Tx
-instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Primitive.Types.Tx
-instance GHC.Show.Show Cardano.Wallet.Jormungandr.Primitive.Types.Tx
-instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Primitive.Types.Tx
-instance Formatting.Buildable.Buildable Cardano.Wallet.Jormungandr.Primitive.Types.Tx
-
-
--- | Contains various implementation decision that are specific to a
---   particular network / protocol. This allows us to easily select a
---   particular backend (Byron, Shelley-Rust, Shelley-Haskell) and isolate
---   the bits that vary between those backends.
-module Cardano.Wallet.Jormungandr.Compatibility
-
--- | A type representing the Jormungandr as a backend target. This has an
---   influence on binary serializer &amp; network primitives. See also
---   <a>DefineTx</a>
-data Jormungandr
-
--- | Jörmugandr's chain parameter doesn't include a transaction max size.
---   The actual hard-limit for the size is constrained by the binary format
---   and numbers used to represent the number of inputs and outputs
---   (Word8), yet there's also a soft-limit of 8kb which results in much
---   smaller transactions in the end.
-softTxMaxSize :: Quantity "byte" Word16
-data BaseUrl
-BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
-[baseUrlScheme] :: BaseUrl -> Scheme
-[baseUrlHost] :: BaseUrl -> String
-[baseUrlPort] :: BaseUrl -> Int
-[baseUrlPath] :: BaseUrl -> String
-data Scheme
-Http :: Scheme
-Https :: Scheme
-localhostBaseUrl :: Int -> BaseUrl
-
--- | Format an API <a>BaseUrl</a>, for logging, etc.
-baseUrlToText :: BaseUrl -> Text
-instance Cardano.Wallet.Primitive.Types.DefineTx Cardano.Wallet.Jormungandr.Compatibility.Jormungandr
-instance Cardano.Wallet.DB.Sqlite.PersistTx Cardano.Wallet.Jormungandr.Compatibility.Jormungandr
-
-
 -- | The format is for the Shelley era as implemented by the Jörmungandr
 --   node. It is described <a>here</a>
 --   
@@ -222,7 +154,7 @@ txWitnessSize :: TxWitnessTag -> Int
 
 -- | Convert the Jörmungandr binary format block into a simpler Wallet
 --   block.
-convertBlock :: Block -> Block Tx
+convertBlock :: Block -> Block
 
 -- | Convert the Jörmungandr binary format header into a simpler Wallet
 --   header.
@@ -238,9 +170,9 @@ blake2b256 :: ByteString -> ByteString
 estimateMaxNumberOfInputsParams :: EstimateMaxNumberOfInputsParams t
 
 -- | Jörmungandr distinguish 'fragment id' (what we commonly call
---   <tt>txId</tt>) from 'transaction sign data'. A transaction fragment
---   corresponds to a signed transaction (inputs, outputs and witnesses).
---   So, the witnesses are required to compute a <a>txid</a>.
+--   <a>$sel:txId:Tx</a>) from 'transaction sign data'. A transaction
+--   fragment corresponds to a signed transaction (inputs, outputs and
+--   witnesses). So, the witnesses are required to compute a <tt>txid</tt>.
 fragmentId :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Hash "Tx"
 delegationFragmentId :: PoolId -> ChimericAccount -> [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Hash "Tx"
 maxNumberOfInputs :: Int
@@ -354,13 +286,45 @@ instance Servant.API.ContentTypes.Accept Cardano.Wallet.Jormungandr.Api.Hex
 instance Servant.API.ContentTypes.MimeUnrender Cardano.Wallet.Jormungandr.Api.JormungandrBinary [Cardano.Wallet.Jormungandr.Api.BlockId]
 instance Servant.API.ContentTypes.Accept Cardano.Wallet.Jormungandr.Api.JormungandrBinary
 instance Servant.API.ContentTypes.MimeUnrender Cardano.Wallet.Jormungandr.Api.JormungandrBinary Cardano.Wallet.Jormungandr.Binary.Block
-instance Servant.API.ContentTypes.MimeRender Cardano.Wallet.Jormungandr.Api.JormungandrBinary (Cardano.Wallet.Jormungandr.Primitive.Types.Tx, [Cardano.Wallet.Primitive.Types.TxWitness])
+instance Servant.API.ContentTypes.MimeRender Cardano.Wallet.Jormungandr.Api.JormungandrBinary (Cardano.Wallet.Primitive.Types.Tx, [Cardano.Wallet.Primitive.Types.TxWitness])
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.StakeApiResponse
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.ApiStakeDistribution
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.ApiT (Data.Quantity.Quantity "lovelace" GHC.Word.Word64))
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.ApiT Cardano.Wallet.Primitive.Types.EpochNo)
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.ApiT Cardano.Wallet.Primitive.Types.PoolId)
 instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Jormungandr.Api.BlockId
+
+
+-- | Contains various implementation decision that are specific to a
+--   particular network / protocol. This allows us to easily select a
+--   particular backend (Byron, Shelley-Rust, Shelley-Haskell) and isolate
+--   the bits that vary between those backends.
+module Cardano.Wallet.Jormungandr.Compatibility
+
+-- | A type representing the Jormungandr as a backend target. This has an
+--   influence on binary serializer &amp; network primitives. See also
+--   <tt>DefineTx</tt>
+data Jormungandr
+
+-- | Jörmugandr's chain parameter doesn't include a transaction max size.
+--   The actual hard-limit for the size is constrained by the binary format
+--   and numbers used to represent the number of inputs and outputs
+--   (Word8), yet there's also a soft-limit of 8kb which results in much
+--   smaller transactions in the end.
+softTxMaxSize :: Quantity "byte" Word16
+data BaseUrl
+BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
+[baseUrlScheme] :: BaseUrl -> Scheme
+[baseUrlHost] :: BaseUrl -> String
+[baseUrlPort] :: BaseUrl -> Int
+[baseUrlPath] :: BaseUrl -> String
+data Scheme
+Http :: Scheme
+Https :: Scheme
+localhostBaseUrl :: Int -> BaseUrl
+
+-- | Format an API <a>BaseUrl</a>, for logging, etc.
+baseUrlToText :: BaseUrl -> Text
 
 
 -- | This module implements parts of a Jörmungandr REST API Client. It also
@@ -536,7 +500,7 @@ ErrUnexpectedNetworkFailure :: Link -> ServantError -> ErrUnexpectedNetworkFailu
 --   
 --   This version provides the full, raw blocks from
 --   <a>Cardano.Wallet.Jormungandr.Binary</a>.
-mkRawNetworkLayer :: forall m t block. (MonadBaseControl IO m, t ~ Jormungandr, block ~ Block) => (Block Tx, BlockchainParameters) -> Word -> MVar BlockHeaders -> JormungandrClient m -> NetworkLayer m t block
+mkRawNetworkLayer :: forall m t block. (MonadBaseControl IO m, t ~ Jormungandr, block ~ Block) => (Block, BlockchainParameters) -> Word -> MVar BlockHeaders -> JormungandrClient m -> NetworkLayer m t block
 data BaseUrl
 BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
 [baseUrlScheme] :: BaseUrl -> Scheme
@@ -594,7 +558,7 @@ module Cardano.Wallet.Jormungandr
 -- | The <tt>cardano-wallet-jormungandr</tt> main function. It takes the
 --   configuration which was passed from the CLI and environment and starts
 --   all components of the wallet.
-serveWallet :: forall (n :: NetworkDiscriminant) t. (t ~ Jormungandr, NetworkDiscriminantVal n, DecodeAddress n, EncodeAddress n, PaymentAddress n ShelleyKey) => (Configuration, Trace IO Text) -> Maybe FilePath -> HostPreference -> Listen -> JormungandrBackend -> (SockAddr -> Port "node" -> BlockchainParameters -> IO ()) -> IO ExitCode
+serveWallet :: forall (n :: NetworkDiscriminant) t. (t ~ Jormungandr, NetworkDiscriminantVal n, DecodeAddress n, EncodeAddress n, PaymentAddress n ShelleyKey, PaymentAddress n ByronKey) => (Configuration, Trace IO Text) -> Maybe FilePath -> HostPreference -> Listen -> JormungandrBackend -> (SockAddr -> Port "node" -> BlockchainParameters -> IO ()) -> IO ExitCode
 
 -- | Covert a raw block to one that the <a>Cardano.Pool.Metrics</a> module
 --   accepts.

@@ -324,10 +324,10 @@ instance Data.Text.Class.ToText b => Data.Text.Class.ToText (Data.Quantity.Quant
 --   It doesn't contain any particular business-logic code, but define a
 --   few primitive operations on Wallet core types as well.
 module Cardano.Wallet.Primitive.Types
-data Block tx
-Block :: !BlockHeader -> ![tx] -> Block tx
-[$sel:header:Block] :: Block tx -> !BlockHeader
-[$sel:transactions:Block] :: Block tx -> ![tx]
+data Block
+Block :: !BlockHeader -> ![Tx] -> Block
+[$sel:header:Block] :: Block -> !BlockHeader
+[$sel:transactions:Block] :: Block -> ![Tx]
 data BlockHeader
 BlockHeader :: SlotId -> Quantity "block" Word32 -> !Hash "BlockHeader" -> !Hash "BlockHeader" -> BlockHeader
 [$sel:slotId:BlockHeader] :: BlockHeader -> SlotId
@@ -335,38 +335,29 @@ BlockHeader :: SlotId -> Quantity "block" Word32 -> !Hash "BlockHeader" -> !Hash
 [$sel:headerHash:BlockHeader] :: BlockHeader -> !Hash "BlockHeader"
 [$sel:parentHeaderHash:BlockHeader] :: BlockHeader -> !Hash "BlockHeader"
 
--- | An abstraction for computing transaction id. The <tt>target</tt> is an
---   open-type that can be used to discriminate on. For instance:
+-- | Primitive <tt>Tx</tt>-type.
 --   
---   <pre>
---   instance DefineTx (HttpBridge network) where
---     txId _ = {- ... -}
---     ,,,
---   </pre>
---   
---   Note that <a>txId</a> is ambiguous and requires therefore a type
---   application. Likely, a corresponding target would be found in scope
---   (requires however ScopedTypeVariables).
---   
---   For example, assuming there's a type <tt>t</tt> in scope, one can
---   simply do:
---   
---   <pre>
---   txId @t tx
---   </pre>
-class (NFData (Tx t), Show (Tx t), Ord (Tx t), Buildable (Tx t)) => DefineTx t where {
-    type family Tx t :: *;
-}
-txId :: DefineTx t => Tx t -> Hash "Tx"
+--   Currently tailored for jormungandr in that inputs are <tt>(TxIn,
+--   Coin)</tt> instead of <tt>TxIn</tt>. We might have to revisit this
+--   when supporting another node.
+data Tx
+Tx :: Hash "Tx" -> ![(TxIn, Coin)] -> ![TxOut] -> Tx
 
--- | Compute a transaction id; assumed to be effectively injective. It
---   returns an hex-encoded 64-byte hash.
---   
---   NOTE: This is a rather expensive operation
-inputs :: DefineTx t => Tx t -> [TxIn]
+-- | Jörmungandr computes transaction id by hashing the full content of the
+--   transaction, which includes witnesses. Therefore, we need either to
+--   keep track of the witnesses to be able to re-compute the tx id every
+--   time, or, simply keep track of the id itself.
+[$sel:txId:Tx] :: Tx -> Hash "Tx"
 
--- | Get transaction's inputs, ordered
-outputs :: DefineTx t => Tx t -> [TxOut]
+-- | NOTE: Order of inputs matters in the transaction representation. The
+--   transaction id is computed from the binary representation of a tx, for
+--   which inputs are serialized in a specific order.
+[$sel:resolvedInputs:Tx] :: Tx -> ![(TxIn, Coin)]
+
+-- | NOTE: Order of outputs matter in the transaction representations.
+--   Outputs are used as inputs for next transactions which refer to them
+--   using their indexes. It matters also for serialization.
+[$sel:outputs:Tx] :: Tx -> ![TxOut]
 data TxIn
 TxIn :: !Hash "Tx" -> !Word32 -> TxIn
 [$sel:inputId:TxIn] :: TxIn -> !Hash "Tx"
@@ -432,10 +423,11 @@ TransactionInfo :: !Hash "Tx" -> ![(TxIn, Maybe TxOut)] -> ![TxOut] -> !TxMeta -
 --   <tt>a</tt>, <tt>b</tt> and <tt>c</tt> are constant coefficients.
 data FeePolicy
 LinearFee :: Quantity "lovelace" Double -> Quantity "lovelace/byte" Double -> Quantity "lovelace/certificate" Double -> FeePolicy
-txIns :: forall t. DefineTx t => Set (Tx t) -> Set TxIn
+txIns :: Set Tx -> Set TxIn
 
 -- | True if the given tuple refers to a pending transaction
 isPending :: TxMeta -> Bool
+inputs :: Tx -> [TxIn]
 
 -- | Representation of Cardano addresses. Addresses are basically a
 --   human-friendly representation of public keys. Historically in Cardano,
@@ -682,9 +674,9 @@ slotSucc :: SlotParameters -> SlotId -> SlotId
 slotRangeFromTimeRange :: SlotParameters -> Range UTCTime -> Maybe (Range SlotId)
 
 -- | Additional information about a wallet that can't simply be derived
---   from the blockchain like <tt>Wallet s t</tt> is.
+--   from the blockchain like <tt>Wallet s</tt> is.
 --   
---   Whereas <tt>Wallet s t</tt> in <a>Primitive</a> can be updated using
+--   Whereas <tt>Wallet s</tt> in <a>Primitive</a> can be updated using
 --   <tt>applyBlock</tt>, <tt>WalletMetadata</tt> is not*.
 --   
 --   <ul>
@@ -855,14 +847,18 @@ distance :: (Ord a, Num a) => a -> a -> a
 instance GHC.Classes.Ord a => GHC.Classes.Ord (Cardano.Wallet.Primitive.Types.ShowFmt a)
 instance GHC.Classes.Eq a => GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.ShowFmt a)
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.Types.ShowFmt a)
-instance GHC.Generics.Generic (Cardano.Wallet.Primitive.Types.Block tx)
-instance GHC.Classes.Ord tx => GHC.Classes.Ord (Cardano.Wallet.Primitive.Types.Block tx)
-instance GHC.Classes.Eq tx => GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.Block tx)
-instance GHC.Show.Show tx => GHC.Show.Show (Cardano.Wallet.Primitive.Types.Block tx)
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.Block
+instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.Block
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.Block
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.Block
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.BlockHeader
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.BlockHeader
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.BlockHeader
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.BlockHeader
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.Tx
+instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.Tx
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.Tx
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.Tx
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.TransactionInfo
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.TransactionInfo
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.TransactionInfo
@@ -1013,10 +1009,12 @@ instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.WalletName
 instance GHC.Base.Functor Cardano.Wallet.Primitive.Types.WalletDelegation
 instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.Types.ShowFmt a)
 instance Formatting.Buildable.Buildable a => GHC.Show.Show (Cardano.Wallet.Primitive.Types.ShowFmt a)
-instance Control.DeepSeq.NFData tx => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.Types.Block tx)
-instance Formatting.Buildable.Buildable tx => Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.Types.Block tx)
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.Block
+instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.Block
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.BlockHeader
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.BlockHeader
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.Tx
+instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.Tx
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.UTxO
 instance Cardano.Wallet.Primitive.Types.Dom Cardano.Wallet.Primitive.Types.UTxO
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.UTxO
@@ -1551,7 +1549,7 @@ instance Data.Text.Class.FromText Cardano.Wallet.Primitive.AddressDerivation.Cha
 --   flexible to various backends.
 module Cardano.Wallet.Transaction
 data TransactionLayer t k
-TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkStdTx (Tx t, [TxWitness])) -> (CoinSelection -> Quantity "byte" Int) -> (Quantity "byte" Word16 -> Word8 -> Word8) -> (CoinSelection -> Either (ErrValidateSelection t) ()) -> (ByteString -> Either ErrDecodeSignedTx (Tx t, [TxWitness])) -> TransactionLayer t k
+TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkStdTx (Tx, [TxWitness])) -> (CoinSelection -> Quantity "byte" Int) -> (Quantity "byte" Word16 -> Word8 -> Word8) -> (CoinSelection -> Either (ErrValidateSelection t) ()) -> (ByteString -> Either ErrDecodeSignedTx (Tx, [TxWitness])) -> TransactionLayer t k
 
 -- | Construct a standard transaction
 --   
@@ -1560,7 +1558,7 @@ TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryptio
 --   
 --   This expects as a first argument a mean to compute or lookup private
 --   key corresponding to a particular address.
-[mkStdTx] :: TransactionLayer t k -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkStdTx (Tx t, [TxWitness])
+[mkStdTx] :: TransactionLayer t k -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkStdTx (Tx, [TxWitness])
 
 -- | Estimate the size of a <a>CoinSelection</a>, in bytes. This operation
 --   is seemingly coupled to the binary representation of a
@@ -1596,7 +1594,7 @@ TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryptio
 [validateSelection] :: TransactionLayer t k -> CoinSelection -> Either (ErrValidateSelection t) ()
 
 -- | Decode an externally-signed transaction to the chain producer
-[decodeSignedTx] :: TransactionLayer t k -> ByteString -> Either ErrDecodeSignedTx (Tx t, [TxWitness])
+[decodeSignedTx] :: TransactionLayer t k -> ByteString -> Either ErrDecodeSignedTx (Tx, [TxWitness])
 
 -- | Possible signing error
 newtype ErrMkStdTx
@@ -2183,7 +2181,6 @@ instance GHC.Exception.Type.Exception Cardano.Pool.DB.MVar.MVarPoolDBError
 --   They are also used by components like the Rust
 --   <a>cardano-http-bridge</a>.
 module Cardano.Byron.Codec.Cbor
-decodeBlock :: Decoder s (Block ([TxIn], [TxOut]))
 decodeAddressDerivationPath :: Passphrase "addr-derivation-payload" -> Decoder s (Maybe (Index  'Hardened  'AccountK, Index  'Hardened  'AddressK))
 decodeAddressPayload :: Decoder s ByteString
 
@@ -2231,9 +2228,7 @@ encodeAttributes :: [Encoding] -> Encoding
 encodeDerivationPathAttr :: Passphrase "addr-derivation-payload" -> Index  'Hardened  'AccountK -> Index  'Hardened  'AddressK -> Encoding
 encodeProtocolMagicAttr :: ProtocolMagic -> Encoding
 encodePublicKeyWitness :: XPub -> Hash "signature" -> Encoding
-encodeSignedTx :: (([TxIn], [TxOut]), [TxWitness]) -> Encoding
 encodeTx :: ([TxIn], [TxOut]) -> Encoding
-encodeTxWitness :: TxWitness -> Encoding
 
 -- | Shortcut for deserialising a strict <tt>Bytestring</tt> with the given
 --   decoder.
@@ -2516,7 +2511,7 @@ module Cardano.Wallet.Primitive.Model
 --   Wallet SeqState Shelley
 --   Wallet SeqState Bitcoin
 --   </pre>
-data Wallet s t
+data Wallet s
 data BlockchainParameters
 BlockchainParameters :: Hash "Genesis" -> StartTime -> FeePolicy -> SlotLength -> EpochLength -> Quantity "byte" Word16 -> Quantity "block" Word32 -> BlockchainParameters
 
@@ -2544,15 +2539,15 @@ BlockchainParameters :: Hash "Genesis" -> StartTime -> FeePolicy -> SlotLength -
 -- | Create a an empty wallet and apply the given genesis block
 --   
 --   The wallet tip will be set to the header of the applied genesis block.
-initWallet :: forall s t. (IsOurs s, NFData s, Show s, DefineTx t) => Block (Tx t) -> BlockchainParameters -> s -> ([(Tx t, TxMeta)], Wallet s t)
+initWallet :: (IsOurs s, NFData s, Show s) => Block -> BlockchainParameters -> s -> ([(Tx, TxMeta)], Wallet s)
 
 -- | Update the state of an existing Wallet model
-updateState :: (IsOurs s, NFData s, Show s) => s -> Wallet s t -> Wallet s t
+updateState :: (IsOurs s, NFData s, Show s) => s -> Wallet s -> Wallet s
 
 -- | Apply Block is the primary way of making the wallet evolve. It returns
 --   the updated wallet state, as well as a set of all transactions
 --   belonging to the wallet discovered while applying the block.
-applyBlock :: forall s t. DefineTx t => Block (Tx t) -> Wallet s t -> ([(Tx t, TxMeta)], Wallet s t)
+applyBlock :: Block -> Wallet s -> ([(Tx, TxMeta)], Wallet s)
 
 -- | Apply multiple blocks in sequence to an existing wallet, returning a
 --   list of intermediate wallet states.
@@ -2584,55 +2579,55 @@ applyBlock :: forall s t. DefineTx t => Block (Tx t) -> Wallet s t -> ([(Tx t, T
 --   <li><b><tt>(w + bi)</tt></b> is the wallet state after applying block
 --   <b><tt>bi</tt></b> to wallet <b><tt>w</tt></b>.</li>
 --   </ul>
-applyBlocks :: forall s t. DefineTx t => NonEmpty (Block (Tx t)) -> Wallet s t -> NonEmpty ([(Tx t, TxMeta)], Wallet s t)
+applyBlocks :: NonEmpty Block -> Wallet s -> NonEmpty ([(Tx, TxMeta)], Wallet s)
 
 -- | Constructs a wallet from the exact given state. Using this function
 --   instead of <a>initWallet</a> and <a>applyBlock</a> allows the wallet
 --   invariants to be broken. Therefore it should only be used in the
 --   special case of loading wallet checkpoints from the database (where it
 --   is assumed a valid wallet was stored into the database).
-unsafeInitWallet :: (IsOurs s, NFData s, Show s, DefineTx t) => UTxO -> BlockHeader -> s -> BlockchainParameters -> Wallet s t
+unsafeInitWallet :: (IsOurs s, NFData s, Show s) => UTxO -> BlockHeader -> s -> BlockchainParameters -> Wallet s
 
 -- | Get the wallet current tip
-currentTip :: Wallet s t -> BlockHeader
+currentTip :: Wallet s -> BlockHeader
 
 -- | Get the wallet current state
-getState :: Wallet s t -> s
+getState :: Wallet s -> s
 
 -- | Available balance = <a>balance</a> . <a>availableUTxO</a>
-availableBalance :: DefineTx t => Set (Tx t) -> Wallet s t -> Natural
+availableBalance :: Set Tx -> Wallet s -> Natural
 
 -- | Total balance = <a>balance</a> . <a>totalUTxO</a>
-totalBalance :: DefineTx t => Set (Tx t) -> Wallet s t -> Natural
+totalBalance :: Set Tx -> Wallet s -> Natural
 
 -- | Total UTxO = <a>availableUTxO</a> <tt>&lt;&gt;</tt> <a>changeUTxO</a>
-totalUTxO :: forall s t. DefineTx t => Set (Tx t) -> Wallet s t -> UTxO
+totalUTxO :: Set Tx -> Wallet s -> UTxO
 
 -- | Available UTxO = <tt>pending ⋪ utxo</tt>
-availableUTxO :: forall s t. DefineTx t => Set (Tx t) -> Wallet s t -> UTxO
+availableUTxO :: Set Tx -> Wallet s -> UTxO
 
 -- | Actual utxo
-utxo :: Wallet s t -> UTxO
+utxo :: Wallet s -> UTxO
 
 -- | Get the current chain parameters.
 --   
 --   Parameters may change over time via protocol updates, so we keep track
 --   of them as part of the wallet checkpoints.
-blockchainParameters :: Wallet s t -> BlockchainParameters
+blockchainParameters :: Wallet s -> BlockchainParameters
 slotParams :: BlockchainParameters -> SlotParameters
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Model.BlockchainParameters
 instance GHC.Show.Show Cardano.Wallet.Primitive.Model.BlockchainParameters
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Model.BlockchainParameters
-instance GHC.Show.Show (Cardano.Wallet.Primitive.Model.Wallet s t)
-instance GHC.Classes.Eq s => GHC.Classes.Eq (Cardano.Wallet.Primitive.Model.Wallet s t)
-instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.Model.Wallet s t)
-instance Formatting.Buildable.Buildable s => Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.Model.Wallet s t)
+instance GHC.Show.Show (Cardano.Wallet.Primitive.Model.Wallet s)
+instance GHC.Classes.Eq s => GHC.Classes.Eq (Cardano.Wallet.Primitive.Model.Wallet s)
+instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.Model.Wallet s)
+instance Formatting.Buildable.Buildable s => Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.Model.Wallet s)
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Model.BlockchainParameters
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Model.BlockchainParameters
 
 module Cardano.Wallet.Network
 data NetworkLayer m target block
-NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (Cursor target -> m (Maybe BlockHeader)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (Block (Tx target), BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> NetworkLayer m target block
+NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (Cursor target -> m (Maybe BlockHeader)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (Block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> NetworkLayer m target block
 
 -- | Starting from the given <a>Cursor</a>, fetches a contiguous sequence
 --   of blocks from the node, if they are available. An updated cursor will
@@ -2663,7 +2658,7 @@ NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target
 [networkTip] :: NetworkLayer m target block -> ExceptT ErrNetworkTip m BlockHeader
 
 -- | Broadcast a transaction to the chain producer
-[postTx] :: NetworkLayer m target block -> (Tx target, [TxWitness]) -> ExceptT ErrPostTx m ()
+[postTx] :: NetworkLayer m target block -> (Tx, [TxWitness]) -> ExceptT ErrPostTx m ()
 
 -- | Get the genesis block and blockchain parameters.
 --   
@@ -2672,7 +2667,7 @@ NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target
 --   to: 1. <a>Cardano.Pool.Metrics</a> wanting to use a
 --   <tt>block</tt>-type specific to non-genesis blocks. 2. The genesis
 --   block only being needed in the Wallet (currently).
-[staticBlockchainParameters] :: NetworkLayer m target block -> (Block (Tx target), BlockchainParameters)
+[staticBlockchainParameters] :: NetworkLayer m target block -> (Block, BlockchainParameters)
 [stakeDistribution] :: NetworkLayer m target block -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64))
 
 -- | The result of <a>nextBlocks</a>, which is instructions for what the
@@ -2892,41 +2887,41 @@ module Cardano.Wallet.DB.Model
 --   
 --   Tne type parameters exist so that simpler mock types can be used in
 --   place of actual wallet types.
-data Database wid s t xprv
-Database :: !Map wid (WalletDatabase s t xprv) -> Map (Hash "Tx") (Tx t) -> Database wid s t xprv
+data Database wid s xprv
+Database :: !Map wid (WalletDatabase s xprv) -> Map (Hash "Tx") Tx -> Database wid s xprv
 
 -- | Wallet-related information.
-[$sel:wallets:Database] :: Database wid s t xprv -> !Map wid (WalletDatabase s t xprv)
+[$sel:wallets:Database] :: Database wid s xprv -> !Map wid (WalletDatabase s xprv)
 
 -- | In the database, transactions are global and not associated with any
 --   particular wallet.
-[$sel:txs:Database] :: Database wid s t xprv -> Map (Hash "Tx") (Tx t)
+[$sel:txs:Database] :: Database wid s xprv -> Map (Hash "Tx") Tx
 
 -- | Model database record for a single wallet.
-data WalletDatabase s t xprv
-WalletDatabase :: !Map SlotId (Wallet s t) -> !WalletMetadata -> !Map (Hash "Tx") TxMeta -> !Maybe xprv -> WalletDatabase s t xprv
-[$sel:checkpoints:WalletDatabase] :: WalletDatabase s t xprv -> !Map SlotId (Wallet s t)
-[$sel:metadata:WalletDatabase] :: WalletDatabase s t xprv -> !WalletMetadata
-[$sel:txHistory:WalletDatabase] :: WalletDatabase s t xprv -> !Map (Hash "Tx") TxMeta
-[$sel:xprv:WalletDatabase] :: WalletDatabase s t xprv -> !Maybe xprv
+data WalletDatabase s xprv
+WalletDatabase :: !Map SlotId (Wallet s) -> !WalletMetadata -> !Map (Hash "Tx") TxMeta -> !Maybe xprv -> WalletDatabase s xprv
+[$sel:checkpoints:WalletDatabase] :: WalletDatabase s xprv -> !Map SlotId (Wallet s)
+[$sel:metadata:WalletDatabase] :: WalletDatabase s xprv -> !WalletMetadata
+[$sel:txHistory:WalletDatabase] :: WalletDatabase s xprv -> !Map (Hash "Tx") TxMeta
+[$sel:xprv:WalletDatabase] :: WalletDatabase s xprv -> !Maybe xprv
 
 -- | Produces an empty model database.
-emptyDatabase :: Ord wid => Database wid s t xprv
+emptyDatabase :: Ord wid => Database wid s xprv
 
 -- | Shorthand for the readTxHistory result type.
-type TxHistory t = [(Tx t, TxMeta)]
+type TxHistory = [(Tx, TxMeta)]
 
 -- | Shorthand for the putTxHistory argument type.
-type TxHistoryMap t = Map (Hash "Tx") (Tx t, TxMeta)
+type TxHistoryMap = Map (Hash "Tx") (Tx, TxMeta)
 
 -- | Apply optional filters on slotId and sort using the default sort order
 --   (first time/slotId, then by TxId) to a <a>TxHistory</a>.
-filterTxHistory :: forall t. DefineTx t => SortOrder -> Range SlotId -> TxHistory t -> TxHistory t
+filterTxHistory :: SortOrder -> Range SlotId -> TxHistory -> TxHistory
 
 -- | A database model operation, which is a function that takes a database
 --   and returns: * a value, which is a query of the database, or an error;
 --   and * a (possibly) modified database.
-type ModelOp wid s t xprv a = Database wid s t xprv -> (Either (Err wid) a, Database wid s t xprv)
+type ModelOp wid s xprv a = Database wid s xprv -> (Either (Err wid) a, Database wid s xprv)
 
 -- | All of the possible errors that any of the model database functions
 --   might return.
@@ -2938,21 +2933,21 @@ data ErrErasePendingTx wid
 ErrErasePendingTxNoSuchWallet :: wid -> ErrErasePendingTx wid
 ErrErasePendingTxNoTx :: Hash "Tx" -> ErrErasePendingTx wid
 ErrErasePendingTxNoPendingTx :: Hash "Tx" -> ErrErasePendingTx wid
-mCleanDB :: Ord wid => ModelOp wid s t xprv ()
-mCreateWallet :: forall wid s t xprv. (Ord wid, DefineTx t) => wid -> Wallet s t -> WalletMetadata -> [(Tx t, TxMeta)] -> ModelOp wid s t xprv ()
-mRemoveWallet :: Ord wid => wid -> ModelOp wid s t xprv ()
-mListWallets :: Ord wid => ModelOp wid s t xprv [wid]
-mPutCheckpoint :: Ord wid => wid -> Wallet s t -> ModelOp wid s t xprv ()
-mReadCheckpoint :: Ord wid => wid -> ModelOp wid s t xprv (Maybe (Wallet s t))
-mListCheckpoints :: Ord wid => wid -> ModelOp wid s t xprv [BlockHeader]
-mRollbackTo :: Ord wid => wid -> SlotId -> ModelOp wid s t xprv ()
-mPutWalletMeta :: Ord wid => wid -> WalletMetadata -> ModelOp wid s t xprv ()
-mReadWalletMeta :: Ord wid => wid -> ModelOp wid s t xprv (Maybe WalletMetadata)
-mPutTxHistory :: forall wid s t xprv. (Ord wid, DefineTx t) => wid -> TxHistory t -> ModelOp wid s t xprv ()
-mReadTxHistory :: forall wid s t xprv. (Ord wid, DefineTx t) => wid -> SortOrder -> Range SlotId -> Maybe TxStatus -> ModelOp wid s t xprv (TxHistory t)
-mPutPrivateKey :: Ord wid => wid -> xprv -> ModelOp wid s t xprv ()
-mReadPrivateKey :: Ord wid => wid -> ModelOp wid s t xprv (Maybe xprv)
-mRemovePendingTx :: Ord wid => wid -> Hash "Tx" -> ModelOp wid s t xprv ()
+mCleanDB :: Ord wid => ModelOp wid s xprv ()
+mCreateWallet :: forall wid s xprv. Ord wid => wid -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ModelOp wid s xprv ()
+mRemoveWallet :: Ord wid => wid -> ModelOp wid s xprv ()
+mListWallets :: Ord wid => ModelOp wid s xprv [wid]
+mPutCheckpoint :: Ord wid => wid -> Wallet s -> ModelOp wid s xprv ()
+mReadCheckpoint :: Ord wid => wid -> ModelOp wid s xprv (Maybe (Wallet s))
+mListCheckpoints :: Ord wid => wid -> ModelOp wid s xprv [BlockHeader]
+mRollbackTo :: Ord wid => wid -> SlotId -> ModelOp wid s xprv ()
+mPutWalletMeta :: Ord wid => wid -> WalletMetadata -> ModelOp wid s xprv ()
+mReadWalletMeta :: Ord wid => wid -> ModelOp wid s xprv (Maybe WalletMetadata)
+mPutTxHistory :: forall wid s xprv. Ord wid => wid -> TxHistory -> ModelOp wid s xprv ()
+mReadTxHistory :: forall wid s xprv. Ord wid => wid -> SortOrder -> Range SlotId -> Maybe TxStatus -> ModelOp wid s xprv TxHistory
+mPutPrivateKey :: Ord wid => wid -> xprv -> ModelOp wid s xprv ()
+mReadPrivateKey :: Ord wid => wid -> ModelOp wid s xprv (Maybe xprv)
+mRemovePendingTx :: Ord wid => wid -> Hash "Tx" -> ModelOp wid s xprv ()
 instance Data.Traversable.Traversable Cardano.Wallet.DB.Model.Err
 instance Data.Foldable.Foldable Cardano.Wallet.DB.Model.Err
 instance GHC.Base.Functor Cardano.Wallet.DB.Model.Err
@@ -2963,12 +2958,12 @@ instance Data.Foldable.Foldable Cardano.Wallet.DB.Model.ErrErasePendingTx
 instance GHC.Base.Functor Cardano.Wallet.DB.Model.ErrErasePendingTx
 instance GHC.Classes.Eq wid => GHC.Classes.Eq (Cardano.Wallet.DB.Model.ErrErasePendingTx wid)
 instance GHC.Show.Show wid => GHC.Show.Show (Cardano.Wallet.DB.Model.ErrErasePendingTx wid)
-instance GHC.Generics.Generic (Cardano.Wallet.DB.Model.Database wid s t xprv)
-instance GHC.Generics.Generic (Cardano.Wallet.DB.Model.WalletDatabase s t xprv)
-instance (GHC.Classes.Eq s, GHC.Classes.Eq xprv) => GHC.Classes.Eq (Cardano.Wallet.DB.Model.WalletDatabase s t xprv)
-instance GHC.Show.Show xprv => GHC.Show.Show (Cardano.Wallet.DB.Model.WalletDatabase s t xprv)
-instance (GHC.Show.Show (Cardano.Wallet.Primitive.Types.Tx t), GHC.Show.Show wid, GHC.Show.Show xprv) => GHC.Show.Show (Cardano.Wallet.DB.Model.Database wid s t xprv)
-instance (GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.Tx t), GHC.Classes.Eq wid, GHC.Classes.Eq xprv, GHC.Classes.Eq s) => GHC.Classes.Eq (Cardano.Wallet.DB.Model.Database wid s t xprv)
+instance GHC.Generics.Generic (Cardano.Wallet.DB.Model.Database wid s xprv)
+instance GHC.Generics.Generic (Cardano.Wallet.DB.Model.WalletDatabase s xprv)
+instance (GHC.Classes.Eq s, GHC.Classes.Eq xprv) => GHC.Classes.Eq (Cardano.Wallet.DB.Model.WalletDatabase s xprv)
+instance GHC.Show.Show xprv => GHC.Show.Show (Cardano.Wallet.DB.Model.WalletDatabase s xprv)
+instance (GHC.Show.Show wid, GHC.Show.Show xprv) => GHC.Show.Show (Cardano.Wallet.DB.Model.Database wid s xprv)
+instance (GHC.Classes.Eq wid, GHC.Classes.Eq xprv, GHC.Classes.Eq s) => GHC.Classes.Eq (Cardano.Wallet.DB.Model.Database wid s xprv)
 
 
 -- | Database / Persistence layer for the wallet backend. This is where we
@@ -2980,46 +2975,46 @@ module Cardano.Wallet.DB
 --   we'll need some extra contraints on the wallet state that allows us to
 --   serialize and unserialize it (e.g. <tt>forall s. (Serialize s) =&gt;
 --   ...</tt>)
-data DBLayer m s t k
-DBLayer :: (PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> [(Tx t, TxMeta)] -> ExceptT ErrWalletAlreadyExists m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> m [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s t -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (Wallet s t))) -> (PrimaryKey WalletId -> m [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe WalletMetadata)) -> (DefineTx t => PrimaryKey WalletId -> [(Tx t, TxMeta)] -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx t, TxMeta)]) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx m ()) -> (forall e a. () => ExceptT e m a -> ExceptT e m a) -> DBLayer m s t k
+data DBLayer m s k
+DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> m [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (Wallet s))) -> (PrimaryKey WalletId -> m [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe WalletMetadata)) -> (PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx, TxMeta)]) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx m ()) -> (forall e a. () => ExceptT e m a -> ExceptT e m a) -> DBLayer m s k
 
 -- | Initialize a database entry for a given wallet. <a>putCheckpoint</a>,
 --   <a>putWalletMeta</a> or <a>putTxHistory</a> will actually all fail if
 --   they are called _first_ on a wallet.
-[createWallet] :: DBLayer m s t k -> PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> [(Tx t, TxMeta)] -> ExceptT ErrWalletAlreadyExists m ()
+[createWallet] :: DBLayer m s k -> PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists m ()
 
 -- | Remove a given wallet and all its associated data (checkpoints,
 --   metadata, tx history ...)
-[removeWallet] :: DBLayer m s t k -> PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()
+[removeWallet] :: DBLayer m s k -> PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()
 
 -- | Get the list of all known wallets in the DB, possibly empty.
-[listWallets] :: DBLayer m s t k -> m [PrimaryKey WalletId]
+[listWallets] :: DBLayer m s k -> m [PrimaryKey WalletId]
 
 -- | Replace the current checkpoint for a given wallet. We do not handle
 --   rollbacks yet, and therefore only stores the latest available
 --   checkpoint.
 --   
 --   If the wallet doesn't exist, this operation returns an error.
-[putCheckpoint] :: DBLayer m s t k -> PrimaryKey WalletId -> Wallet s t -> ExceptT ErrNoSuchWallet m ()
+[putCheckpoint] :: DBLayer m s k -> PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet m ()
 
 -- | Fetch the most recent checkpoint of a given wallet.
 --   
 --   Return <a>Nothing</a> if there's no such wallet.
-[readCheckpoint] :: DBLayer m s t k -> PrimaryKey WalletId -> m (Maybe (Wallet s t))
+[readCheckpoint] :: DBLayer m s k -> PrimaryKey WalletId -> m (Maybe (Wallet s))
 
 -- | List all known checkpoint tips, ordered by slot ids from the oldest to
 --   the newest.
-[listCheckpoints] :: DBLayer m s t k -> PrimaryKey WalletId -> m [BlockHeader]
+[listCheckpoints] :: DBLayer m s k -> PrimaryKey WalletId -> m [BlockHeader]
 
 -- | Replace an existing wallet metadata with the given one.
 --   
 --   If the wallet doesn't exist, this operation returns an error
-[putWalletMeta] :: DBLayer m s t k -> PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()
+[putWalletMeta] :: DBLayer m s k -> PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()
 
 -- | Fetch a wallet metadata, if they exist.
 --   
 --   Return <a>Nothing</a> if there's no such wallet.
-[readWalletMeta] :: DBLayer m s t k -> PrimaryKey WalletId -> m (Maybe WalletMetadata)
+[readWalletMeta] :: DBLayer m s k -> PrimaryKey WalletId -> m (Maybe WalletMetadata)
 
 -- | Augments the transaction history for a known wallet.
 --   
@@ -3027,44 +3022,44 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s t -> WalletMetadata -> [(Tx t, TxMet
 --   altered nor merged (just ignored).
 --   
 --   If the wallet doesn't exist, this operation returns an error.
-[putTxHistory] :: DBLayer m s t k -> DefineTx t => PrimaryKey WalletId -> [(Tx t, TxMeta)] -> ExceptT ErrNoSuchWallet m ()
+[putTxHistory] :: DBLayer m s k -> PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet m ()
 
 -- | Fetch the current transaction history of a known wallet, ordered by
 --   descending slot number.
 --   
 --   Returns an empty list if the wallet isn't found.
-[readTxHistory] :: DBLayer m s t k -> PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx t, TxMeta)]
+[readTxHistory] :: DBLayer m s k -> PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx, TxMeta)]
 
 -- | Store or replace a private key for a given wallet. Note that wallet
 --   _could_ be stored and manipulated without any private key associated
 --   to it. A private key is only seldomly required for very specific
 --   operations (like transaction signing).
-[putPrivateKey] :: DBLayer m s t k -> PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()
+[putPrivateKey] :: DBLayer m s k -> PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()
 
 -- | Read a previously stored private key and its associated passphrase
 --   hash.
-[readPrivateKey] :: DBLayer m s t k -> PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))
+[readPrivateKey] :: DBLayer m s k -> PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))
 
 -- | Drops all checkpoints and transaction data after the given slot.
-[rollbackTo] :: DBLayer m s t k -> PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()
+[rollbackTo] :: DBLayer m s k -> PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()
 
 -- | Prune database entities and remove entities that can be discarded.
-[prune] :: DBLayer m s t k -> PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()
+[prune] :: DBLayer m s k -> PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()
 
 -- | Remove a pending transaction.
-[removePendingTx] :: DBLayer m s t k -> PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx m ()
-[withLock] :: DBLayer m s t k -> forall e a. () => ExceptT e m a -> ExceptT e m a
+[removePendingTx] :: DBLayer m s k -> PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx m ()
+[withLock] :: DBLayer m s k -> forall e a. () => ExceptT e m a -> ExceptT e m a
 
 -- | Instantiate database layers at will
-data DBFactory m s t k
-DBFactory :: (WalletId -> (DBLayer m s t k -> IO ()) -> IO ()) -> (WalletId -> IO ()) -> DBFactory m s t k
+data DBFactory m s k
+DBFactory :: (WalletId -> (DBLayer m s k -> IO ()) -> IO ()) -> (WalletId -> IO ()) -> DBFactory m s k
 
 -- | Creates a new or use an existing database, maintaining an open
 --   connection so long as necessary
-[withDatabase] :: DBFactory m s t k -> WalletId -> (DBLayer m s t k -> IO ()) -> IO ()
+[withDatabase] :: DBFactory m s k -> WalletId -> (DBLayer m s k -> IO ()) -> IO ()
 
 -- | Erase any trace of the database
-[removeDatabase] :: DBFactory m s t k -> WalletId -> IO ()
+[removeDatabase] :: DBFactory m s k -> WalletId -> IO ()
 
 -- | A primary key which can take many forms depending on the value. This
 --   may become a type family as we move forward, but for now, it
@@ -3079,7 +3074,7 @@ newtype PrimaryKey key
 PrimaryKey :: key -> PrimaryKey key
 
 -- | Clean a database by removing all wallets.
-cleanDB :: Monad m => DBLayer m s t k -> m ()
+cleanDB :: Monad m => DBLayer m s k -> m ()
 
 -- | Storing EVERY checkpoints in the database is quite expensive and
 --   useless. We make the following assumptions:
@@ -3153,7 +3148,7 @@ ErrNoSuchWallet :: WalletId -> ErrNoSuchWallet
 -- | Forbidden operation was executed on an already existing wallet
 newtype ErrWalletAlreadyExists
 ErrWalletAlreadyExists :: WalletId -> ErrWalletAlreadyExists
-instance GHC.Generics.Generic (Cardano.Wallet.DB.DBFactory m s t k)
+instance GHC.Generics.Generic (Cardano.Wallet.DB.DBFactory m s k)
 instance GHC.Classes.Ord key => GHC.Classes.Ord (Cardano.Wallet.DB.PrimaryKey key)
 instance GHC.Classes.Eq key => GHC.Classes.Eq (Cardano.Wallet.DB.PrimaryKey key)
 instance GHC.Show.Show key => GHC.Show.Show (Cardano.Wallet.DB.PrimaryKey key)
@@ -3175,7 +3170,7 @@ module Cardano.Wallet.DB.MVar
 
 -- | Instantiate a new in-memory "database" layer that simply stores data
 --   in a local MVar. Data vanishes if the software is shut down.
-newDBLayer :: forall s t k. (NFData (k  'RootK XPrv), DefineTx t) => IO (DBLayer IO s t k)
+newDBLayer :: forall s k. NFData (k  'RootK XPrv) => IO (DBLayer IO s k)
 instance GHC.Show.Show Cardano.Wallet.DB.MVar.MVarDBError
 instance GHC.Exception.Type.Exception Cardano.Wallet.DB.MVar.MVarDBError
 
@@ -3474,12 +3469,12 @@ TxMeta :: !TxId -> !WalletId -> !TxStatus -> !Direction -> !SlotId -> !Word32 ->
 [txMetaAmount] :: TxMeta -> !Natural
 type TxMetaId = Key TxMeta
 data TxIn
-TxIn :: !TxId -> !Int -> !TxId -> !Word32 -> !Maybe Coin -> TxIn
+TxIn :: !TxId -> !Int -> !TxId -> !Word32 -> !Coin -> TxIn
 [txInputTxId] :: TxIn -> !TxId
 [txInputOrder] :: TxIn -> !Int
 [txInputSourceTxId] :: TxIn -> !TxId
 [txInputSourceIndex] :: TxIn -> !Word32
-[txInputSourceAmount] :: TxIn -> !Maybe Coin
+[txInputSourceAmount] :: TxIn -> !Coin
 type TxInId = Key TxIn
 data TxOut
 TxOut :: !TxId -> !Word32 -> !Address -> !Coin -> TxOut
@@ -3861,10 +3856,10 @@ module Cardano.Wallet.DB.Sqlite
 --   implementation. The database should be closed with
 --   <a>destroyDBLayer</a>. If you use <a>withDBLayer</a> then both of
 --   these things will be handled for you.
-newDBLayer :: forall s t k. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistPrivateKey (k  'RootK)) => Configuration -> Trace IO Text -> Maybe FilePath -> IO (SqliteContext, DBLayer IO s t k)
+newDBLayer :: forall s k. (IsOurs s, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK)) => Configuration -> Trace IO Text -> Maybe FilePath -> IO (SqliteContext, DBLayer IO s k)
 
 -- | Instantiate a <a>DBFactory</a> from a given directory
-mkDBFactory :: forall s t k. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistPrivateKey (k  'RootK), WalletKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> DBFactory IO s t k
+mkDBFactory :: forall s k. (IsOurs s, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK), WalletKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> DBFactory IO s k
 
 -- | Return all wallet databases that match the specified key type within
 --   the specified directory.
@@ -3876,7 +3871,7 @@ findDatabases :: forall k. WalletKey k => Trace IO Text -> FilePath -> IO [Walle
 --   
 --   If the given file path does not exist, it will be created by the
 --   sqlite library.
-withDBLayer :: forall s t k a. (IsOurs s, NFData s, Show s, PersistState s, PersistTx t, PersistPrivateKey (k  'RootK)) => Configuration -> Trace IO Text -> Maybe FilePath -> (DBLayer IO s t k -> IO a) -> IO a
+withDBLayer :: forall s k a. (IsOurs s, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK)) => Configuration -> Trace IO Text -> Maybe FilePath -> (DBLayer IO s k -> IO a) -> IO a
 
 -- | Functions for saving/loading the wallet's address discovery state into
 --   SQLite.
@@ -3887,17 +3882,6 @@ insertState :: PersistState s => (WalletId, SlotId) -> s -> SqlPersistT IO ()
 
 -- | Load the state for a checkpoint.
 selectState :: PersistState s => (WalletId, SlotId) -> SqlPersistT IO (Maybe s)
-class DefineTx t => PersistTx t
-resolvedInputs :: PersistTx t => Tx t -> [(TxIn, Maybe Coin)]
-
--- | Extract transaction resolved inputs. This slightly breaks the
---   abstraction boundary of <a>DefineTx</a> which doesn't really force any
---   structure on the resolved inputs. However, here in the DB-Layer,
---   supporting arbitrary shape for the inputs be much more complex and
---   require quite a lot of work. So, we kinda force the format here and
---   only here, and leave the rest of the code with an opaque
---   <tt>ResolvedTxIn</tt> type.
-mkTx :: PersistTx t => Hash "Tx" -> [(TxIn, Maybe Coin)] -> [TxOut] -> Tx t
 instance GHC.Show.Show Cardano.Wallet.DB.Sqlite.ErrRollbackTo
 instance (GHC.Classes.Eq (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK), Cardano.Wallet.Primitive.AddressDerivation.PaymentAddress n k, Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k) => Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
@@ -3926,53 +3910,53 @@ instance GHC.Exception.Type.Exception Cardano.Wallet.DB.Sqlite.ErrRollbackTo
 --   </ul>
 module Cardano.Wallet
 data WalletLayer s t (k :: Depth -> * -> *)
-WalletLayer :: Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO t (Block (Tx t)) -> TransactionLayer t k -> DBLayer IO s t k -> WalletLayer s t
-type HasDBLayer s t k = HasType (DBLayer IO s t k)
-dbLayer :: forall s t k ctx. HasDBLayer s t k ctx => Lens' ctx (DBLayer IO s t k)
+WalletLayer :: Trace IO Text -> (Block, BlockchainParameters) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBLayer IO s k -> WalletLayer s t
+type HasDBLayer s k = HasType (DBLayer IO s k)
+dbLayer :: forall s k ctx. HasDBLayer s k ctx => Lens' ctx (DBLayer IO s k)
 type HasLogger = HasType (Trace IO Text)
 logger :: forall ctx. HasLogger ctx => Lens' ctx (Trace IO Text)
 
 -- | This module is only interested in one block-, and tx-type. This
 --   constraint hides that choice, for some ease of use.
-type HasNetworkLayer t = HasType (NetworkLayer IO t (Block (Tx t)))
-networkLayer :: forall t ctx. HasNetworkLayer t ctx => Lens' ctx (NetworkLayer IO t (Block (Tx t)))
+type HasNetworkLayer t = HasType (NetworkLayer IO t (Block))
+networkLayer :: forall t ctx. HasNetworkLayer t ctx => Lens' ctx (NetworkLayer IO t Block)
 type HasTransactionLayer t k = HasType (TransactionLayer t k)
 transactionLayer :: forall t k ctx. HasTransactionLayer t k ctx => Lens' ctx (TransactionLayer t k)
-type HasGenesisData t = HasType (Block (Tx t), BlockchainParameters)
-genesisData :: forall t ctx. HasGenesisData t ctx => Lens' ctx (Block (Tx t), BlockchainParameters)
+type HasGenesisData = HasType (Block, BlockchainParameters)
+genesisData :: forall ctx. HasGenesisData ctx => Lens' ctx (Block, BlockchainParameters)
 
 -- | Initialise and store a new wallet, returning its ID.
-createWallet :: forall ctx s t k. (HasGenesisData t ctx, HasDBLayer s t k ctx, Show s, NFData s, IsOurs s, DefineTx t) => ctx -> WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
+createWallet :: forall ctx s k. (HasGenesisData ctx, HasDBLayer s k ctx, Show s, NFData s, IsOurs s) => ctx -> WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
 
 -- | Attach a given private key to a wallet. The private key is necessary
 --   for some operations like signing transactions, or generating new
 --   accounts.
-attachPrivateKey :: forall ctx s t k. HasDBLayer s t k ctx => ctx -> WalletId -> (k  'RootK XPrv, Passphrase "encryption") -> ExceptT ErrNoSuchWallet IO ()
+attachPrivateKey :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> (k  'RootK XPrv, Passphrase "encryption") -> ExceptT ErrNoSuchWallet IO ()
 
 -- | List the wallet's UTxO statistics.
-listUtxoStatistics :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrListUTxOStatistics IO UTxOStatistics
+listUtxoStatistics :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT ErrListUTxOStatistics IO UTxOStatistics
 
 -- | Retrieve the wallet state for the wallet with the given ID.
-readWallet :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO (Wallet s t, WalletMetadata, Set (Tx t))
+readWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO (Wallet s, WalletMetadata, Set Tx)
 
 -- | Remove an existing wallet. Note that there's no particular work to be
 --   done regarding the restoration worker as it will simply terminate on
 --   the next tick when noticing that the corresponding wallet is gone.
-removeWallet :: forall ctx s t k. HasDBLayer s t k ctx => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
+removeWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
 
 -- | Restore a wallet from its current tip up to the network tip.
 --   
 --   This function returns immediately, starting a worker thread in the
 --   background that will fetch and apply remaining blocks until the
 --   network tip is reached or until failure.
-restoreWallet :: forall ctx s t k. (HasLogger ctx, HasNetworkLayer t ctx, HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
+restoreWallet :: forall ctx s t k. (HasLogger ctx, HasNetworkLayer t ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
 
 -- | Update a wallet's metadata with the given update function.
-updateWallet :: forall ctx s t k. HasDBLayer s t k ctx => ctx -> WalletId -> (WalletMetadata -> WalletMetadata) -> ExceptT ErrNoSuchWallet IO ()
+updateWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> (WalletMetadata -> WalletMetadata) -> ExceptT ErrNoSuchWallet IO ()
 
 -- | Change a wallet's passphrase to the given passphrase.
-updateWalletPassphrase :: forall ctx s t k. (HasDBLayer s t k ctx, WalletKey k) => ctx -> WalletId -> (Passphrase "encryption-old", Passphrase "encryption-new") -> ExceptT ErrUpdatePassphrase IO ()
-walletSyncProgress :: Wallet s t -> IO SyncProgress
+updateWalletPassphrase :: forall ctx s k. (HasDBLayer s k ctx, WalletKey k) => ctx -> WalletId -> (Passphrase "encryption-old", Passphrase "encryption-new") -> ExceptT ErrUpdatePassphrase IO ()
+walletSyncProgress :: Wallet s -> IO SyncProgress
 
 -- | Forbidden operation was executed on an already existing wallet
 newtype ErrWalletAlreadyExists
@@ -3993,35 +3977,35 @@ ErrUpdatePassphraseWithRootKey :: ErrWithRootKey -> ErrUpdatePassphrase
 
 -- | List all addresses of a wallet with their metadata. Addresses are
 --   ordered from the most-recently-discovered to the oldest known.
-listAddresses :: forall ctx s t k. (HasDBLayer s t k ctx, IsOurs s, CompareDiscovery s, KnownAddresses s, DefineTx t) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
+listAddresses :: forall ctx s k. (HasDBLayer s k ctx, IsOurs s, CompareDiscovery s, KnownAddresses s) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
 
 -- | Prepare a transaction and automatically select inputs from the wallet
 --   to cover the requested outputs. Note that this only runs coin
 --   selection for the given outputs. In order to construct (and sign) an
 --   actual transaction, use <a>signTx</a>.
-createUnsignedTx :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s t k ctx, DefineTx t, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrCreateUnsignedTx e) IO CoinSelection
+createUnsignedTx :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s k ctx, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrCreateUnsignedTx e) IO CoinSelection
 
 -- | Estimate a transaction fee by automatically selecting inputs from the
 --   wallet to cover the requested outputs.
-estimateTxFee :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasDBLayer s t k ctx, DefineTx t, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimateTxFee e) IO Fee
+estimateTxFee :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimateTxFee e) IO Fee
 
 -- | Forget pending transaction.
-forgetPendingTx :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx IO ()
+forgetPendingTx :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx IO ()
 
 -- | List all transactions and metadata from history for a given wallet.
-listTransactions :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]
+listTransactions :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]
 
 -- | Produce witnesses and construct a transaction from a given selection.
 --   Requires the encryption passphrase in order to decrypt the root
 --   private key. Note that this doesn't broadcast the transaction to the
 --   network. In order to do so, use <a>submitTx</a>.
-signTx :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s t k ctx, Show s, NFData s, IsOwned s k, GenChange s) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignTx IO (Tx t, TxMeta, UTCTime, [TxWitness])
+signTx :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignTx IO (Tx, TxMeta, UTCTime, [TxWitness])
 
 -- | Broadcast an externally-signed transaction to the network.
-submitExternalTx :: forall ctx t k. (HasNetworkLayer t ctx, HasTransactionLayer t k ctx) => ctx -> ByteString -> ExceptT ErrSubmitExternalTx IO (Tx t)
+submitExternalTx :: forall ctx t k. (HasNetworkLayer t ctx, HasTransactionLayer t k ctx) => ctx -> ByteString -> ExceptT ErrSubmitExternalTx IO Tx
 
 -- | Broadcast a (signed) transaction to the network.
-submitTx :: forall ctx s t k. (HasNetworkLayer t ctx, HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> (Tx t, TxMeta, [TxWitness]) -> ExceptT ErrSubmitTx IO ()
+submitTx :: forall ctx s t k. (HasNetworkLayer t ctx, HasDBLayer s k ctx) => ctx -> WalletId -> (Tx, TxMeta, [TxWitness]) -> ExceptT ErrSubmitTx IO ()
 
 -- | Constructs a set of coin selections that select all funds from the
 --   given source wallet, returning them as change.
@@ -4030,7 +4014,7 @@ submitTx :: forall ctx s t k. (HasNetworkLayer t ctx, HasDBLayer s t k ctx, Defi
 --   transactions from the given wallet to a target wallet, executing those
 --   transactions will have the effect of migrating all funds from the
 --   given source wallet to the specified target wallet.
-createMigrationSourceData :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s t k ctx, DefineTx t) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [CoinSelection]
+createMigrationSourceData :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [CoinSelection]
 
 -- | Transform the given set of migration coin selections (for a source
 --   wallet) into a set of coin selections that will migrate funds to the
@@ -4042,7 +4026,7 @@ createMigrationSourceData :: forall ctx s t k. (HasTransactionLayer t k ctx, Has
 --   
 --   All addresses generated by this function are also registered as
 --   pending change addresses for the target wallet.
-assignMigrationTargetAddresses :: forall ctx s t k. (HasDBLayer s t k ctx, DefineTx t, GenChange s, IsOurs s, NFData s, Show s) => ctx -> WalletId -> ArgGenChange s -> [CoinSelection] -> ExceptT ErrNoSuchWallet IO [CoinSelection]
+assignMigrationTargetAddresses :: forall ctx s k. (HasDBLayer s k ctx, GenChange s, IsOurs s, NFData s, Show s) => ctx -> WalletId -> ArgGenChange s -> [CoinSelection] -> ExceptT ErrNoSuchWallet IO [CoinSelection]
 
 -- | Errors that can occur when creating an unsigned transaction.
 data ErrCreateUnsignedTx e
@@ -4165,7 +4149,7 @@ ErrStartTimeLaterThanEndTime :: UTCTime -> UTCTime -> ErrStartTimeLaterThanEndTi
 [$sel:errEndTime:ErrStartTimeLaterThanEndTime] :: ErrStartTimeLaterThanEndTime -> UTCTime
 
 -- | Execute an action which requires holding a root XPrv.
-withRootKey :: forall ctx s t k e a. HasDBLayer s t k ctx => ctx -> WalletId -> Passphrase "encryption" -> (ErrWithRootKey -> e) -> (k  'RootK XPrv -> ExceptT e IO a) -> ExceptT e IO a
+withRootKey :: forall ctx s k e a. HasDBLayer s k ctx => ctx -> WalletId -> Passphrase "encryption" -> (ErrWithRootKey -> e) -> (k  'RootK XPrv -> ExceptT e IO a) -> ExceptT e IO a
 instance GHC.Classes.Eq Cardano.Wallet.ErrListTransactions
 instance GHC.Show.Show Cardano.Wallet.ErrListTransactions
 instance GHC.Classes.Eq Cardano.Wallet.ErrStartTimeLaterThanEndTime
@@ -4688,16 +4672,16 @@ type Transactions n = CreateTransaction n :<|> ListTransactions n :<|> PostTrans
 type StakePoolApi t = ListStakePools :<|> JoinStakePool t :<|> QuitStakePool t
 type CompatibilityApi n = DeleteByronWallet :<|> GetByronWallet :<|> GetByronWalletMigrationInfo :<|> ListByronWallets :<|> ListByronTransactions n :<|> MigrateByronWallet n :<|> PostByronWallet :<|> DeleteByronTransaction
 data ApiLayer s t (k :: Depth -> * -> *)
-ApiLayer :: Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO t (Block (Tx t)) -> TransactionLayer t k -> DBFactory IO s t k -> WorkerRegistry WalletId (DBLayer IO s t k) -> ApiLayer s t
-type HasWorkerRegistry s t k ctx = (HasType (WorkerRegistry WalletId (DBLayer IO s t k)) ctx, HasWorkerCtx (DBLayer IO s t k) ctx)
-workerRegistry :: forall s t k ctx. HasWorkerRegistry s t k ctx => Lens' ctx (WorkerRegistry WalletId (DBLayer IO s t k))
-type HasDBFactory s t k = HasType (DBFactory IO s t k)
-dbFactory :: forall s t k ctx. HasDBFactory s t k ctx => Lens' ctx (DBFactory IO s t k)
+ApiLayer :: Trace IO Text -> (Block, BlockchainParameters) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> WorkerRegistry WalletId (DBLayer IO s k) -> ApiLayer s t
+type HasWorkerRegistry s k ctx = (HasType (WorkerRegistry WalletId (DBLayer IO s k)) ctx, HasWorkerCtx (DBLayer IO s k) ctx)
+workerRegistry :: forall s k ctx. HasWorkerRegistry s k ctx => Lens' ctx (WorkerRegistry WalletId (DBLayer IO s k))
+type HasDBFactory s k = HasType (DBFactory IO s k)
+dbFactory :: forall s k ctx. HasDBFactory s k ctx => Lens' ctx (DBFactory IO s k)
 
 -- | Any media type
 data Any
 instance GHC.Generics.Generic (Cardano.Wallet.Api.ApiLayer s t k)
-instance Cardano.Wallet.Registry.HasWorkerCtx (Cardano.Wallet.DB.DBLayer GHC.Types.IO s t k) (Cardano.Wallet.Api.ApiLayer s t k)
+instance Cardano.Wallet.Registry.HasWorkerCtx (Cardano.Wallet.DB.DBLayer GHC.Types.IO s k) (Cardano.Wallet.Api.ApiLayer s t k)
 instance Servant.API.ContentTypes.Accept Cardano.Wallet.Api.Any
 
 
@@ -4777,10 +4761,10 @@ data HostPreference
 
 -- | Start the application server, using the given settings and a bound
 --   socket.
-start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DefineTx t, DecodeAddress n, EncodeAddress n, PaymentAddress n ShelleyKey) => Settings -> Trace IO Text -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
+start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DecodeAddress n, EncodeAddress n, PaymentAddress n ShelleyKey, PaymentAddress n ByronKey) => Settings -> Trace IO Text -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
 
 -- | Create a new instance of the wallet layer.
-newApiLayer :: forall ctx s t k. (ctx ~ ApiLayer s t k, DefineTx t) => Trace IO Text -> (Block (Tx t), BlockchainParameters) -> NetworkLayer IO t (Block (Tx t)) -> TransactionLayer t k -> DBFactory IO s t k -> [WalletId] -> IO ctx
+newApiLayer :: forall ctx s t k. ctx ~ ApiLayer s t k => Trace IO Text -> (Block, BlockchainParameters) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> [WalletId] -> IO ctx
 
 -- | Run an action with a TCP socket bound to a port specified by the
 --   <a>Listen</a> parameter.
