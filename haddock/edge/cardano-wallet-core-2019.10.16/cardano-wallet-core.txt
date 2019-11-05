@@ -1255,13 +1255,17 @@ newtype Index (derivationType :: DerivationType) (level :: Depth)
 Index :: Word32 -> Index
 [getIndex] :: Index -> Word32
 
--- | Marker for the change chain. In practice, change of a transaction goes
---   onto the addresses generated on the internal chain, whereas the
---   external chain is used for addresses that are part of the
---   <tt>advertised</tt> targets of a transaction
-data ChangeChain
-ExternalChain :: ChangeChain
-InternalChain :: ChangeChain
+-- | Marker for addresses type engaged. We want to handle three cases here.
+--   The first two are pertinent to UTxO accounting and the last one
+--   handles rewards from participation in staking. (a) external chain is
+--   used for addresses that are part of the <tt>advertised</tt> targets of
+--   a given transaction (b) internal change is for addresses used to
+--   handle the change of a the transaction within a given wallet (c) the
+--   addresses for a reward (chimeric) account
+data AccountingStyle
+UTxOExternal :: AccountingStyle
+UTxOInternal :: AccountingStyle
+MutableAccount :: AccountingStyle
 
 -- | Type of derivation that should be used with the given indexes.
 data DerivationType
@@ -1294,7 +1298,7 @@ deriveAccountPrivateKey :: HardDerivation key => Passphrase "encryption" -> key 
 --   (and to have checked that the passphrase is valid). Providing a wrong
 --   passphrase will not make the function fail but will instead, yield an
 --   incorrect new key that doesn't belong to the wallet.
-deriveAddressPrivateKey :: HardDerivation key => Passphrase "encryption" -> key  'AccountK XPrv -> ChangeChain -> Index (AddressIndexDerivationType key)  'AddressK -> key  'AddressK XPrv
+deriveAddressPrivateKey :: HardDerivation key => Passphrase "encryption" -> key  'AccountK XPrv -> AccountingStyle -> Index (AddressIndexDerivationType key)  'AddressK -> key  'AddressK XPrv
 
 -- | An interface for doing soft derivations from an account public key
 class HardDerivation key => SoftDerivation (key :: Depth -> * -> *)
@@ -1305,7 +1309,7 @@ class HardDerivation key => SoftDerivation (key :: Depth -> * -> *)
 --   
 --   This is the preferred way of deriving new sequential address public
 --   keys.
-deriveAddressPublicKey :: SoftDerivation key => key  'AccountK XPub -> ChangeChain -> Index  'Soft  'AddressK -> key  'AddressK XPub
+deriveAddressPublicKey :: SoftDerivation key => key  'AccountK XPub -> AccountingStyle -> Index  'Soft  'AddressK -> key  'AddressK XPub
 data XPub
 XPub :: !ByteString -> !ChainCode -> XPub
 [xpubPublicKey] :: XPub -> !ByteString
@@ -1508,11 +1512,11 @@ instance GHC.Classes.Ord (Cardano.Wallet.Primitive.AddressDerivation.Index deriv
 instance GHC.Classes.Eq (Cardano.Wallet.Primitive.AddressDerivation.Index derivationType level)
 instance GHC.Show.Show (Cardano.Wallet.Primitive.AddressDerivation.Index derivationType level)
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.AddressDerivation.Index derivationType level)
-instance GHC.Enum.Bounded Cardano.Wallet.Primitive.AddressDerivation.ChangeChain
-instance GHC.Classes.Ord Cardano.Wallet.Primitive.AddressDerivation.ChangeChain
-instance GHC.Classes.Eq Cardano.Wallet.Primitive.AddressDerivation.ChangeChain
-instance GHC.Show.Show Cardano.Wallet.Primitive.AddressDerivation.ChangeChain
-instance GHC.Generics.Generic Cardano.Wallet.Primitive.AddressDerivation.ChangeChain
+instance GHC.Enum.Bounded Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
+instance GHC.Classes.Ord Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
+instance GHC.Show.Show Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
 instance forall k (s :: GHC.Types.Symbol) (key :: k). Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint s key)
 instance Cardano.Wallet.Primitive.AddressDerivation.NetworkDiscriminantVal 'Cardano.Wallet.Primitive.AddressDerivation.Mainnet
 instance Cardano.Wallet.Primitive.AddressDerivation.NetworkDiscriminantVal 'Cardano.Wallet.Primitive.AddressDerivation.Testnet
@@ -1537,10 +1541,10 @@ instance GHC.Enum.Bounded (Cardano.Wallet.Primitive.AddressDerivation.Index 'Car
 instance GHC.Enum.Enum (Cardano.Wallet.Primitive.AddressDerivation.Index 'Cardano.Wallet.Primitive.AddressDerivation.Hardened level)
 instance GHC.Enum.Enum (Cardano.Wallet.Primitive.AddressDerivation.Index 'Cardano.Wallet.Primitive.AddressDerivation.Soft level)
 instance Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.AddressDerivation.Index derivationType level)
-instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.AddressDerivation.ChangeChain
-instance GHC.Enum.Enum Cardano.Wallet.Primitive.AddressDerivation.ChangeChain
-instance Data.Text.Class.ToText Cardano.Wallet.Primitive.AddressDerivation.ChangeChain
-instance Data.Text.Class.FromText Cardano.Wallet.Primitive.AddressDerivation.ChangeChain
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
+instance GHC.Enum.Enum Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
+instance Data.Text.Class.ToText Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
+instance Data.Text.Class.FromText Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
 
 
 -- | An extra interface for operation on transactions (e.g. creating
@@ -3202,10 +3206,10 @@ mkAddressPoolGap :: Integer -> Either MkAddressPoolGapError AddressPoolGap
 --   new or existing pool:
 --   
 --   <pre>
---   &gt;&gt;&gt; mkAddressPool xpub gap changeChain mempty
+--   &gt;&gt;&gt; mkAddressPool xpub gap accountingStyle mempty
 --   AddressPool { }
 --   </pre>
-data AddressPool (network :: NetworkDiscriminant) (chain :: ChangeChain) (key :: Depth -> * -> *)
+data AddressPool (network :: NetworkDiscriminant) (chain :: AccountingStyle) (key :: Depth -> * -> *)
 
 -- | The actual gap for the pool. This can't change for a given pool.
 gap :: AddressPool network chain key -> AddressPoolGap
@@ -3220,20 +3224,20 @@ gap :: AddressPool network chain key -> AddressPoolGap
 --   </pre>
 addresses :: forall n c k. PaymentAddress n k => AddressPool n c k -> [Address]
 
--- | Bring a <a>ChangeChain</a> type back to the term-level. This requires
---   a type application and either a scoped type variable, or an explicit
---   passing of a <a>ChangeChain</a>.
+-- | Bring a <a>AccountingStyle</a> type back to the term-level. This
+--   requires a type application and either a scoped type variable, or an
+--   explicit passing of a <a>AccountingStyle</a>.
 --   
 --   <pre>
---   &gt;&gt;&gt; changeChain @'ExternalChain
---   ExternalChain
+--   &gt;&gt;&gt; accountingStyle @'UTxOExternal
+--   UTxOExternal
 --   </pre>
 --   
 --   <pre>
---   &gt;&gt;&gt; changeChain @chain
+--   &gt;&gt;&gt; accountingStyle @chain
 --   ...
 --   </pre>
-changeChain :: forall (c :: ChangeChain). Typeable c => ChangeChain
+accountingStyle :: forall (c :: AccountingStyle). Typeable c => AccountingStyle
 
 -- | Corresponding key for the pool (a pool is tied to only one account)
 accountPubKey :: AddressPool network chain key -> key  'AccountK XPub
@@ -3277,13 +3281,13 @@ pendingIxsFromList :: [Index  'Soft  'AddressK] -> PendingIxs
 --   discrimination. This enables the state to be agnostic to the
 --   underlying address format.
 data SeqState n k
-SeqState :: !AddressPool n  'InternalChain k -> !AddressPool n  'ExternalChain k -> !PendingIxs -> SeqState n k
+SeqState :: !AddressPool n  'UTxOInternal k -> !AddressPool n  'UTxOExternal k -> !PendingIxs -> SeqState n k
 
--- | Addresses living on the <a>InternalChain</a>
-[internalPool] :: SeqState n k -> !AddressPool n  'InternalChain k
+-- | Addresses living on the <a>UTxOInternal</a>
+[internalPool] :: SeqState n k -> !AddressPool n  'UTxOInternal k
 
--- | Addresses living on the <a>ExternalChain</a>
-[externalPool] :: SeqState n k -> !AddressPool n  'ExternalChain k
+-- | Addresses living on the <a>UTxOExternal</a>
+[externalPool] :: SeqState n k -> !AddressPool n  'UTxOExternal k
 
 -- | Indexes from the internal pool that have been used in pending
 --   transactions. The list is maintained sorted in descending order (cf:
@@ -3425,8 +3429,8 @@ instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primiti
 instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Types.Address
 instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPoolGap
 instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPoolGap
-instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.AddressDerivation.ChangeChain
-instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.AddressDerivation.ChangeChain
+instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
+instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
 instance Database.Persist.Class.PersistField.PersistField System.Random.StdGen
 instance Database.Persist.Sql.Class.PersistFieldSql System.Random.StdGen
 instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.PoolId
@@ -3515,12 +3519,12 @@ SeqState :: !WalletId -> !AddressPoolGap -> !AddressPoolGap -> !ByteString -> Se
 [seqStateAccountXPub] :: SeqState -> !ByteString
 type SeqStateId = Key SeqState
 data SeqStateAddress
-SeqStateAddress :: !WalletId -> !SlotId -> !Address -> !Word32 -> !ChangeChain -> SeqStateAddress
+SeqStateAddress :: !WalletId -> !SlotId -> !Address -> !Word32 -> !AccountingStyle -> SeqStateAddress
 [seqStateAddressWalletId] :: SeqStateAddress -> !WalletId
 [seqStateAddressSlot] :: SeqStateAddress -> !SlotId
 [seqStateAddressAddress] :: SeqStateAddress -> !Address
 [seqStateAddressIndex] :: SeqStateAddress -> !Word32
-[seqStateAddressChangeChain] :: SeqStateAddress -> !ChangeChain
+[seqStateAddressAccountingStyle] :: SeqStateAddress -> !AccountingStyle
 type SeqStateAddressId = Key SeqStateAddress
 data SeqStatePendingIx
 SeqStatePendingIx :: !WalletId -> !Word32 -> SeqStatePendingIx
