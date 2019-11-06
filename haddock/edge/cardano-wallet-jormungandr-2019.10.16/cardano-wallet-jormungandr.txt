@@ -86,6 +86,7 @@ ProposalExpiration :: Quantity "epoch" Word32 -> ConfigParam
 -- | Maximum number of seconds per update for KES keys known by the system
 --   after start time.
 KesUpdateSpeed :: Quantity "second/update" Word32 -> ConfigParam
+UnimplementedConfigParam :: Word16 -> ConfigParam
 data ConsensusVersion
 BFT :: ConsensusVersion
 GenesisPraos :: ConsensusVersion
