@@ -4413,6 +4413,7 @@ StartTimeLaterThanEndTime :: ApiErrorCode
 UnsupportedMediaType :: ApiErrorCode
 UnexpectedError :: ApiErrorCode
 NotSynced :: ApiErrorCode
+NothingToMigrate :: ApiErrorCode
 data ApiNetworkInformation
 ApiNetworkInformation :: !ApiT SyncProgress -> !ApiBlockReference -> !ApiNetworkTip -> ApiNetworkInformation
 [$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
@@ -4774,12 +4775,15 @@ newApiLayer :: forall ctx s t k. ctx ~ ApiLayer s t k => Trace IO Text -> (Block
 --   <a>Listen</a> parameter.
 withListeningSocket :: HostPreference -> Listen -> (Either ListenError (Port, Socket) -> IO a) -> IO a
 defaultWorkerAfter :: Trace IO Text -> Either SomeException a -> IO ()
+instance GHC.Show.Show Cardano.Wallet.Api.Server.ErrMigrateWallet
+instance GHC.Classes.Eq Cardano.Wallet.Api.Server.ErrMigrateWallet
 instance GHC.Show.Show Cardano.Wallet.Api.Server.ErrCreateWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Server.ErrCreateWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Server.ListenError
 instance GHC.Show.Show Cardano.Wallet.Api.Server.ListenError
 instance GHC.Classes.Eq Cardano.Wallet.Api.Server.Listen
 instance GHC.Show.Show Cardano.Wallet.Api.Server.Listen
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrMigrateWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrCreateWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrNoSuchWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrWalletAlreadyExists
