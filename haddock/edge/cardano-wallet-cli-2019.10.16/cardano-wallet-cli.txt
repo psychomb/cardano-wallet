@@ -129,6 +129,15 @@ putErrLn :: Text -> IO ()
 -- | Print an error message in red
 hPutErrLn :: Handle -> Text -> IO ()
 
+-- | The IOHK logging framework prints out ANSI colour codes with its
+--   messages. On Windows 10 and above it's possible to enable processing
+--   of these colour codes. The <a>hSupportsANSIWithoutEmulation</a>
+--   function does this as a side effect. On older versions of Windows,
+--   special treatment is required (see: <a>ANSI</a>). In this case, this
+--   function will achieve nothing, and the ANSI control characters will be
+--   printed in grey (too bad).
+enableWindowsANSI :: IO ()
+
 -- | Like <a>hGetLine</a> but with default handles
 getLine :: Buildable e => Text -> (Text -> Either e a) -> IO (a, Text)
 

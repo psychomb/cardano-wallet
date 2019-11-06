@@ -85,7 +85,7 @@ installSignalHandlers :: Trace IO Text -> IO ()
 --   environment variable or any other settings.
 --   
 --   On Windows the current console code page is changed to UTF-8.
-setUtf8Encoding :: IO ()
+withUtf8Encoding :: IO a -> IO a
 data LauncherLog
 MsgLauncherStart :: Command -> LauncherLog
 MsgLauncherStarted :: String -> Text -> LauncherLog
