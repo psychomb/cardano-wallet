@@ -313,7 +313,6 @@ eventuallyUsingDelay_ :: Int -> IO () -> IO ()
 -- | Default passphrase used for fixture wallets
 fixturePassphrase :: Text
 postByronWalletEp :: (Method, Text)
-postByronTxEp :: ApiByronWallet -> (Method, Text)
 migrateByronWalletEp :: ApiByronWallet -> ApiWallet -> (Method, Text)
 calculateByronMigrationCostEp :: ApiByronWallet -> (Method, Text)
 getByronWalletEp :: ApiByronWallet -> (Method, Text)
