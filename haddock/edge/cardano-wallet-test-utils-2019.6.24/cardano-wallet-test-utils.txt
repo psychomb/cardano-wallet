@@ -57,3 +57,8 @@ instance GHC.Show.Show Test.Utils.Time.UniformTime
 instance GHC.Classes.Ord Test.Utils.Time.UniformTime
 instance GHC.Classes.Eq Test.Utils.Time.UniformTime
 instance Test.QuickCheck.Arbitrary.Arbitrary Test.Utils.Time.UniformTime
+
+
+-- | Utility function for making test suites pass on Windows.
+module Test.Utils.Windows
+skipOnWindows :: HasCallStack => String -> Expectation
