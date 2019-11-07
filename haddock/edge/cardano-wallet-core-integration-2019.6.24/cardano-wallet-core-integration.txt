@@ -262,6 +262,8 @@ getFromResponse :: Lens' s a -> (Status, Either RequestException s) -> a
 getFromResponseList :: Int -> Lens' s a -> (Status, Either RequestException [s]) -> a
 getJormungandrBlock0H :: IO String
 json :: QuasiQuoter
+joinStakePool :: forall t w. HasType (ApiT WalletId) w => Context t -> ApiStakePool -> (w, Text) -> IO (Status, Either RequestException (ApiTransaction  'Testnet))
+quitStakePool :: forall t w. HasType (ApiT WalletId) w => Context t -> ApiStakePool -> (w, Text) -> IO (Status, Either RequestException (ApiTransaction  'Testnet))
 listAddresses :: Context t -> ApiWallet -> IO [ApiAddress  'Testnet]
 listTransactions :: Context t -> ApiWallet -> Maybe UTCTime -> Maybe UTCTime -> Maybe SortOrder -> IO [ApiTransaction  'Testnet]
 listAllTransactions :: Context t -> ApiWallet -> IO [ApiTransaction  'Testnet]
@@ -312,8 +314,10 @@ utcIso8601ToText :: UTCTime -> Text
 
 -- | Prepare externally signed Tx for Jormungandr
 prepExternalTxViaJcli :: Port "node" -> Text -> Natural -> IO Text
-eventually :: IO () -> IO ()
-eventuallyUsingDelay :: Int -> IO () -> IO ()
+eventually :: IO a -> IO a
+eventuallyUsingDelay :: Int -> IO a -> IO a
+eventually_ :: IO () -> IO ()
+eventuallyUsingDelay_ :: Int -> IO () -> IO ()
 
 -- | Default passphrase used for fixture wallets
 fixturePassphrase :: Text
@@ -331,6 +335,9 @@ deleteWalletEp :: ApiWallet -> (Method, Text)
 getWalletUtxoEp :: ApiWallet -> (Method, Text)
 getAddressesEp :: ApiWallet -> Text -> (Method, Text)
 listStakePoolsEp :: (Method, Text)
+joinStakePoolEp :: forall w. HasType (ApiT WalletId) w => ApiStakePool -> w -> (Method, Text)
+quitStakePoolEp :: forall w. HasType (ApiT WalletId) w => ApiStakePool -> w -> (Method, Text)
+stakePoolEp :: forall w. HasType (ApiT WalletId) w => Method -> ApiStakePool -> w -> (Method, Text)
 postTxEp :: ApiWallet -> (Method, Text)
 postExternalTxEp :: (Method, Text)
 postTxFeeEp :: ApiWallet -> (Method, Text)
