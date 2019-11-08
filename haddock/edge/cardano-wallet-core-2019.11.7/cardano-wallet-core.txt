@@ -1318,6 +1318,8 @@ newtype ChainCode
 ChainCode :: ByteString -> ChainCode
 data XPrv
 unXPub :: XPub -> ByteString
+unXPrv :: XPrv -> ByteString
+xprv :: ByteArrayAccess bin => bin -> Either String XPrv
 
 -- | Encode a <a>ByteString</a> in base16
 hex :: ByteArrayAccess bin => bin -> ByteString

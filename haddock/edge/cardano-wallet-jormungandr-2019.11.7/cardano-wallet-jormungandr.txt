@@ -133,7 +133,7 @@ getMessage :: Get Message
 getTransaction :: Hash "Tx" -> Get (Tx, [TxWitness])
 putSignedTx :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
 putTx :: [(TxIn, Coin)] -> [TxOut] -> Put
-putStakeDelegationTx :: PoolId -> ChimericAccount -> [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
+putStakeDelegationTx :: PoolId -> ChimericAccount -> Hash "AccountSignature" -> [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
 
 -- | See <a>fragmentId</a>. This computes the signing data required for
 --   producing transaction witnesses.
@@ -176,7 +176,7 @@ estimateMaxNumberOfInputsParams :: EstimateMaxNumberOfInputsParams t
 --   fragment corresponds to a signed transaction (inputs, outputs and
 --   witnesses). So, the witnesses are required to compute a <tt>txid</tt>.
 fragmentId :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Hash "Tx"
-delegationFragmentId :: PoolId -> ChimericAccount -> [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Hash "Tx"
+delegationFragmentId :: PoolId -> ChimericAccount -> Hash "AccountSignature" -> [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Hash "Tx"
 maxNumberOfInputs :: Int
 maxNumberOfOutputs :: Int
 
