@@ -411,6 +411,7 @@ errMsg403InputsDepleted :: String
 errMsg403TxTooBig :: Int -> String
 errMsg400MalformedTxPayload :: String
 errMsg400WronglyEncodedTxPayload :: String
+errMsg400ParseError :: String
 errMsg403ZeroAmtOutput :: String
 errMsg405 :: String
 errMsg406 :: String
