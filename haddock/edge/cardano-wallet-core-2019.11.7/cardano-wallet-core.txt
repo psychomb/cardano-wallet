@@ -2905,8 +2905,9 @@ Database :: !Map wid (WalletDatabase s xprv) -> Map (Hash "Tx") Tx -> Database w
 
 -- | Model database record for a single wallet.
 data WalletDatabase s xprv
-WalletDatabase :: !Map SlotId (Wallet s) -> !WalletMetadata -> !Map (Hash "Tx") TxMeta -> !Maybe xprv -> WalletDatabase s xprv
+WalletDatabase :: !Map SlotId (Wallet s) -> !Map SlotId PoolId -> !WalletMetadata -> !Map (Hash "Tx") TxMeta -> !Maybe xprv -> WalletDatabase s xprv
 [$sel:checkpoints:WalletDatabase] :: WalletDatabase s xprv -> !Map SlotId (Wallet s)
+[$sel:certificates:WalletDatabase] :: WalletDatabase s xprv -> !Map SlotId PoolId
 [$sel:metadata:WalletDatabase] :: WalletDatabase s xprv -> !WalletMetadata
 [$sel:txHistory:WalletDatabase] :: WalletDatabase s xprv -> !Map (Hash "Tx") TxMeta
 [$sel:xprv:WalletDatabase] :: WalletDatabase s xprv -> !Maybe xprv
@@ -2949,6 +2950,7 @@ mListCheckpoints :: Ord wid => wid -> ModelOp wid s xprv [BlockHeader]
 mRollbackTo :: Ord wid => wid -> SlotId -> ModelOp wid s xprv ()
 mPutWalletMeta :: Ord wid => wid -> WalletMetadata -> ModelOp wid s xprv ()
 mReadWalletMeta :: Ord wid => wid -> ModelOp wid s xprv (Maybe WalletMetadata)
+mPutDelegationCertificate :: Ord wid => wid -> PoolId -> SlotId -> ModelOp wid s xprv ()
 mPutTxHistory :: forall wid s xprv. Ord wid => wid -> TxHistory -> ModelOp wid s xprv ()
 mReadTxHistory :: forall wid s xprv. Ord wid => wid -> SortOrder -> Range SlotId -> Maybe TxStatus -> ModelOp wid s xprv TxHistory
 mPutPrivateKey :: Ord wid => wid -> xprv -> ModelOp wid s xprv ()
@@ -2982,7 +2984,7 @@ module Cardano.Wallet.DB
 --   serialize and unserialize it (e.g. <tt>forall s. (Serialize s) =&gt;
 --   ...</tt>)
 data DBLayer m s k
-DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> m [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (Wallet s))) -> (PrimaryKey WalletId -> m [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe WalletMetadata)) -> (PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx, TxMeta)]) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx m ()) -> (forall e a. () => ExceptT e m a -> ExceptT e m a) -> DBLayer m s k
+DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> m [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (Wallet s))) -> (PrimaryKey WalletId -> m [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe WalletMetadata)) -> (PrimaryKey WalletId -> PoolId -> SlotId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx, TxMeta)]) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx m ()) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> (forall e a. () => ExceptT e m a -> ExceptT e m a) -> DBLayer m s k
 
 -- | Initialize a database entry for a given wallet. <a>putCheckpoint</a>,
 --   <a>putWalletMeta</a> or <a>putTxHistory</a> will actually all fail if
@@ -3022,6 +3024,20 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] 
 --   Return <a>Nothing</a> if there's no such wallet.
 [readWalletMeta] :: DBLayer m s k -> PrimaryKey WalletId -> m (Maybe WalletMetadata)
 
+-- | Binds a stake pool id to a wallet. This will have an influence on the
+--   wallet metadata: the last known certificate will indicate to which
+--   pool a wallet is currently delegating to.
+--   
+--   This is done separately from <a>putWalletMeta</a> because certificate
+--   declaration are:
+--   
+--   <ol>
+--   <li>Stored on-chain</li>
+--   <li>Affected by rollbacks (or said differently, tight to a
+--   <a>SlotId</a>)</li>
+--   </ol>
+[putDelegationCertificate] :: DBLayer m s k -> PrimaryKey WalletId -> PoolId -> SlotId -> ExceptT ErrNoSuchWallet m ()
+
 -- | Augments the transaction history for a known wallet.
 --   
 --   If an entry for a particular transaction already exists it is not
@@ -3035,6 +3051,9 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] 
 --   
 --   Returns an empty list if the wallet isn't found.
 [readTxHistory] :: DBLayer m s k -> PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx, TxMeta)]
+
+-- | Remove a pending transaction.
+[removePendingTx] :: DBLayer m s k -> PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx m ()
 
 -- | Store or replace a private key for a given wallet. Note that wallet
 --   _could_ be stored and manipulated without any private key associated
@@ -3051,9 +3070,6 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] 
 
 -- | Prune database entities and remove entities that can be discarded.
 [prune] :: DBLayer m s k -> PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()
-
--- | Remove a pending transaction.
-[removePendingTx] :: DBLayer m s k -> PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx m ()
 [withLock] :: DBLayer m s k -> forall e a. () => ExceptT e m a -> ExceptT e m a
 
 -- | Instantiate database layers at will
@@ -3439,6 +3455,8 @@ instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primiti
 instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Types.PoolId
 instance GHC.Read.Read Cardano.Wallet.Primitive.Types.PoolId
 instance Web.PathPieces.PathPiece Cardano.Wallet.Primitive.Types.PoolId
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Primitive.Types.PoolId
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Primitive.Types.PoolId
 
 
 -- | Auto-generated Sqlite &amp; Persistent machinery via Template-Haskell.
@@ -3451,12 +3469,11 @@ instance Web.PathPieces.PathPiece Cardano.Wallet.Primitive.Types.PoolId
 --   module!
 module Cardano.Wallet.DB.Sqlite.TH
 data Wallet
-Wallet :: !WalletId -> !UTCTime -> !Text -> !Maybe UTCTime -> !Maybe PoolId -> Wallet
+Wallet :: !WalletId -> !UTCTime -> !Text -> !Maybe UTCTime -> Wallet
 [walId] :: Wallet -> !WalletId
 [walCreationTime] :: Wallet -> !UTCTime
 [walName] :: Wallet -> !Text
 [walPassphraseLastUpdatedAt] :: Wallet -> !Maybe UTCTime
-[walDelegation] :: Wallet -> !Maybe PoolId
 type WalletId = Key Wallet
 data PrivateKey
 PrivateKey :: !WalletId -> !ByteString -> !ByteString -> PrivateKey
@@ -3504,6 +3521,12 @@ Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !BlockId -> !Word32 -> !BlockI
 [checkpointTxMaxSize] :: Checkpoint -> !Word16
 [checkpointEpochStability] :: Checkpoint -> !Word32
 type CheckpointId = Key Checkpoint
+data DelegationCertificate
+DelegationCertificate :: !WalletId -> !SlotId -> !PoolId -> DelegationCertificate
+[certWalletId] :: DelegationCertificate -> !WalletId
+[certSlot] :: DelegationCertificate -> !SlotId
+[certPoolId] :: DelegationCertificate -> !PoolId
+type DelegationCertificateId = Key DelegationCertificate
 data UTxO
 UTxO :: !WalletId -> !SlotId -> !TxId -> !Word32 -> !Address -> !Coin -> UTxO
 [utxoWalletId] :: UTxO -> !WalletId
@@ -3563,6 +3586,7 @@ seq_state_address_pending :: SeqStatePendingIx -> Key Wallet
 seq_state_address :: SeqStateAddress -> Key Checkpoint
 seq_state :: SeqState -> Key Wallet
 utxo :: UTxO -> Key Checkpoint
+delegationCertificate :: DelegationCertificate -> Key Wallet
 checkpoint :: Checkpoint -> Key Wallet
 fk_wallet_tx_meta :: TxMeta -> Key Wallet
 fk_wallet_private_key :: PrivateKey -> Key Wallet
@@ -3580,6 +3604,8 @@ instance GHC.Generics.Generic Cardano.Wallet.DB.Sqlite.TH.SeqState
 instance GHC.Show.Show Cardano.Wallet.DB.Sqlite.TH.SeqState
 instance GHC.Generics.Generic Cardano.Wallet.DB.Sqlite.TH.UTxO
 instance GHC.Show.Show Cardano.Wallet.DB.Sqlite.TH.UTxO
+instance GHC.Generics.Generic Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate
+instance GHC.Show.Show Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate
 instance GHC.Generics.Generic Cardano.Wallet.DB.Sqlite.TH.Checkpoint
 instance GHC.Show.Show Cardano.Wallet.DB.Sqlite.TH.Checkpoint
 instance GHC.Generics.Generic Cardano.Wallet.DB.Sqlite.TH.TxOut
@@ -3634,6 +3660,11 @@ instance GHC.Classes.Ord (Database.Persist.Class.PersistEntity.Key Cardano.Walle
 instance GHC.Classes.Eq (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.Checkpoint)
 instance GHC.Read.Read (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.Checkpoint)
 instance GHC.Show.Show (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.Checkpoint)
+instance GHC.Generics.Generic (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate)
+instance GHC.Classes.Ord (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate)
+instance GHC.Classes.Eq (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate)
+instance GHC.Read.Read (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate)
+instance GHC.Show.Show (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate)
 instance GHC.Generics.Generic (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.UTxO)
 instance GHC.Classes.Ord (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.UTxO)
 instance GHC.Classes.Eq (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.UTxO)
@@ -3752,6 +3783,16 @@ instance Data.Aeson.Types.FromJSON.FromJSON (Database.Persist.Class.PersistEntit
 instance (TypeError ...) => Database.Persist.Class.PersistUnique.OnlyOneUniqueKey Cardano.Wallet.DB.Sqlite.TH.UTxO
 instance (TypeError ...) => Database.Persist.Class.PersistUnique.AtLeastOneUniqueKey Cardano.Wallet.DB.Sqlite.TH.UTxO
 instance (Database.Persist.Class.PersistQuery backend, Database.Persist.Class.PersistEntity.PersistEntityBackend Cardano.Wallet.DB.Sqlite.TH.UTxO Data.Type.Equality.~ Database.Persist.Class.PersistStore.BaseBackend backend) => Database.Persist.Class.DeleteCascade.DeleteCascade Cardano.Wallet.DB.Sqlite.TH.UTxO backend
+instance Database.Persist.Class.PersistEntity.PersistEntity Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate
+instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate
+instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate
+instance Database.Persist.Class.PersistField.PersistField (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate)
+instance Database.Persist.Sql.Class.PersistFieldSql (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate)
+instance Data.Aeson.Types.ToJSON.ToJSON (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate)
+instance Data.Aeson.Types.FromJSON.FromJSON (Database.Persist.Class.PersistEntity.Key Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate)
+instance (TypeError ...) => Database.Persist.Class.PersistUnique.OnlyOneUniqueKey Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate
+instance (TypeError ...) => Database.Persist.Class.PersistUnique.AtLeastOneUniqueKey Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate
+instance (Database.Persist.Class.PersistQuery backend, Database.Persist.Class.PersistEntity.PersistEntityBackend Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate Data.Type.Equality.~ Database.Persist.Class.PersistStore.BaseBackend backend) => Database.Persist.Class.DeleteCascade.DeleteCascade Cardano.Wallet.DB.Sqlite.TH.DelegationCertificate backend
 instance Database.Persist.Class.PersistEntity.PersistEntity Cardano.Wallet.DB.Sqlite.TH.Checkpoint
 instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.DB.Sqlite.TH.Checkpoint
 instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.DB.Sqlite.TH.Checkpoint
