@@ -316,8 +316,8 @@ eventuallyUsingDelay_ :: Int -> IO () -> IO ()
 -- | Default passphrase used for fixture wallets
 fixturePassphrase :: Text
 postByronWalletEp :: (Method, Text)
-migrateByronWalletEp :: ApiByronWallet -> ApiWallet -> (Method, Text)
-calculateByronMigrationCostEp :: ApiByronWallet -> (Method, Text)
+migrateByronWalletEp :: forall w n. (HasType (ApiT WalletId) w, HasType (ApiT WalletId) n) => w -> n -> (Method, Text)
+calculateByronMigrationCostEp :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
 getByronWalletEp :: ApiByronWallet -> (Method, Text)
 listByronWalletsEp :: (Method, Text)
 listByronTxEp :: ApiByronWallet -> Text -> (Method, Text)
@@ -397,6 +397,7 @@ simplePayload :: Payload
 updateNamePayload :: Text -> Payload
 updatePassPayload :: Text -> Text -> Payload
 getHeaderCases :: forall a. Show a => Status -> [(String, Headers, [(Status, Either RequestException a) -> IO ()])]
+postHeaderCases :: Show a => [(String, Headers, [(Status, Either RequestException a) -> IO ()])]
 errMsgWalletIdEncoding :: String
 errMsg400StartTimeLaterThanEndTime :: String -> String -> String
 errMsg403Fee :: String
