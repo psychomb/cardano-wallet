@@ -2096,36 +2096,51 @@ instance GHC.Generics.Generic Cardano.Pool.DB.Model.PoolDatabase
 module Cardano.Pool.DB
 
 -- | A Database interface for storing pool production in DB.
+--   
+--   To use it, you will need the NamedFieldPuns extension and wrap
+--   operations with <tt>atomically</tt>:
+--   
+--   Example: &gt;&gt;&gt; :set -XNamedFieldPuns &gt;&gt;&gt;
+--   DBLayer{atomically,putPoolProduction} = db &gt;&gt;&gt; atomically $
+--   putPoolProduction blockHeader pool
+--   
+--   This gives you the power to also run <i>multiple</i> operations
+--   atomically.
 data DBLayer m
-DBLayer :: (BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists m ()) -> (EpochNo -> m (Map PoolId [BlockHeader])) -> (EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> m ()) -> (EpochNo -> m [(PoolId, Quantity "lovelace" Word64)]) -> (Int -> m [BlockHeader]) -> (SlotId -> m ()) -> m () -> DBLayer m
+DBLayer :: (BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists stm ()) -> (EpochNo -> stm (Map PoolId [BlockHeader])) -> (EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> stm ()) -> (EpochNo -> stm [(PoolId, Quantity "lovelace" Word64)]) -> (Int -> stm [BlockHeader]) -> (SlotId -> stm ()) -> stm () -> (forall a. stm a -> m a) -> DBLayer m
 
 -- | Write for a given slot id the id of stake pool that produced a a
 --   corresponding block
-[putPoolProduction] :: DBLayer m -> BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists m ()
+[putPoolProduction] :: DBLayer m -> BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists stm ()
 
 -- | Read the all stake pools together with corresponding slot ids for a
 --   given epoch.
-[readPoolProduction] :: DBLayer m -> EpochNo -> m (Map PoolId [BlockHeader])
+[readPoolProduction] :: DBLayer m -> EpochNo -> stm (Map PoolId [BlockHeader])
 
 -- | Replace an existing distribution for the given epoch by the one given
 --   as argument.
 --   
 --   If there's no existing distribution, simply inserts it.
-[putStakeDistribution] :: DBLayer m -> EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> m ()
-[readStakeDistribution] :: DBLayer m -> EpochNo -> m [(PoolId, Quantity "lovelace" Word64)]
+[putStakeDistribution] :: DBLayer m -> EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> stm ()
+[readStakeDistribution] :: DBLayer m -> EpochNo -> stm [(PoolId, Quantity "lovelace" Word64)]
 
 -- | Read the latest <tt>k</tt> blockheaders in ascending order. The tip
 --   will be the last element in the list.
 --   
 --   This is useful for the <tt>NetworkLayer</tt> to know how far we have
 --   synced.
-[readPoolProductionCursor] :: DBLayer m -> Int -> m [BlockHeader]
+[readPoolProductionCursor] :: DBLayer m -> Int -> stm [BlockHeader]
 
 -- | Remove all entries of slot ids newer than the argument
-[rollbackTo] :: DBLayer m -> SlotId -> m ()
+[rollbackTo] :: DBLayer m -> SlotId -> stm ()
 
 -- | Clean a database
-[cleanDB] :: DBLayer m -> m ()
+[cleanDB] :: DBLayer m -> stm ()
+
+-- | Run an operation.
+--   
+--   For a Sqlite DB, this would be "run a query inside a transaction".
+[atomically] :: DBLayer m -> forall a. stm a -> m a
 
 -- | Forbidden operation was executed on an already existing slot
 newtype ErrPointAlreadyExists
@@ -2785,22 +2800,22 @@ instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkUnavailab
 module Cardano.Pool.Metrics
 data Block
 Block :: BlockHeader -> PoolId -> Block
-[header] :: Block -> BlockHeader
-[producer] :: Block -> PoolId
+[$sel:header:Block] :: Block -> BlockHeader
+[$sel:producer:Block] :: Block -> PoolId
 data StakePool
 StakePool :: PoolId -> Quantity "lovelace" Word64 -> Quantity "block" Word64 -> Double -> StakePool
-[poolId] :: StakePool -> PoolId
-[stake] :: StakePool -> Quantity "lovelace" Word64
-[production] :: StakePool -> Quantity "block" Word64
-[apparentPerformance] :: StakePool -> Double
+[$sel:poolId:StakePool] :: StakePool -> PoolId
+[$sel:stake:StakePool] :: StakePool -> Quantity "lovelace" Word64
+[$sel:production:StakePool] :: StakePool -> Quantity "block" Word64
+[$sel:apparentPerformance:StakePool] :: StakePool -> Double
 
 -- | <tt>StakePoolLayer</tt> is a thin layer ontop of the DB. It is
 --   <i>one</i> value that can easily be passed to the API-server, where it
 --   can be used in a simple way.
 newtype StakePoolLayer m
 StakePoolLayer :: ExceptT ErrListStakePools m [StakePool] -> StakePoolLayer m
-[listStakePools] :: StakePoolLayer m -> ExceptT ErrListStakePools m [StakePool]
-newStakePoolLayer :: DBLayer IO -> NetworkLayer IO t block -> Trace IO Text -> IO (StakePoolLayer IO)
+[$sel:listStakePools:StakePoolLayer] :: StakePoolLayer m -> ExceptT ErrListStakePools m [StakePool]
+newStakePoolLayer :: DBLayer IO -> NetworkLayer IO t block -> Trace IO Text -> StakePoolLayer IO
 data ErrListStakePools
 ErrMetricsIsUnsynced :: Quantity "percent" Percentage -> ErrListStakePools
 ErrListStakePoolsMetricsInconsistency :: ErrMetricsInconsistency -> ErrListStakePools
@@ -2812,11 +2827,6 @@ ErrListStakePoolsErrNetworkTip :: ErrNetworkTip -> ErrListStakePools
 --   
 --   The pool productions and stake distrubtions in the db can <i>never</i>
 --   be from different forks such that it's safe for readers to access it.
---   
---   FIXME: This last statement is only true if <tt>putStakeProduction</tt>
---   and <a>putPoolProduction</a> are running in the same db transaction,
---   which would be the case if we make <tt>SqlPersistT</tt> the top-level
---   monad for the <a>DBLayer</a> instead of <a>IO</a>.
 monitorStakePools :: Trace IO Text -> NetworkLayer IO t Block -> DBLayer IO -> IO ()
 
 -- | Possible errors returned by <a>combineMetrics</a>.
@@ -2941,7 +2951,7 @@ ErrErasePendingTxNoSuchWallet :: wid -> ErrErasePendingTx wid
 ErrErasePendingTxNoTx :: Hash "Tx" -> ErrErasePendingTx wid
 ErrErasePendingTxNoPendingTx :: Hash "Tx" -> ErrErasePendingTx wid
 mCleanDB :: Ord wid => ModelOp wid s xprv ()
-mCreateWallet :: forall wid s xprv. Ord wid => wid -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ModelOp wid s xprv ()
+mInitializeWallet :: forall wid s xprv. Ord wid => wid -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ModelOp wid s xprv ()
 mRemoveWallet :: Ord wid => wid -> ModelOp wid s xprv ()
 mListWallets :: Ord wid => ModelOp wid s xprv [wid]
 mPutCheckpoint :: Ord wid => wid -> Wallet s -> ModelOp wid s xprv ()
@@ -2983,46 +2993,77 @@ module Cardano.Wallet.DB
 --   we'll need some extra contraints on the wallet state that allows us to
 --   serialize and unserialize it (e.g. <tt>forall s. (Serialize s) =&gt;
 --   ...</tt>)
+--   
+--   NOTE:
+--   
+--   We can't use record accessors on the DBLayer as it carries an
+--   existential within its constructor. We are forced to pattern-match on
+--   the <a>DBLayer</a> record type in order to be able to use its methods
+--   in any context. With NamedFieldPuns, or RecordWildCards, this can be
+--   quite easy:
+--   
+--   <pre>
+--   myFunction DBLayer{..} = do
+--       ...
+--   
+--   myOtherFunction DBLayer{atomically,initializeWallet} = do
+--       ...
+--   </pre>
+--   
+--   Alternatively, in some other context where the database may not be a
+--   function argument but come from a different source, it is possible to
+--   simply rely on 'Data.Function.(&amp;)' to easily pattern match on it:
+--   
+--   <pre>
+--   myFunction arg0 arg1 = db &amp; DBLayer{..} -&gt; do
+--       ...
+--     where
+--       db = ...
+--   </pre>
+--   
+--   Note that it isn't possible to simply use a <tt>where</tt> clause or a
+--   <tt>let</tt> binding here as the semantic for those are slightly
+--   different: we really need a pattern match here!
 data DBLayer m s k
-DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> m [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (Wallet s))) -> (PrimaryKey WalletId -> m [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe WalletMetadata)) -> (PrimaryKey WalletId -> PoolId -> SlotId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx, TxMeta)]) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx m ()) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()) -> (forall e a. () => ExceptT e m a -> ExceptT e m a) -> DBLayer m s k
+DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists stm ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> stm [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (Wallet s))) -> (PrimaryKey WalletId -> stm [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe WalletMetadata)) -> (PrimaryKey WalletId -> PoolId -> SlotId -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> stm [(Tx, TxMeta)]) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx stm ()) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> (forall a. stm a -> m a) -> DBLayer m s k
 
 -- | Initialize a database entry for a given wallet. <a>putCheckpoint</a>,
 --   <a>putWalletMeta</a> or <a>putTxHistory</a> will actually all fail if
 --   they are called _first_ on a wallet.
-[createWallet] :: DBLayer m s k -> PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists m ()
+[initializeWallet] :: DBLayer m s k -> PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists stm ()
 
 -- | Remove a given wallet and all its associated data (checkpoints,
 --   metadata, tx history ...)
-[removeWallet] :: DBLayer m s k -> PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()
+[removeWallet] :: DBLayer m s k -> PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()
 
 -- | Get the list of all known wallets in the DB, possibly empty.
-[listWallets] :: DBLayer m s k -> m [PrimaryKey WalletId]
+[listWallets] :: DBLayer m s k -> stm [PrimaryKey WalletId]
 
 -- | Replace the current checkpoint for a given wallet. We do not handle
 --   rollbacks yet, and therefore only stores the latest available
 --   checkpoint.
 --   
 --   If the wallet doesn't exist, this operation returns an error.
-[putCheckpoint] :: DBLayer m s k -> PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet m ()
+[putCheckpoint] :: DBLayer m s k -> PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet stm ()
 
 -- | Fetch the most recent checkpoint of a given wallet.
 --   
 --   Return <a>Nothing</a> if there's no such wallet.
-[readCheckpoint] :: DBLayer m s k -> PrimaryKey WalletId -> m (Maybe (Wallet s))
+[readCheckpoint] :: DBLayer m s k -> PrimaryKey WalletId -> stm (Maybe (Wallet s))
 
 -- | List all known checkpoint tips, ordered by slot ids from the oldest to
 --   the newest.
-[listCheckpoints] :: DBLayer m s k -> PrimaryKey WalletId -> m [BlockHeader]
+[listCheckpoints] :: DBLayer m s k -> PrimaryKey WalletId -> stm [BlockHeader]
 
 -- | Replace an existing wallet metadata with the given one.
 --   
 --   If the wallet doesn't exist, this operation returns an error
-[putWalletMeta] :: DBLayer m s k -> PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet m ()
+[putWalletMeta] :: DBLayer m s k -> PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet stm ()
 
 -- | Fetch a wallet metadata, if they exist.
 --   
 --   Return <a>Nothing</a> if there's no such wallet.
-[readWalletMeta] :: DBLayer m s k -> PrimaryKey WalletId -> m (Maybe WalletMetadata)
+[readWalletMeta] :: DBLayer m s k -> PrimaryKey WalletId -> stm (Maybe WalletMetadata)
 
 -- | Binds a stake pool id to a wallet. This will have an influence on the
 --   wallet metadata: the last known certificate will indicate to which
@@ -3036,7 +3077,7 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] 
 --   <li>Affected by rollbacks (or said differently, tight to a
 --   <a>SlotId</a>)</li>
 --   </ol>
-[putDelegationCertificate] :: DBLayer m s k -> PrimaryKey WalletId -> PoolId -> SlotId -> ExceptT ErrNoSuchWallet m ()
+[putDelegationCertificate] :: DBLayer m s k -> PrimaryKey WalletId -> PoolId -> SlotId -> ExceptT ErrNoSuchWallet stm ()
 
 -- | Augments the transaction history for a known wallet.
 --   
@@ -3044,33 +3085,35 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] 
 --   altered nor merged (just ignored).
 --   
 --   If the wallet doesn't exist, this operation returns an error.
-[putTxHistory] :: DBLayer m s k -> PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet m ()
+[putTxHistory] :: DBLayer m s k -> PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet stm ()
 
 -- | Fetch the current transaction history of a known wallet, ordered by
 --   descending slot number.
 --   
 --   Returns an empty list if the wallet isn't found.
-[readTxHistory] :: DBLayer m s k -> PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> m [(Tx, TxMeta)]
+[readTxHistory] :: DBLayer m s k -> PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> stm [(Tx, TxMeta)]
 
 -- | Remove a pending transaction.
-[removePendingTx] :: DBLayer m s k -> PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx m ()
+[removePendingTx] :: DBLayer m s k -> PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx stm ()
 
 -- | Store or replace a private key for a given wallet. Note that wallet
 --   _could_ be stored and manipulated without any private key associated
 --   to it. A private key is only seldomly required for very specific
 --   operations (like transaction signing).
-[putPrivateKey] :: DBLayer m s k -> PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet m ()
+[putPrivateKey] :: DBLayer m s k -> PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet stm ()
 
 -- | Read a previously stored private key and its associated passphrase
 --   hash.
-[readPrivateKey] :: DBLayer m s k -> PrimaryKey WalletId -> m (Maybe (k  'RootK XPrv, Hash "encryption"))
+[readPrivateKey] :: DBLayer m s k -> PrimaryKey WalletId -> stm (Maybe (k  'RootK XPrv, Hash "encryption"))
 
 -- | Drops all checkpoints and transaction data after the given slot.
-[rollbackTo] :: DBLayer m s k -> PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet m ()
+[rollbackTo] :: DBLayer m s k -> PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet stm ()
 
 -- | Prune database entities and remove entities that can be discarded.
-[prune] :: DBLayer m s k -> PrimaryKey WalletId -> ExceptT ErrNoSuchWallet m ()
-[withLock] :: DBLayer m s k -> forall e a. () => ExceptT e m a -> ExceptT e m a
+[prune] :: DBLayer m s k -> PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()
+
+-- | Execute operations of the database in isolation and atomically.
+[atomically] :: DBLayer m s k -> forall a. stm a -> m a
 
 -- | Instantiate database layers at will
 data DBFactory m s k
@@ -3096,7 +3139,7 @@ newtype PrimaryKey key
 PrimaryKey :: key -> PrimaryKey key
 
 -- | Clean a database by removing all wallets.
-cleanDB :: Monad m => DBLayer m s k -> m ()
+cleanDB :: DBLayer m s k -> m ()
 
 -- | Storing EVERY checkpoints in the database is quite expensive and
 --   useless. We make the following assumptions:
@@ -3965,7 +4008,7 @@ logger :: forall ctx. HasLogger ctx => Lens' ctx (Trace IO Text)
 
 -- | This module is only interested in one block-, and tx-type. This
 --   constraint hides that choice, for some ease of use.
-type HasNetworkLayer t = HasType (NetworkLayer IO t (Block))
+type HasNetworkLayer t = HasType (NetworkLayer IO t Block)
 networkLayer :: forall t ctx. HasNetworkLayer t ctx => Lens' ctx (NetworkLayer IO t Block)
 type HasTransactionLayer t k = HasType (TransactionLayer t k)
 transactionLayer :: forall t k ctx. HasTransactionLayer t k ctx => Lens' ctx (TransactionLayer t k)
@@ -3989,7 +4032,7 @@ readWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT E
 -- | Remove an existing wallet. Note that there's no particular work to be
 --   done regarding the restoration worker as it will simply terminate on
 --   the next tick when noticing that the corresponding wallet is gone.
-removeWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
+deleteWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
 
 -- | Restore a wallet from its current tip up to the network tip.
 --   
