@@ -80,6 +80,11 @@ loggingConfigFileOption :: Parser FilePath
 --   </ul>
 verbosityOption :: Parser Verbosity
 
+-- | <ul>
+--   <li>-sync-tolerance=DURATION, default: 300s</li>
+--   </ul>
+syncToleranceOption :: Parser SyncTolerance
+
 -- | Wrapper type around <a>Text</a> to make its semantic more explicit
 data Service
 data TxId

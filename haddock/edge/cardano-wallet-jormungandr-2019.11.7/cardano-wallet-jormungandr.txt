@@ -560,7 +560,7 @@ module Cardano.Wallet.Jormungandr
 -- | The <tt>cardano-wallet-jormungandr</tt> main function. It takes the
 --   configuration which was passed from the CLI and environment and starts
 --   all components of the wallet.
-serveWallet :: forall (n :: NetworkDiscriminant) t. (t ~ Jormungandr, NetworkDiscriminantVal n, DecodeAddress n, EncodeAddress n, PaymentAddress n ShelleyKey, PaymentAddress n ByronKey) => (Configuration, Trace IO Text) -> Maybe FilePath -> HostPreference -> Listen -> JormungandrBackend -> (SockAddr -> Port "node" -> BlockchainParameters -> IO ()) -> IO ExitCode
+serveWallet :: forall (n :: NetworkDiscriminant) t. (t ~ Jormungandr, NetworkDiscriminantVal n, DecodeAddress n, EncodeAddress n, PaymentAddress n ShelleyKey, PaymentAddress n ByronKey) => (Configuration, Trace IO Text) -> SyncTolerance -> Maybe FilePath -> HostPreference -> Listen -> JormungandrBackend -> (SockAddr -> Port "node" -> BlockchainParameters -> IO ()) -> IO ExitCode
 
 -- | Covert a raw block to one that the <a>Cardano.Pool.Metrics</a> module
 --   accepts.
