@@ -71,3 +71,5 @@ instance Test.QuickCheck.Arbitrary.Arbitrary Test.Utils.Time.UniformTime
 -- | Utility function for making test suites pass on Windows.
 module Test.Utils.Windows
 skipOnWindows :: HasCallStack => String -> Expectation
+pendingOnWindows :: HasCallStack => String -> Expectation
+whenWindows :: IO () -> IO ()
