@@ -3995,7 +3995,7 @@ combineMetrics :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantit
 --   Note that, this apparent performance is clamped to [0,1] as it may in
 --   practice, be greater than 1 if a stake pool produces more than it is
 --   expected.
-calculatePerformance :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Word64) -> Map PoolId Double
+calculatePerformance :: Int -> Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Word64) -> Map PoolId Double
 instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance GHC.Show.Show Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMonitorStakePools
