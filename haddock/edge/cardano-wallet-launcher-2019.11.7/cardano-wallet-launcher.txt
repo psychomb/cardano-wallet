@@ -63,18 +63,16 @@ data ProcessHasExited
 ProcessDidNotStart :: String -> IOException -> ProcessHasExited
 ProcessHasExited :: String -> ExitCode -> ProcessHasExited
 
--- | Run a bunch of command in separate processes. Note that, this
---   operation is blocking and will throw when one of the given commands
---   terminates. Commands are therefore expected to be daemon or
---   long-running services.
-launch :: Trace IO LauncherLog -> [Command] -> IO ProcessHasExited
-
 -- | Starts a command in the background and then runs an action. If the
 --   action finishes (through an exception or otherwise) then the process
 --   is terminated (see <a>withCreateProcess</a>) for details. If the
 --   process exits, the action is cancelled. The return type reflects those
 --   two cases.
 withBackendProcess :: Trace IO LauncherLog -> Command -> IO a -> IO (Either ProcessHasExited a)
+
+-- | A variant of <a>withBackendProcess</a> which also provides the
+--   <a>ProcessHandle</a> to the given action.
+withBackendProcessHandle :: Trace IO LauncherLog -> Command -> (ProcessHandle -> IO a) -> IO (Either ProcessHasExited a)
 
 -- | Convert any SIGTERM received to SIGINT, for which the runtime system
 --   has handlers that will correctly clean up sub-processes.
@@ -89,7 +87,11 @@ withUtf8Encoding :: IO a -> IO a
 data LauncherLog
 MsgLauncherStart :: Command -> LauncherLog
 MsgLauncherStarted :: String -> Text -> LauncherLog
+MsgLauncherWaitBefore :: LauncherLog
+MsgLauncherWaitAfter :: Int -> LauncherLog
+MsgLauncherCancel :: LauncherLog
 MsgLauncherFinish :: ProcessHasExited -> LauncherLog
+MsgLauncherAction :: LauncherLog
 MsgLauncherCleanup :: LauncherLog
 transformLauncherTrace :: Trace IO Text -> Trace IO LauncherLog
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Launcher.LauncherLog

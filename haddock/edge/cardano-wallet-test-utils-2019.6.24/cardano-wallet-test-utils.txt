@@ -73,3 +73,4 @@ module Test.Utils.Windows
 skipOnWindows :: HasCallStack => String -> Expectation
 pendingOnWindows :: HasCallStack => String -> Expectation
 whenWindows :: IO () -> IO ()
+isWindows :: Bool
