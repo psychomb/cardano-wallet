@@ -294,16 +294,6 @@ proc' :: FilePath -> [String] -> CreateProcess
 -- | Wait for a booting wallet server to start. Wait up to 30s or fail.
 waitForServer :: forall t ctx. (HasType (Port "wallet") ctx, KnownCommand t) => ctx -> IO ()
 
--- | Collect lines from standard output and error streams for 65 seconds,
---   or, until a given limit is for both streams.
-collectStreams :: (Int, Int) -> CreateProcess -> IO (Text, Text)
-
--- | Like <a>shouldContain</a>, but with <a>Text</a>.
-shouldContainT :: HasCallStack => Text -> Text -> IO ()
-
--- | Like <a>shouldNotContain</a>, but with <a>Text</a>.
-shouldNotContainT :: HasCallStack => Text -> Text -> IO ()
-
 -- | <a>map</a> flipped.
 for :: [a] -> (a -> b) -> [b]
 toQueryString :: [(Text, Text)] -> Text
