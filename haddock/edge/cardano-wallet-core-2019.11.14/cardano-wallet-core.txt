@@ -1282,9 +1282,18 @@ UTxOInternal :: AccountingStyle
 MutableAccount :: AccountingStyle
 
 -- | Type of derivation that should be used with the given indexes.
+--   
+--   In theory, we should only consider two derivation types: soft and
+--   hard.
+--   
+--   However, historically, addresses in Cardano used to be generated
+--   across the both soft and hard domain. We therefore introduce a
+--   <a>WholeDomain</a> derivation type that is the exact union of
+--   <a>Hardened</a> and <a>Soft</a>.
 data DerivationType
 Hardened :: DerivationType
 Soft :: DerivationType
+WholeDomain :: DerivationType
 
 -- | An interface for doing hard derivations from the root private key
 class HardDerivation (key :: Depth -> * -> *) where {
@@ -1555,8 +1564,10 @@ instance Crypto.Random.Types.MonadRandom ((->) (Cardano.Wallet.Primitive.Address
 instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDerivation.Index derivationType level)
 instance GHC.Enum.Bounded (Cardano.Wallet.Primitive.AddressDerivation.Index 'Cardano.Wallet.Primitive.AddressDerivation.Hardened level)
 instance GHC.Enum.Bounded (Cardano.Wallet.Primitive.AddressDerivation.Index 'Cardano.Wallet.Primitive.AddressDerivation.Soft level)
+instance GHC.Enum.Bounded (Cardano.Wallet.Primitive.AddressDerivation.Index 'Cardano.Wallet.Primitive.AddressDerivation.WholeDomain level)
 instance GHC.Enum.Enum (Cardano.Wallet.Primitive.AddressDerivation.Index 'Cardano.Wallet.Primitive.AddressDerivation.Hardened level)
 instance GHC.Enum.Enum (Cardano.Wallet.Primitive.AddressDerivation.Index 'Cardano.Wallet.Primitive.AddressDerivation.Soft level)
+instance GHC.Enum.Enum (Cardano.Wallet.Primitive.AddressDerivation.Index 'Cardano.Wallet.Primitive.AddressDerivation.WholeDomain level)
 instance Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.AddressDerivation.Index derivationType level)
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
 instance GHC.Enum.Enum Cardano.Wallet.Primitive.AddressDerivation.AccountingStyle
@@ -4064,7 +4075,7 @@ instance GHC.Exception.Type.Exception Cardano.Pool.DB.MVar.MVarPoolDBError
 --   They are also used by components like the Rust
 --   <a>cardano-http-bridge</a>.
 module Cardano.Byron.Codec.Cbor
-decodeAddressDerivationPath :: Passphrase "addr-derivation-payload" -> Decoder s (Maybe (Index  'Hardened  'AccountK, Index  'Hardened  'AddressK))
+decodeAddressDerivationPath :: Passphrase "addr-derivation-payload" -> Decoder s (Maybe (Index  'WholeDomain  'AccountK, Index  'WholeDomain  'AddressK))
 decodeAddressPayload :: Decoder s ByteString
 
 -- | The attributes are pairs of numeric tags and bytes, where the bytes
@@ -4072,7 +4083,7 @@ decodeAddressPayload :: Decoder s ByteString
 --   of entries.
 decodeAllAttributes :: Decoder s [(Word8, ByteString)]
 decodeBlockHeader :: Decoder s BlockHeader
-decodeDerivationPathAttr :: Passphrase "addr-derivation-payload" -> [(Word8, ByteString)] -> Decoder s (Maybe (Index  'Hardened  'AccountK, Index  'Hardened  'AddressK))
+decodeDerivationPathAttr :: Passphrase "addr-derivation-payload" -> [(Word8, ByteString)] -> Decoder s (Maybe (Index  'WholeDomain  'AccountK, Index  'WholeDomain  'AddressK))
 decodeSignedTx :: Decoder s (([TxIn], [TxOut]), [TxWitness])
 decodeTx :: Decoder s ([TxIn], [TxOut])
 decodeTxWitness :: Decoder s TxWitness
@@ -4108,7 +4119,7 @@ decodeTxWitness :: Decoder s TxWitness
 --   </ul>
 encodeAddress :: XPub -> [Encoding] -> Encoding
 encodeAttributes :: [Encoding] -> Encoding
-encodeDerivationPathAttr :: Passphrase "addr-derivation-payload" -> Index  'Hardened  'AccountK -> Index  'Hardened  'AddressK -> Encoding
+encodeDerivationPathAttr :: Passphrase "addr-derivation-payload" -> Index  'WholeDomain  'AccountK -> Index  'WholeDomain  'AddressK -> Encoding
 encodeProtocolMagicAttr :: ProtocolMagic -> Encoding
 encodePublicKeyWitness :: XPub -> Hash "signature" -> Encoding
 encodeTx :: ([TxIn], [TxOut]) -> Encoding
@@ -4196,7 +4207,7 @@ minSeedLengthBytes :: Int
 --   (and to have checked that the passphrase is valid). Providing a wrong
 --   passphrase will not make the function fail but will instead, yield an
 --   incorrect new key that doesn't belong to the wallet.
-deriveAccountPrivateKey :: Passphrase "encryption" -> ByronKey  'RootK XPrv -> Index  'Hardened  'AccountK -> ByronKey  'AccountK XPrv
+deriveAccountPrivateKey :: Passphrase "encryption" -> ByronKey  'RootK XPrv -> Index  'WholeDomain  'AccountK -> ByronKey  'AccountK XPrv
 
 -- | Derives address private key from the given account private key, using
 --   derivation scheme 1.
@@ -4205,7 +4216,7 @@ deriveAccountPrivateKey :: Passphrase "encryption" -> ByronKey  'RootK XPrv -> I
 --   (and to have checked that the passphrase is valid). Providing a wrong
 --   passphrase will not make the function fail but will instead, yield an
 --   incorrect new key that doesn't belong to the wallet.
-deriveAddressPrivateKey :: Passphrase "encryption" -> ByronKey  'AccountK XPrv -> Index  'Hardened  'AddressK -> ByronKey  'AddressK XPrv
+deriveAddressPrivateKey :: Passphrase "encryption" -> ByronKey  'AccountK XPrv -> Index  'WholeDomain  'AddressK -> ByronKey  'AddressK XPrv
 
 -- | Attempt decoding a <a>ByteString</a> into an <a>Address</a>. This
 --   merely checks that the underlying bytestring has a "valid" structure /
@@ -4228,7 +4239,7 @@ module Cardano.Wallet.Primitive.AddressDiscovery.Random
 
 -- | HD random address discovery state and key material for AD.
 data RndState (network :: NetworkDiscriminant)
-RndState :: Passphrase "addr-derivation-payload" -> Index  'Hardened  'AccountK -> Map DerivationPath Address -> Map DerivationPath Address -> StdGen -> RndState
+RndState :: Passphrase "addr-derivation-payload" -> Index  'WholeDomain  'AccountK -> Map DerivationPath Address -> Map DerivationPath Address -> StdGen -> RndState
 
 -- | The HD derivation passphrase
 [hdPassphrase] :: RndState -> Passphrase "addr-derivation-payload"
@@ -4236,7 +4247,7 @@ RndState :: Passphrase "addr-derivation-payload" -> Index  'Hardened  'AccountK 
 -- | The account index used for address _generation_ in this wallet. Note
 --   that addresses will be _discovered_ from any and all account indices,
 --   regardless of this value.
-[accountIndex] :: RndState -> Index  'Hardened  'AccountK
+[accountIndex] :: RndState -> Index  'WholeDomain  'AccountK
 
 -- | The addresses which have so far been discovered, and their derivation
 --   paths.
