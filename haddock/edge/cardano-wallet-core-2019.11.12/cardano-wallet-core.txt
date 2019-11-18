@@ -572,8 +572,8 @@ SlotId :: !EpochNo -> !SlotNo -> SlotId
 [$sel:epochNumber:SlotId] :: SlotId -> !EpochNo
 [$sel:slotNumber:SlotId] :: SlotId -> !SlotNo
 newtype SlotNo
-SlotNo :: Word16 -> SlotNo
-[$sel:unSlotNo:SlotNo] :: SlotNo -> Word16
+SlotNo :: Word32 -> SlotNo
+[$sel:unSlotNo:SlotNo] :: SlotNo -> Word32
 newtype EpochNo
 EpochNo :: Word64 -> EpochNo
 [$sel:unEpochNo:EpochNo] :: EpochNo -> Word64
@@ -591,7 +591,7 @@ SlotLength :: NominalDiffTime -> SlotLength
 
 -- | Number of slots in a single epoch
 newtype EpochLength
-EpochLength :: Word16 -> EpochLength
+EpochLength :: Word32 -> EpochLength
 
 -- | Blockchain start time
 newtype StartTime
@@ -883,6 +883,7 @@ instance GHC.Generics.Generic (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Show.Show (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.ChimericAccount
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.ChimericAccount
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.ChimericAccount
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.ProtocolMagic
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.ProtocolMagic
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SlotParameters
@@ -965,6 +966,7 @@ instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.FeePolicy
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.TxWitness
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.TxWitness
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.TxWitness
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.TxWitness
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.Direction
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.Direction
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.Direction
@@ -1033,6 +1035,7 @@ instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.Types.Hash tag)
 instance Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.Types.Hash tag)
 instance Data.Text.Class.ToText (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.TypeLits.KnownSymbol tag => Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash tag)
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.ChimericAccount
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.StartTime
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.EpochLength
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.SlotLength
@@ -1061,6 +1064,7 @@ instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.Address
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.FeePolicy
 instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.FeePolicy
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.FeePolicy
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.TxWitness
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.Direction
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.Direction
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.Direction
@@ -1532,6 +1536,7 @@ instance GHC.Generics.Generic Cardano.Wallet.Primitive.AddressDerivation.Account
 instance forall k (s :: GHC.Types.Symbol) (key :: k). Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint s key)
 instance Cardano.Wallet.Primitive.AddressDerivation.NetworkDiscriminantVal 'Cardano.Wallet.Primitive.AddressDerivation.Mainnet
 instance Cardano.Wallet.Primitive.AddressDerivation.NetworkDiscriminantVal 'Cardano.Wallet.Primitive.AddressDerivation.Testnet
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.AddressDerivation.NetworkDiscriminant
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.AddressDerivation.NetworkDiscriminant
 instance Data.Text.Class.ToText Cardano.Wallet.Primitive.AddressDerivation.NetworkDiscriminant
 instance (n Data.Type.Equality.~ Crypto.Encoding.BIP39.EntropySize mw, csz Data.Type.Equality.~ Crypto.Encoding.BIP39.CheckSumBits n, Crypto.Encoding.BIP39.ConsistentEntropy n mw csz, Cardano.Wallet.Primitive.AddressDerivation.FromMnemonic rest purpose, Cardano.Wallet.Primitive.AddressDerivation.NatVals rest) => Cardano.Wallet.Primitive.AddressDerivation.FromMnemonic (mw : rest) purpose
@@ -2738,7 +2743,7 @@ BlockId :: Hash "BlockHeader" -> BlockId
 -- | As a short-to-medium term solution of persisting <a>SlotId</a>, we use
 --   <a>flatSlot</a> with an artificial epochLength. I.e. /not the same
 --   epochLength as the blockchain/. This is just for the sake of storing
---   the 64 bit epoch and the 16 bit slot inside a single 64-bit field.
+--   the 64 bit epoch and the 32-bit slot inside a single 64-bit field.
 artificialEpochLength :: EpochLength
 walletStateNum :: SyncProgress -> Word8
 walletStateFromNum :: Word8 -> SyncProgress
@@ -2865,7 +2870,7 @@ TxOut :: !TxId -> !Word32 -> !Address -> !Coin -> TxOut
 [txOutputAmount] :: TxOut -> !Coin
 type TxOutId = Key TxOut
 data Checkpoint
-Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !BlockId -> !Word32 -> !BlockId -> !UTCTime -> !FeePolicy -> !Word64 -> !Word16 -> !Word16 -> !Word32 -> Checkpoint
+Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !BlockId -> !Word32 -> !BlockId -> !UTCTime -> !FeePolicy -> !Word64 -> !Word32 -> !Word16 -> !Word32 -> Checkpoint
 [checkpointWalletId] :: Checkpoint -> !WalletId
 [checkpointSlot] :: Checkpoint -> !SlotId
 [checkpointHeaderHash] :: Checkpoint -> !BlockId
@@ -2875,7 +2880,7 @@ Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !BlockId -> !Word32 -> !BlockI
 [checkpointGenesisStart] :: Checkpoint -> !UTCTime
 [checkpointFeePolicy] :: Checkpoint -> !FeePolicy
 [checkpointSlotLength] :: Checkpoint -> !Word64
-[checkpointEpochLength] :: Checkpoint -> !Word16
+[checkpointEpochLength] :: Checkpoint -> !Word32
 [checkpointTxMaxSize] :: Checkpoint -> !Word16
 [checkpointEpochStability] :: Checkpoint -> !Word32
 type CheckpointId = Key Checkpoint

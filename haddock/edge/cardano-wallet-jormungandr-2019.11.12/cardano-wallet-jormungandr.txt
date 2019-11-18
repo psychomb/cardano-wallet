@@ -14,16 +14,16 @@
 --   
 --   The module to some extent defines its own Jörmungandr-specific types,
 --   different from <a>Cardano.Wallet.Primitive.Types</a>. Here,
---   transactions are just one of many possible <a>Message</a>s that can be
+--   transactions are just one of many possible <a>Fragment</a> that can be
 --   included in a block.
 --   
 --   In some cases it also leads us to <i>throw exceptions</i> when
 --   integers would otherwise overflow (look for uses of <a>toEnum</a>).
 module Cardano.Wallet.Jormungandr.Binary
 data Block
-Block :: BlockHeader -> [Message] -> Block
+Block :: BlockHeader -> [Fragment] -> Block
 [header] :: Block -> BlockHeader
-[messages] :: Block -> [Message]
+[fragments] :: Block -> [Fragment]
 data BlockHeader
 BlockHeader :: Word16 -> Word32 -> SlotId -> Word32 -> Hash "content" -> Hash "BlockHeader" -> Hash "BlockHeader" -> Maybe PoolId -> BlockHeader
 [version] :: BlockHeader -> Word16
@@ -93,27 +93,24 @@ GenesisPraos :: ConsensusVersion
 newtype LeaderId
 LeaderId :: ByteString -> LeaderId
 
--- | The block-body consists of messages. There are several types of
---   messages.
---   
---   Following, as closely as possible:
---   <a>https://github.com/input-output-hk/rust-cardano/blob/e0616f13bebd6b908320bddb1c1502dea0d3305a/chain-impl-mockchain/src/message/mod.rs#L22-L29</a>
-data Message
+-- | The block-body consists of fragments. There are several types of
+--   fragments.
+data Fragment
 
 -- | Found in the genesis block.
-Initial :: [ConfigParam] -> Message
+Initial :: [ConfigParam] -> Fragment
 
 -- | A standard signed transaction
-Transaction :: (Tx, [TxWitness]) -> Message
+Transaction :: (Tx, [TxWitness]) -> Fragment
 
 -- | A signed transaction with stake pool delegation
-StakeDelegation :: (PoolId, ChimericAccount, Tx, [TxWitness]) -> Message
-UnimplementedMessage :: Int -> Message
-data MessageType
-MsgTypeInitial :: MessageType
-MsgTypeLegacyUTxO :: MessageType
-MsgTypeTransaction :: MessageType
-MsgTypeDelegation :: MessageType
+StakeDelegation :: (PoolId, ChimericAccount, Tx, [TxWitness]) -> Fragment
+UnimplementedFragment :: Word8 -> Fragment
+data FragmentSpec
+FragmentInitial :: FragmentSpec
+FragmentLegacyUTxO :: FragmentSpec
+FragmentTransaction :: FragmentSpec
+FragmentDelegation :: FragmentSpec
 
 -- | Used to represent (&gt;= 0) rational numbers as (&gt;= 0) integers, by
 --   just multiplying by 1000. For instance: '3.141592' is represented as
@@ -126,10 +123,10 @@ getBlockHeader :: Get BlockHeader
 -- | Extract a <a>Block</a> id from a serialized <a>Block</a>.
 getBlockId :: Get (Hash "BlockHeader")
 
--- | Decode a message (header + contents).
-getMessage :: Get Message
+-- | Decode a fragment (header + contents).
+getFragment :: Get Fragment
 
--- | Decode the contents of a <tt>Transaction</tt>-message.
+-- | Decode the contents of a <tt>Transaction</tt>-fragment.
 getTransaction :: Hash "Tx" -> Get (Tx, [TxWitness])
 putSignedTx :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
 putTx :: [(TxIn, Coin)] -> [TxOut] -> Put
@@ -180,14 +177,15 @@ delegationFragmentId :: PoolId -> ChimericAccount -> Hash "AccountSignature" -> 
 maxNumberOfInputs :: Int
 maxNumberOfOutputs :: Int
 
--- | Add a corresponding header to a message. Every message is encoded as:
+-- | Add a corresponding header to a fragment. Every fragment is encoded
+--   as:
 --   
---   HEADER(MESSAGE) | MESSAGE
---   
---   where <tt>HEADER</tt> is:
---   
---   SIZE (2 bytes) | TYPE (1 byte)
-withHeader :: MessageType -> Put -> Put
+--   FRAGMENT = FRAGMENT-SIZE %x00 FRAGMENT-SPEC FRAGMENT-SIZE =
+--   SIZE-BYTES-16BIT FRAGMENT-SPEC = %x00 INITIAL / %x01 OLD-UTXO-DECL /
+--   %x02 SIMPLE-TRANSACTION / %x03 OWNER-STAKE-DELEGATION / %x04
+--   STAKE-DELEGATION / %x05 POOL-REGISTRATION / %x06 POOL-RETIREMENT /
+--   %x07 POOL-UPDATE / %x08 UPDATE-PROPOSAL / %x09 UPDATE-VOTE
+withHeader :: FragmentSpec -> Put -> Put
 data Get a
 
 -- | The simplest interface to run a <a>Get</a> decoder. If the decoder
@@ -208,22 +206,36 @@ type Put = PutM ()
 
 -- | Run the <a>PutM</a> monad with a serialiser
 runPut :: Put -> ByteString
-instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.Block
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.Block
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.Block
-instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.Message
-instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.Message
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.Block
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.Fragment
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.Fragment
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.Fragment
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.ConfigParam
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.ConfigParam
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.ConfigParam
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.ConsensusVersion
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.ConsensusVersion
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.ConsensusVersion
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.LeaderId
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.LeaderId
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.LeaderId
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.Milli
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.Milli
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.Milli
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.TxWitnessTag
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.TxWitnessTag
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.BlockHeader
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.BlockHeader
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.BlockHeader
+instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.Block
+instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.Fragment
+instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.ConfigParam
+instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.ConsensusVersion
+instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.LeaderId
+instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.Milli
+instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.BlockHeader
 
 
 -- | An specification for the Jörmungandr REST API.
