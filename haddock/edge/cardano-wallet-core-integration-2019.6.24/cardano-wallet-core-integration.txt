@@ -161,6 +161,7 @@ expectListItemFieldBetween :: (MonadIO m, MonadFail m, Show a, Eq a, Ord a) => I
 --   expected value. e.g. expectListItemFieldEqual 0 walletName "first"
 --   response expectListItemFieldEqual 1 walletName "second" response
 expectListItemFieldEqual :: (MonadIO m, MonadFail m, Show a, Eq a) => Int -> Lens' s a -> a -> (Status, Either RequestException [s]) -> m ()
+expectListItemFieldSatisfy :: (MonadIO m, MonadFail m, Show a) => Int -> Lens' s a -> (a -> Bool) -> (Status, Either RequestException [s]) -> m ()
 
 -- | Expects data list returned by the API to be of certain length
 expectListSizeEqual :: (MonadIO m, MonadFail m, Foldable xs) => Int -> (Status, Either RequestException (xs a)) -> m ()

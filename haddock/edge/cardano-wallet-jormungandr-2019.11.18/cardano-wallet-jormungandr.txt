@@ -249,8 +249,8 @@ newtype ApiT a
 ApiT :: a -> ApiT a
 [$sel:getApiT:ApiT] :: ApiT a -> a
 newtype AccountId
-AccountId :: ByteString -> AccountId
-[$sel:getAccountId:AccountId] :: AccountId -> ByteString
+AccountId :: Hash "Account" -> AccountId
+[$sel:getAccountId:AccountId] :: AccountId -> Hash "Account"
 data AccountState
 AccountState :: !Quantity "lovelace" Word64 -> [(PoolId, Quantity "stake-pool-ratio" Word64)] -> !Quantity "transaction-count" Word64 -> AccountState
 [$sel:currentBalance:AccountState] :: AccountState -> !Quantity "lovelace" Word64
@@ -316,8 +316,6 @@ instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Jormungandr.Api.T
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.Types.AccountState
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Jormungandr.Api.Types.AccountState
 instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Jormungandr.Api.Types.AccountId
-instance Data.Text.Class.FromText Cardano.Wallet.Jormungandr.Api.Types.AccountId
-instance Data.Text.Class.ToText Cardano.Wallet.Jormungandr.Api.Types.AccountId
 
 
 -- | A specification for the Jörmungandr REST API.
@@ -390,8 +388,8 @@ module Cardano.Wallet.Jormungandr.Api.Client
 
 -- | Endpoints of the jormungandr REST API.
 data JormungandrClient m
-JormungandrClient :: (AccountId -> ExceptT ErrGetAccountState m AccountState) -> ExceptT ErrNetworkUnavailable m (Hash "BlockHeader") -> (Hash "BlockHeader" -> ExceptT ErrGetBlock m Block) -> (Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]) -> ((Tx, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (Hash "Genesis" -> ExceptT ErrGetBlockchainParams m (Block, BlockchainParameters)) -> ExceptT ErrNetworkUnavailable m StakeApiResponse -> JormungandrClient m
-[$sel:getAccountState:JormungandrClient] :: JormungandrClient m -> AccountId -> ExceptT ErrGetAccountState m AccountState
+JormungandrClient :: (Hash "Account" -> ExceptT ErrGetAccountState m AccountState) -> ExceptT ErrNetworkUnavailable m (Hash "BlockHeader") -> (Hash "BlockHeader" -> ExceptT ErrGetBlock m Block) -> (Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]) -> ((Tx, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (Hash "Genesis" -> ExceptT ErrGetBlockchainParams m (Block, BlockchainParameters)) -> ExceptT ErrNetworkUnavailable m StakeApiResponse -> JormungandrClient m
+[$sel:getAccountState:JormungandrClient] :: JormungandrClient m -> Hash "Account" -> ExceptT ErrGetAccountState m AccountState
 [$sel:getTipId:JormungandrClient] :: JormungandrClient m -> ExceptT ErrNetworkUnavailable m (Hash "BlockHeader")
 [$sel:getBlock:JormungandrClient] :: JormungandrClient m -> Hash "BlockHeader" -> ExceptT ErrGetBlock m Block
 [$sel:getDescendantIds:JormungandrClient] :: JormungandrClient m -> Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]
@@ -411,7 +409,7 @@ class LiftError lift
 liftE :: LiftError lift => lift
 data ErrGetAccountState
 ErrGetAccountStateNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetAccountState
-ErrGetAccountStateAccountNotFound :: AccountId -> ErrGetAccountState
+ErrGetAccountStateAccountNotFound :: Hash "Account" -> ErrGetAccountState
 
 -- | Error while trying to get one or more blocks
 data ErrGetBlock

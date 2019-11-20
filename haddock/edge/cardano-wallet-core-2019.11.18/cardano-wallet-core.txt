@@ -1050,7 +1050,11 @@ instance Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.Types.TxIn, Ca
 instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.Types.Hash tag)
 instance Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.Types.Hash tag)
 instance Data.Text.Class.ToText (Cardano.Wallet.Primitive.Types.Hash tag)
-instance GHC.TypeLits.KnownSymbol tag => Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash tag)
+instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Tx")
+instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Account")
+instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Genesis")
+instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Block")
+instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "BlockHeader")
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.ChimericAccount
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.StartTime
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.EpochLength
@@ -4751,8 +4755,8 @@ unsafeDecodeAddress :: forall n. (HasCallStack, DecodeAddress n) => Text -> Addr
 -- | Run a decoder on a hex-encoded <a>ByteString</a>, or fail.
 unsafeDecodeHex :: HasCallStack => Get a -> ByteString -> a
 
--- | Decode the given <a>PoolId</a> from <a>Text</a>, or fail.
-unsafePoolId :: Text -> PoolId
+-- | Decode the given data-type from a textual representation, or fail.
+unsafeFromText :: (FromText a, HasCallStack) => Text -> a
 
 -- | Run an <a>ExceptT</a> and throws the error if any. This makes sense
 --   only if called after checking for an invariant or, after ensuring that
