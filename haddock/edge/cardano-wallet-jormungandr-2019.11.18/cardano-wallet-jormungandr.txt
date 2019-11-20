@@ -238,9 +238,8 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.Milli
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.BlockHeader
 
 
--- | An specification for the Jörmungandr REST API.
-module Cardano.Wallet.Jormungandr.Api
-type Api = GetTipId :<|> GetBlock :<|> GetBlockDescendantIds :<|> PostMessage :<|> GetStakeDistribution
+-- | Definitions of types used in the Jörmungandr REST API.
+module Cardano.Wallet.Jormungandr.Api.Types
 
 -- | Polymorphic wrapper type to put around primitive types and, 3rd party
 --   lib types to avoid defining orphan instances and/or, undesirable
@@ -248,7 +247,83 @@ type Api = GetTipId :<|> GetBlock :<|> GetBlockDescendantIds :<|> PostMessage :<
 --   concerns between the API layer and other modules.
 newtype ApiT a
 ApiT :: a -> ApiT a
-[getApiT] :: ApiT a -> a
+[$sel:getApiT:ApiT] :: ApiT a -> a
+newtype AccountId
+AccountId :: ByteString -> AccountId
+[$sel:getAccountId:AccountId] :: AccountId -> ByteString
+data AccountState
+AccountState :: !Quantity "lovelace" Word64 -> [(PoolId, Quantity "stake-pool-ratio" Word64)] -> !Quantity "transaction-count" Word64 -> AccountState
+[$sel:currentBalance:AccountState] :: AccountState -> !Quantity "lovelace" Word64
+[$sel:stakePools:AccountState] :: AccountState -> [(PoolId, Quantity "stake-pool-ratio" Word64)]
+[$sel:totalTransactionCount:AccountState] :: AccountState -> !Quantity "transaction-count" Word64
+data ApiStakeDistribution
+ApiStakeDistribution :: ApiT (Quantity "lovelace" Word64) -> [(ApiT PoolId, ApiT (Quantity "lovelace" Word64))] -> ApiT (Quantity "lovelace" Word64) -> ApiStakeDistribution
+[$sel:dangling:ApiStakeDistribution] :: ApiStakeDistribution -> ApiT (Quantity "lovelace" Word64)
+[$sel:pools:ApiStakeDistribution] :: ApiStakeDistribution -> [(ApiT PoolId, ApiT (Quantity "lovelace" Word64))]
+[$sel:unassigned:ApiStakeDistribution] :: ApiStakeDistribution -> ApiT (Quantity "lovelace" Word64)
+newtype BlockId
+BlockId :: Hash "BlockHeader" -> BlockId
+[$sel:getBlockId:BlockId] :: BlockId -> Hash "BlockHeader"
+data StakeApiResponse
+StakeApiResponse :: ApiT EpochNo -> ApiStakeDistribution -> StakeApiResponse
+[$sel:epoch:StakeApiResponse] :: StakeApiResponse -> ApiT EpochNo
+[$sel:stake:StakeApiResponse] :: StakeApiResponse -> ApiStakeDistribution
+data Hex
+
+-- | Represents the binary format of Jörmungandr.
+data JormungandrBinary
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Api.Types.ApiAccountState
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Types.ApiAccountState
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Types.ApiAccountState
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Api.Types.ApiDelegationState
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Types.ApiDelegationState
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Types.ApiDelegationState
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Api.Types.StakeApiResponse
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Types.StakeApiResponse
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Types.StakeApiResponse
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Api.Types.ApiStakeDistribution
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Types.ApiStakeDistribution
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Types.ApiStakeDistribution
+instance GHC.Classes.Eq a => GHC.Classes.Eq (Cardano.Wallet.Jormungandr.Api.Types.ApiT a)
+instance GHC.Show.Show a => GHC.Show.Show (Cardano.Wallet.Jormungandr.Api.Types.ApiT a)
+instance GHC.Generics.Generic (Cardano.Wallet.Jormungandr.Api.Types.ApiT a)
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Types.AccountState
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Types.AccountState
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Types.AccountId
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Types.AccountId
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.Types.ApiAccountState
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Jormungandr.Api.Types.ApiAccountState
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.Types.ApiDelegationState
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Jormungandr.Api.Types.ApiDelegationState
+instance Servant.API.ContentTypes.MimeUnrender Cardano.Wallet.Jormungandr.Api.Types.Hex Cardano.Wallet.Jormungandr.Api.Types.BlockId
+instance Servant.API.ContentTypes.Accept Cardano.Wallet.Jormungandr.Api.Types.Hex
+instance Servant.API.ContentTypes.MimeUnrender Cardano.Wallet.Jormungandr.Api.Types.JormungandrBinary [Cardano.Wallet.Jormungandr.Api.Types.BlockId]
+instance Servant.API.ContentTypes.Accept Cardano.Wallet.Jormungandr.Api.Types.JormungandrBinary
+instance Servant.API.ContentTypes.MimeUnrender Cardano.Wallet.Jormungandr.Api.Types.JormungandrBinary Cardano.Wallet.Jormungandr.Binary.Block
+instance Servant.API.ContentTypes.MimeRender Cardano.Wallet.Jormungandr.Api.Types.JormungandrBinary (Cardano.Wallet.Primitive.Types.Tx, [Cardano.Wallet.Primitive.Types.TxWitness])
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.Types.StakeApiResponse
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.Types.ApiStakeDistribution
+instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.Types.ApiT (Data.Quantity.Quantity "lovelace" GHC.Word.Word64))
+instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Jormungandr.Api.Types.ApiT (Data.Quantity.Quantity "lovelace" GHC.Word.Word64))
+instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.Types.ApiT (Data.Quantity.Quantity "stake-pool-ratio" GHC.Word.Word64))
+instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Jormungandr.Api.Types.ApiT (Data.Quantity.Quantity "stake-pool-ratio" GHC.Word.Word64))
+instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.Types.ApiT (Data.Quantity.Quantity "transaction-count" GHC.Word.Word64))
+instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Jormungandr.Api.Types.ApiT (Data.Quantity.Quantity "transaction-count" GHC.Word.Word64))
+instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.Types.ApiT Cardano.Wallet.Primitive.Types.EpochNo)
+instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.Types.ApiT Cardano.Wallet.Primitive.Types.PoolId)
+instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Jormungandr.Api.Types.ApiT Cardano.Wallet.Primitive.Types.PoolId)
+instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Jormungandr.Api.Types.BlockId
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.Types.AccountState
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Jormungandr.Api.Types.AccountState
+instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Jormungandr.Api.Types.AccountId
+instance Data.Text.Class.FromText Cardano.Wallet.Jormungandr.Api.Types.AccountId
+instance Data.Text.Class.ToText Cardano.Wallet.Jormungandr.Api.Types.AccountId
+
+
+-- | A specification for the Jörmungandr REST API.
+module Cardano.Wallet.Jormungandr.Api
+type Api = GetAccountState :<|> GetTipId :<|> GetBlock :<|> GetBlockDescendantIds :<|> PostMessage :<|> GetStakeDistribution
+type GetAccountState = "api" :> "v0" :> "account" :> Capture "accountId" AccountId :> Get '[JSON] AccountState
 
 -- | Retrieve a block by its id.
 type GetBlock = "api" :> "v0" :> "block" :> Capture "blockHeaderHash" BlockId :> Get '[JormungandrBinary] Block
@@ -273,40 +348,7 @@ type GetBlockDescendantIds = "api" :> "v0" :> "block" :> Capture "blockId" Block
 -- | Retrieve stake distribution
 type GetStakeDistribution = "api" :> "v0" :> "stake" :> Get '[JSON] StakeApiResponse
 type PostMessage = "api" :> "v0" :> "message" :> ReqBody '[JormungandrBinary] (Tx, [TxWitness]) :> Post '[NoContent] NoContent
-data StakeApiResponse
-StakeApiResponse :: ApiT EpochNo -> ApiStakeDistribution -> StakeApiResponse
-[epoch] :: StakeApiResponse -> ApiT EpochNo
-[stake] :: StakeApiResponse -> ApiStakeDistribution
-data ApiStakeDistribution
-ApiStakeDistribution :: ApiT (Quantity "lovelace" Word64) -> [(ApiT PoolId, ApiT (Quantity "lovelace" Word64))] -> ApiT (Quantity "lovelace" Word64) -> ApiStakeDistribution
-[dangling] :: ApiStakeDistribution -> ApiT (Quantity "lovelace" Word64)
-[pools] :: ApiStakeDistribution -> [(ApiT PoolId, ApiT (Quantity "lovelace" Word64))]
-[unassigned] :: ApiStakeDistribution -> ApiT (Quantity "lovelace" Word64)
-newtype BlockId
-BlockId :: Hash "BlockHeader" -> BlockId
-[getBlockId] :: BlockId -> Hash "BlockHeader"
 api :: Proxy Api
-instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Api.StakeApiResponse
-instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.StakeApiResponse
-instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.StakeApiResponse
-instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Api.ApiStakeDistribution
-instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.ApiStakeDistribution
-instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.ApiStakeDistribution
-instance GHC.Classes.Eq a => GHC.Classes.Eq (Cardano.Wallet.Jormungandr.Api.ApiT a)
-instance GHC.Show.Show a => GHC.Show.Show (Cardano.Wallet.Jormungandr.Api.ApiT a)
-instance GHC.Generics.Generic (Cardano.Wallet.Jormungandr.Api.ApiT a)
-instance Servant.API.ContentTypes.MimeUnrender Cardano.Wallet.Jormungandr.Api.Hex Cardano.Wallet.Jormungandr.Api.BlockId
-instance Servant.API.ContentTypes.Accept Cardano.Wallet.Jormungandr.Api.Hex
-instance Servant.API.ContentTypes.MimeUnrender Cardano.Wallet.Jormungandr.Api.JormungandrBinary [Cardano.Wallet.Jormungandr.Api.BlockId]
-instance Servant.API.ContentTypes.Accept Cardano.Wallet.Jormungandr.Api.JormungandrBinary
-instance Servant.API.ContentTypes.MimeUnrender Cardano.Wallet.Jormungandr.Api.JormungandrBinary Cardano.Wallet.Jormungandr.Binary.Block
-instance Servant.API.ContentTypes.MimeRender Cardano.Wallet.Jormungandr.Api.JormungandrBinary (Cardano.Wallet.Primitive.Types.Tx, [Cardano.Wallet.Primitive.Types.TxWitness])
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.StakeApiResponse
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.ApiStakeDistribution
-instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.ApiT (Data.Quantity.Quantity "lovelace" GHC.Word.Word64))
-instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.ApiT Cardano.Wallet.Primitive.Types.EpochNo)
-instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.ApiT Cardano.Wallet.Primitive.Types.PoolId)
-instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Jormungandr.Api.BlockId
 
 
 -- | Contains various implementation decision that are specific to a
@@ -348,7 +390,8 @@ module Cardano.Wallet.Jormungandr.Api.Client
 
 -- | Endpoints of the jormungandr REST API.
 data JormungandrClient m
-JormungandrClient :: ExceptT ErrNetworkUnavailable m (Hash "BlockHeader") -> (Hash "BlockHeader" -> ExceptT ErrGetBlock m Block) -> (Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]) -> ((Tx, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (Hash "Genesis" -> ExceptT ErrGetBlockchainParams m (Block, BlockchainParameters)) -> ExceptT ErrNetworkUnavailable m StakeApiResponse -> JormungandrClient m
+JormungandrClient :: (AccountId -> ExceptT ErrGetAccountState m AccountState) -> ExceptT ErrNetworkUnavailable m (Hash "BlockHeader") -> (Hash "BlockHeader" -> ExceptT ErrGetBlock m Block) -> (Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]) -> ((Tx, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (Hash "Genesis" -> ExceptT ErrGetBlockchainParams m (Block, BlockchainParameters)) -> ExceptT ErrNetworkUnavailable m StakeApiResponse -> JormungandrClient m
+[$sel:getAccountState:JormungandrClient] :: JormungandrClient m -> AccountId -> ExceptT ErrGetAccountState m AccountState
 [$sel:getTipId:JormungandrClient] :: JormungandrClient m -> ExceptT ErrNetworkUnavailable m (Hash "BlockHeader")
 [$sel:getBlock:JormungandrClient] :: JormungandrClient m -> Hash "BlockHeader" -> ExceptT ErrGetBlock m Block
 [$sel:getDescendantIds:JormungandrClient] :: JormungandrClient m -> Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]
@@ -366,6 +409,9 @@ getBlocks :: Monad m => JormungandrClient m -> Word -> Hash "BlockHeader" -> Exc
 -- | Safely lift error into a bigger type.
 class LiftError lift
 liftE :: LiftError lift => lift
+data ErrGetAccountState
+ErrGetAccountStateNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetAccountState
+ErrGetAccountStateAccountNotFound :: AccountId -> ErrGetAccountState
 
 -- | Error while trying to get one or more blocks
 data ErrGetBlock
@@ -415,6 +461,8 @@ instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Client.ErrGetBlockchainPa
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Client.ErrGetBlockchainParams
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Client.ErrGetDescendants
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Client.ErrGetDescendants
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Client.ErrGetAccountState
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Client.ErrGetAccountState
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Client.ErrUnexpectedNetworkFailure
 instance Cardano.Wallet.Jormungandr.Api.Client.LiftError (Cardano.Wallet.Network.ErrGetBlock -> Cardano.Wallet.Network.ErrNetworkTip)
 instance Cardano.Wallet.Jormungandr.Api.Client.LiftError (Cardano.Wallet.Network.ErrNetworkUnavailable -> Cardano.Wallet.Network.ErrGetBlock)

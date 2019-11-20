@@ -4742,6 +4742,9 @@ unsafeDecodeAddress :: forall n. (HasCallStack, DecodeAddress n) => Text -> Addr
 -- | Run a decoder on a hex-encoded <a>ByteString</a>, or fail.
 unsafeDecodeHex :: HasCallStack => Get a -> ByteString -> a
 
+-- | Decode the given <a>PoolId</a> from <a>Text</a>, or fail.
+unsafePoolId :: Text -> PoolId
+
 -- | Run an <a>ExceptT</a> and throws the error if any. This makes sense
 --   only if called after checking for an invariant or, after ensuring that
 --   preconditions for meeting the underlying error have been discarded.
