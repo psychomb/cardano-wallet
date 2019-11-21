@@ -101,10 +101,10 @@ data Fragment
 Initial :: [ConfigParam] -> Fragment
 
 -- | A standard signed transaction
-Transaction :: (Tx, [TxWitness]) -> Fragment
+Transaction :: Tx -> Fragment
 
 -- | A signed transaction with stake pool delegation
-StakeDelegation :: (PoolId, ChimericAccount, Tx, [TxWitness]) -> Fragment
+StakeDelegation :: (PoolId, ChimericAccount, Tx) -> Fragment
 UnimplementedFragment :: Word8 -> Fragment
 data FragmentSpec
 FragmentInitial :: FragmentSpec
@@ -127,10 +127,19 @@ getBlockId :: Get (Hash "BlockHeader")
 getFragment :: Get Fragment
 
 -- | Decode the contents of a <tt>Transaction</tt>-fragment.
-getTransaction :: Hash "Tx" -> Get (Tx, [TxWitness])
+getTransaction :: Hash "Tx" -> Get Tx
 putSignedTx :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
 putTx :: [(TxIn, Coin)] -> [TxOut] -> Put
 putStakeDelegationTx :: PoolId -> ChimericAccount -> Hash "AccountSignature" -> [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
+
+-- | Glues together a tx, witnesses into a full <tt>SealedTx</tt>.
+--   
+--   NOTE: For constructing a tx from scratch this is a rather inconvenient
+--   function. It relies on you already having the txId and the witnesses.
+--   
+--   TODO: We should create a more convenient alternative taking only
+--   inputs, outputs and key-lookup function.
+signedTransactionFragment :: Tx -> [TxWitness] -> SealedTx
 
 -- | See <a>fragmentId</a>. This computes the signing data required for
 --   producing transaction witnesses.
@@ -300,7 +309,7 @@ instance Servant.API.ContentTypes.Accept Cardano.Wallet.Jormungandr.Api.Types.He
 instance Servant.API.ContentTypes.MimeUnrender Cardano.Wallet.Jormungandr.Api.Types.JormungandrBinary [Cardano.Wallet.Jormungandr.Api.Types.BlockId]
 instance Servant.API.ContentTypes.Accept Cardano.Wallet.Jormungandr.Api.Types.JormungandrBinary
 instance Servant.API.ContentTypes.MimeUnrender Cardano.Wallet.Jormungandr.Api.Types.JormungandrBinary Cardano.Wallet.Jormungandr.Binary.Block
-instance Servant.API.ContentTypes.MimeRender Cardano.Wallet.Jormungandr.Api.Types.JormungandrBinary (Cardano.Wallet.Primitive.Types.Tx, [Cardano.Wallet.Primitive.Types.TxWitness])
+instance Servant.API.ContentTypes.MimeRender Cardano.Wallet.Jormungandr.Api.Types.JormungandrBinary Cardano.Wallet.Primitive.Types.SealedTx
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.Types.StakeApiResponse
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Jormungandr.Api.Types.ApiStakeDistribution
 instance Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Jormungandr.Api.Types.ApiT (Data.Quantity.Quantity "lovelace" GHC.Word.Word64))
@@ -345,7 +354,7 @@ type GetBlockDescendantIds = "api" :> "v0" :> "block" :> Capture "blockId" Block
 
 -- | Retrieve stake distribution
 type GetStakeDistribution = "api" :> "v0" :> "stake" :> Get '[JSON] StakeApiResponse
-type PostMessage = "api" :> "v0" :> "message" :> ReqBody '[JormungandrBinary] (Tx, [TxWitness]) :> Post '[NoContent] NoContent
+type PostMessage = "api" :> "v0" :> "message" :> ReqBody '[JormungandrBinary] SealedTx :> Post '[NoContent] NoContent
 api :: Proxy Api
 
 
@@ -388,12 +397,12 @@ module Cardano.Wallet.Jormungandr.Api.Client
 
 -- | Endpoints of the jormungandr REST API.
 data JormungandrClient m
-JormungandrClient :: (Hash "Account" -> ExceptT ErrGetAccountState m AccountState) -> ExceptT ErrNetworkUnavailable m (Hash "BlockHeader") -> (Hash "BlockHeader" -> ExceptT ErrGetBlock m Block) -> (Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]) -> ((Tx, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (Hash "Genesis" -> ExceptT ErrGetBlockchainParams m (Block, BlockchainParameters)) -> ExceptT ErrNetworkUnavailable m StakeApiResponse -> JormungandrClient m
+JormungandrClient :: (Hash "Account" -> ExceptT ErrGetAccountState m AccountState) -> ExceptT ErrNetworkUnavailable m (Hash "BlockHeader") -> (Hash "BlockHeader" -> ExceptT ErrGetBlock m Block) -> (Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]) -> (SealedTx -> ExceptT ErrPostTx m ()) -> (Hash "Genesis" -> ExceptT ErrGetBlockchainParams m (Block, BlockchainParameters)) -> ExceptT ErrNetworkUnavailable m StakeApiResponse -> JormungandrClient m
 [$sel:getAccountState:JormungandrClient] :: JormungandrClient m -> Hash "Account" -> ExceptT ErrGetAccountState m AccountState
 [$sel:getTipId:JormungandrClient] :: JormungandrClient m -> ExceptT ErrNetworkUnavailable m (Hash "BlockHeader")
 [$sel:getBlock:JormungandrClient] :: JormungandrClient m -> Hash "BlockHeader" -> ExceptT ErrGetBlock m Block
 [$sel:getDescendantIds:JormungandrClient] :: JormungandrClient m -> Hash "BlockHeader" -> Word -> ExceptT ErrGetDescendants m [Hash "BlockHeader"]
-[$sel:postMessage:JormungandrClient] :: JormungandrClient m -> (Tx, [TxWitness]) -> ExceptT ErrPostTx m ()
+[$sel:postMessage:JormungandrClient] :: JormungandrClient m -> SealedTx -> ExceptT ErrPostTx m ()
 [$sel:getInitialBlockchainParameters:JormungandrClient] :: JormungandrClient m -> Hash "Genesis" -> ExceptT ErrGetBlockchainParams m (Block, BlockchainParameters)
 [$sel:getStakeDistribution:JormungandrClient] :: JormungandrClient m -> ExceptT ErrNetworkUnavailable m StakeApiResponse
 

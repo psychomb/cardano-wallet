@@ -408,6 +408,12 @@ newtype TxWitness
 TxWitness :: ByteString -> TxWitness
 [$sel:unWitness:TxWitness] :: TxWitness -> ByteString
 
+-- | <tt>SealedTx</tt> is a serialised transaction that is ready to be
+--   submited to the node.
+newtype SealedTx
+SealedTx :: ByteString -> SealedTx
+[$sel:getSealedTx:SealedTx] :: SealedTx -> ByteString
+
 -- | Full expanded and resolved information about a transaction, suitable
 --   for presentation to the user.
 data TransactionInfo
@@ -893,6 +899,7 @@ instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.TxIn
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.TxIn
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.TxIn
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.TxIn
+instance Data.ByteArray.Types.ByteArrayAccess (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Classes.Ord (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.Types.Hash tag)
@@ -983,6 +990,10 @@ instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.TxWitness
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.TxWitness
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.TxWitness
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.TxWitness
+instance Data.ByteArray.Types.ByteArrayAccess Cardano.Wallet.Primitive.Types.SealedTx
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.SealedTx
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.SealedTx
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SealedTx
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.Direction
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.Direction
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.Direction
@@ -1601,7 +1612,7 @@ instance Data.Text.Class.FromText Cardano.Wallet.Primitive.AddressDerivation.Acc
 --   flexible to various backends.
 module Cardano.Wallet.Transaction
 data TransactionLayer t k
-TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkStdTx (Tx, [TxWitness])) -> (CoinSelection -> Quantity "byte" Int) -> (Quantity "byte" Word16 -> Word8 -> Word8) -> (CoinSelection -> Either (ErrValidateSelection t) ()) -> (ByteString -> Either ErrDecodeSignedTx (Tx, [TxWitness])) -> TransactionLayer t k
+TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkStdTx (Tx, SealedTx)) -> (CoinSelection -> Quantity "byte" Int) -> (Quantity "byte" Word16 -> Word8 -> Word8) -> (CoinSelection -> Either (ErrValidateSelection t) ()) -> (ByteString -> Either ErrDecodeSignedTx (Tx, SealedTx)) -> TransactionLayer t k
 
 -- | Construct a standard transaction
 --   
@@ -1610,7 +1621,7 @@ TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryptio
 --   
 --   This expects as a first argument a mean to compute or lookup private
 --   key corresponding to a particular address.
-[mkStdTx] :: TransactionLayer t k -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkStdTx (Tx, [TxWitness])
+[mkStdTx] :: TransactionLayer t k -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkStdTx (Tx, SealedTx)
 
 -- | Estimate the size of a <a>CoinSelection</a>, in bytes. This operation
 --   is seemingly coupled to the binary representation of a
@@ -1646,7 +1657,7 @@ TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryptio
 [validateSelection] :: TransactionLayer t k -> CoinSelection -> Either (ErrValidateSelection t) ()
 
 -- | Decode an externally-signed transaction to the chain producer
-[decodeSignedTx] :: TransactionLayer t k -> ByteString -> Either ErrDecodeSignedTx (Tx, [TxWitness])
+[decodeSignedTx] :: TransactionLayer t k -> ByteString -> Either ErrDecodeSignedTx (Tx, SealedTx)
 
 -- | Possible signing error
 newtype ErrMkStdTx
@@ -2500,7 +2511,7 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Network.BlockHeaders.BlockHeaders
 
 module Cardano.Wallet.Network
 data NetworkLayer m target block
-NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (Cursor target -> m (Maybe BlockHeader)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> ((Tx, [TxWitness]) -> ExceptT ErrPostTx m ()) -> (Block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> NetworkLayer m target block
+NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (Cursor target -> m (Maybe BlockHeader)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> (SealedTx -> ExceptT ErrPostTx m ()) -> (Block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> NetworkLayer m target block
 
 -- | Starting from the given <a>Cursor</a>, fetches a contiguous sequence
 --   of blocks from the node, if they are available. An updated cursor will
@@ -2531,7 +2542,7 @@ NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target
 [networkTip] :: NetworkLayer m target block -> ExceptT ErrNetworkTip m BlockHeader
 
 -- | Broadcast a transaction to the chain producer
-[postTx] :: NetworkLayer m target block -> (Tx, [TxWitness]) -> ExceptT ErrPostTx m ()
+[postTx] :: NetworkLayer m target block -> SealedTx -> ExceptT ErrPostTx m ()
 
 -- | Get the genesis block and blockchain parameters.
 --   
@@ -3573,13 +3584,13 @@ listTransactions :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> May
 --   Requires the encryption passphrase in order to decrypt the root
 --   private key. Note that this doesn't broadcast the transaction to the
 --   network. In order to do so, use <a>submitTx</a>.
-signTx :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignTx IO (Tx, TxMeta, UTCTime, [TxWitness])
+signTx :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignTx IO (Tx, TxMeta, UTCTime, SealedTx)
 
 -- | Broadcast an externally-signed transaction to the network.
 submitExternalTx :: forall ctx t k. (HasNetworkLayer t ctx, HasTransactionLayer t k ctx) => ctx -> ByteString -> ExceptT ErrSubmitExternalTx IO Tx
 
 -- | Broadcast a (signed) transaction to the network.
-submitTx :: forall ctx s t k. (HasNetworkLayer t ctx, HasDBLayer s k ctx) => ctx -> WalletId -> (Tx, TxMeta, [TxWitness]) -> ExceptT ErrSubmitTx IO ()
+submitTx :: forall ctx s t k. (HasNetworkLayer t ctx, HasDBLayer s k ctx) => ctx -> WalletId -> (Tx, TxMeta, SealedTx) -> ExceptT ErrSubmitTx IO ()
 
 -- | Constructs a set of coin selections that select all funds from the
 --   given source wallet, returning them as change.
