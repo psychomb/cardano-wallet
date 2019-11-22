@@ -2296,6 +2296,17 @@ LinearFee :: Quantity "lovelace" Double -> Quantity "lovelace/byte" Double -> Qu
 --   where <tt>a</tt> &amp; <tt>b</tt> are values fixed by the protocol.
 computeFee :: FeePolicy -> Quantity "byte" Int -> Fee
 
+-- | Compute fee for a delegation certificate. One need to take into
+--   consideration that "regular tx" fee calculation still holds. There is
+--   additional flat fee inscribed on top of that:
+--   
+--   <pre>
+--   f = a + size * b + c
+--   </pre>
+--   
+--   where <tt>a</tt> &amp; <tt>b</tt> are values fixed by the protocol.
+computeCertFee :: Word64 -> FeePolicy -> Quantity "byte" Int -> Fee
+
 -- | Proportionally divide the fee over each output.
 --   
 --   Pre-condition 1: The given outputs list shouldn't be empty
@@ -3744,6 +3755,37 @@ ErrStartTimeLaterThanEndTime :: UTCTime -> UTCTime -> ErrStartTimeLaterThanEndTi
 
 -- | Execute an action which requires holding a root XPrv.
 withRootKey :: forall ctx s k e a. HasDBLayer s k ctx => ctx -> WalletId -> Passphrase "encryption" -> (ErrWithRootKey -> e) -> (k  'RootK XPrv -> ExceptT e IO a) -> ExceptT e IO a
+createCert :: forall ctx s t k. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrCreateCert IO CoinSelection
+signCert :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> PoolId -> ExceptT ErrSignCert IO (Tx, TxMeta, UTCTime, SealedTx)
+
+-- | Broadcast a (signed) transaction with certificate delegation to the
+--   network.
+submitCert :: forall ctx s t k. (HasNetworkLayer t ctx, HasDBLayer s k ctx) => ctx -> WalletId -> (Tx, TxMeta, SealedTx) -> ExceptT ErrSubmitCert IO ()
+
+-- | Errors that can occur when creating unsigned delegation certificate
+--   transaction.
+data ErrCreateCert
+ErrCreateCertNoSuchPool :: PoolId -> ErrCreateCert
+ErrCreateCertPoolAlreadyJoined :: PoolId -> ErrCreateCert
+ErrCreateCertNoSuchWallet :: ErrNoSuchWallet -> ErrCreateCert
+ErrCreateCertFee :: ErrAdjustForFee -> ErrCreateCert
+
+-- | Errors that can occur when signing a delegation certificate.
+data ErrSignCert
+ErrSignCertNoSuchWallet :: ErrNoSuchWallet -> ErrSignCert
+ErrSignCertWithRootKey :: ErrWithRootKey -> ErrSignCert
+
+-- | Errors that can occur when submitting a signed transaction with a
+--   delegation certificate to the network.
+data ErrSubmitCert
+ErrSubmitCertNetwork :: ErrPostTx -> ErrSubmitCert
+ErrSubmitCertNoSuchWallet :: ErrNoSuchWallet -> ErrSubmitCert
+instance GHC.Classes.Eq Cardano.Wallet.ErrSubmitCert
+instance GHC.Show.Show Cardano.Wallet.ErrSubmitCert
+instance GHC.Classes.Eq Cardano.Wallet.ErrSignCert
+instance GHC.Show.Show Cardano.Wallet.ErrSignCert
+instance GHC.Classes.Eq Cardano.Wallet.ErrCreateCert
+instance GHC.Show.Show Cardano.Wallet.ErrCreateCert
 instance GHC.Classes.Eq Cardano.Wallet.ErrListTransactions
 instance GHC.Show.Show Cardano.Wallet.ErrListTransactions
 instance GHC.Classes.Eq Cardano.Wallet.ErrStartTimeLaterThanEndTime
@@ -4496,6 +4538,8 @@ UnsupportedMediaType :: ApiErrorCode
 UnexpectedError :: ApiErrorCode
 NotSynced :: ApiErrorCode
 NothingToMigrate :: ApiErrorCode
+NoSuchPool :: ApiErrorCode
+PoolAlreadyJoined :: ApiErrorCode
 data ApiNetworkInformation
 ApiNetworkInformation :: !ApiT SyncProgress -> !ApiBlockReference -> !ApiNetworkTip -> ApiNetworkInformation
 [$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
@@ -4930,6 +4974,9 @@ instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrStartTimeLaterT
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrNetworkTip
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Pool.Metrics.ErrListStakePools
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Pool.Metrics.ErrMetricsInconsistency
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrCreateCert
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSignCert
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSubmitCert
 instance Cardano.Wallet.Api.Server.LiftHandler (Network.Wai.Internal.Request, Servant.Server.Internal.ServantErr.ServantErr)
 
 
