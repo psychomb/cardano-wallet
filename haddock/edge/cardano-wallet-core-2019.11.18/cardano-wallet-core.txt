@@ -597,8 +597,12 @@ newtype SlotNo
 SlotNo :: Word32 -> SlotNo
 [$sel:unSlotNo:SlotNo] :: SlotNo -> Word32
 newtype EpochNo
-EpochNo :: Word64 -> EpochNo
-[$sel:unEpochNo:EpochNo] :: EpochNo -> Word64
+EpochNo :: Word31 -> EpochNo
+[$sel:unEpochNo:EpochNo] :: EpochNo -> Word31
+
+-- | Convert the specified value into an <a>EpochNo</a>, or fail if the
+--   value is too large.
+unsafeEpochNo :: HasCallStack => Word32 -> EpochNo
 
 -- | The essential parameters necessary for performing slot arithmetic.
 data SlotParameters
@@ -614,6 +618,7 @@ SlotLength :: NominalDiffTime -> SlotLength
 -- | Number of slots in a single epoch
 newtype EpochLength
 EpochLength :: Word32 -> EpochLength
+[$sel:unEpochLength:EpochLength] :: EpochLength -> Word32
 
 -- | Blockchain start time
 newtype StartTime
@@ -658,6 +663,9 @@ syncProgressRelativeToTime :: SyncTolerance -> SlotParameters -> BlockHeader -> 
 flatSlot :: EpochLength -> SlotId -> Word64
 
 -- | Convert a <a>flatSlot</a> index to <a>SlotId</a>.
+--   
+--   This function will fail if applied to a value that is higher than the
+--   maximum value of <a>flatSlot</a> for the specified <a>EpochLength</a>.
 fromFlatSlot :: EpochLength -> Word64 -> SlotId
 
 -- | The time that a slot begins.
@@ -938,8 +946,7 @@ instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.SlotId
 instance GHC.Read.Read Cardano.Wallet.Primitive.Types.SlotId
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SlotId
 instance GHC.Enum.Enum Cardano.Wallet.Primitive.Types.EpochNo
-instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.EpochNo
-instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.EpochNo
+instance GHC.Enum.Bounded Cardano.Wallet.Primitive.Types.EpochNo
 instance GHC.Num.Num Cardano.Wallet.Primitive.Types.EpochNo
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.EpochNo
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.EpochNo
@@ -1079,6 +1086,8 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.TxMeta
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.TxMeta
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.SlotId
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.SlotId
+instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.EpochNo
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.EpochNo
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.UTxOStatistics
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.HistogramBar
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.TxOut
@@ -2688,7 +2697,7 @@ BlockId :: Hash "BlockHeader" -> BlockId
 -- | As a short-to-medium term solution of persisting <a>SlotId</a>, we use
 --   <a>flatSlot</a> with an artificial epochLength. I.e. /not the same
 --   epochLength as the blockchain/. This is just for the sake of storing
---   the 64 bit epoch and the 32-bit slot inside a single 64-bit field.
+--   the epoch number and slot number inside a single 64-bit field.
 artificialEpochLength :: EpochLength
 persistSlotId :: SlotId -> PersistValue
 unPersistSlotId :: PersistValue -> Either Text SlotId
