@@ -124,6 +124,8 @@ getBlockHeader :: Get BlockHeader
 getBlockId :: Get (Hash "BlockHeader")
 
 -- | Decode a fragment (header + contents).
+--   
+--   Corresponds to FRAGMENT in the specification.
 getFragment :: Get Fragment
 
 -- | Decode the contents of a <tt>Transaction</tt>-fragment.

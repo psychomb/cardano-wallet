@@ -341,9 +341,10 @@ instance Data.Text.Class.ToText b => Data.Text.Class.ToText (Data.Quantity.Quant
 --   few primitive operations on Wallet core types as well.
 module Cardano.Wallet.Primitive.Types
 data Block
-Block :: !BlockHeader -> ![Tx] -> Block
+Block :: !BlockHeader -> ![Tx] -> ![(ChimericAccount, PoolId)] -> Block
 [$sel:header:Block] :: Block -> !BlockHeader
 [$sel:transactions:Block] :: Block -> ![Tx]
+[$sel:delegations:Block] :: Block -> ![(ChimericAccount, PoolId)]
 data BlockHeader
 BlockHeader :: SlotId -> Quantity "block" Word32 -> !Hash "BlockHeader" -> !Hash "BlockHeader" -> BlockHeader
 [$sel:slotId:BlockHeader] :: BlockHeader -> SlotId
@@ -912,6 +913,7 @@ instance GHC.Classes.Ord (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Show.Show (Cardano.Wallet.Primitive.Types.Hash tag)
+instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.ChimericAccount
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.ChimericAccount
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.ChimericAccount
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.ChimericAccount
