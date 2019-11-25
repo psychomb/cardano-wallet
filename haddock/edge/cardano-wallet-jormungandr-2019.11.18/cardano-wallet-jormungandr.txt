@@ -130,28 +130,16 @@ getFragment :: Get Fragment
 
 -- | Decode the contents of a <tt>Transaction</tt>-fragment.
 getTransaction :: Hash "Tx" -> Get Tx
-putSignedTx :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
-putTx :: [(TxIn, Coin)] -> [TxOut] -> Put
-putStakeDelegationTx :: PoolId -> ChimericAccount -> Hash "AccountSignature" -> [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Put
-
--- | Glues together a tx, witnesses into a full <tt>SealedTx</tt>.
---   
---   NOTE: For constructing a tx from scratch this is a rather inconvenient
---   function. It relies on you already having the txId and the witnesses.
---   
---   TODO: We should create a more convenient alternative taking only
---   inputs, outputs and key-lookup function.
-signedTransactionFragment :: Tx -> [TxWitness] -> SealedTx
-
--- | See <a>fragmentId</a>. This computes the signing data required for
---   producing transaction witnesses.
-signData :: [(TxIn, Coin)] -> [TxOut] -> Hash "SignData"
-
--- | Construct a UTxO witness from a signature
-utxoWitness :: ByteString -> TxWitness
-
--- | Construct a legacy UTxO witness from a public key and a signature
-legacyUtxoWitness :: XPub -> ByteString -> TxWitness
+data MkFragment
+MkFragmentSimpleTransaction :: TxWitnessTag -> MkFragment
+MkFragmentStakeDelegation :: TxWitnessTag -> StakeDelegationType -> ChimericAccount -> (XPrv, Passphrase "encryption") -> MkFragment
+data StakeDelegationType
+DlgNone :: StakeDelegationType
+DlgFull :: PoolId -> StakeDelegationType
+DlgRatio :: StakeDelegationType
+putFragment :: Hash "Genesis" -> [((TxIn, Coin), (XPrv, Passphrase "encryption"))] -> [TxOut] -> MkFragment -> PutM (Proxy "Fragment")
+finalizeFragment :: PutM (Proxy "Fragment") -> SealedTx
+fragmentId :: PutM (Proxy "Fragment") -> Hash "Tx"
 data TxWitnessTag
 TxWitnessLegacyUTxO :: TxWitnessTag
 TxWitnessUTxO :: TxWitnessTag
@@ -174,29 +162,8 @@ whileM :: Monad m => m Bool -> m a -> m [a]
 
 -- | Compute a Blake2b_256 hash of a given <a>ByteString</a>
 blake2b256 :: ByteString -> ByteString
-
--- | This provides network encoding specific variables to be used by the
---   <tt>estimateMaxNumberOfInputs</tt> function.
-estimateMaxNumberOfInputsParams :: EstimateMaxNumberOfInputsParams t
-
--- | Jörmungandr distinguish 'fragment id' (what we commonly call
---   <a>$sel:txId:Tx</a>) from 'transaction sign data'. A transaction
---   fragment corresponds to a signed transaction (inputs, outputs and
---   witnesses). So, the witnesses are required to compute a <tt>txid</tt>.
-fragmentId :: [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Hash "Tx"
-delegationFragmentId :: PoolId -> ChimericAccount -> Hash "AccountSignature" -> [(TxIn, Coin)] -> [TxOut] -> [TxWitness] -> Hash "Tx"
 maxNumberOfInputs :: Int
 maxNumberOfOutputs :: Int
-
--- | Add a corresponding header to a fragment. Every fragment is encoded
---   as:
---   
---   FRAGMENT = FRAGMENT-SIZE %x00 FRAGMENT-SPEC FRAGMENT-SIZE =
---   SIZE-BYTES-16BIT FRAGMENT-SPEC = %x00 INITIAL / %x01 OLD-UTXO-DECL /
---   %x02 SIMPLE-TRANSACTION / %x03 OWNER-STAKE-DELEGATION / %x04
---   STAKE-DELEGATION / %x05 POOL-REGISTRATION / %x06 POOL-RETIREMENT /
---   %x07 POOL-UPDATE / %x08 UPDATE-PROPOSAL / %x09 UPDATE-VOTE
-withHeader :: FragmentSpec -> Put -> Put
 data Get a
 
 -- | The simplest interface to run a <a>Get</a> decoder. If the decoder
@@ -235,6 +202,8 @@ instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.LeaderId
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.Milli
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.Milli
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.Milli
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.StakeDelegationType
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.StakeDelegationType
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.TxWitnessTag
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.TxWitnessTag
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.BlockHeader
@@ -597,11 +566,7 @@ module Cardano.Wallet.Jormungandr.Transaction
 
 -- | Construct a <a>TransactionLayer</a> compatible with Shelley and
 --   <tt>Jörmungandr</tt>
-newTransactionLayer :: forall n k t. (t ~ Jormungandr, PaymentAddress n k, MkTxWitness k, WalletKey k) => Hash "Genesis" -> TransactionLayer t k
-
--- | Sign some arbitrary binary data using a private key.
-sign :: WalletKey k => ByteString -> (k  'AddressK XPrv, Passphrase "encryption") -> ByteString
-mkTxWitness :: MkTxWitness k => k  'AddressK XPrv -> ByteString -> TxWitness
+newTransactionLayer :: forall k t. (t ~ Jormungandr, TxWitnessTagFor k, WalletKey k) => Hash "Genesis" -> TransactionLayer t k
 
 -- | Transaction with improper number of inputs and outputs is tried
 data ErrExceededInpsOrOuts
@@ -609,8 +574,8 @@ ErrExceededInpsOrOuts :: ErrExceededInpsOrOuts
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Transaction.ErrExceededInpsOrOuts
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Transaction.ErrExceededInpsOrOuts
 instance Formatting.Buildable.Buildable Cardano.Wallet.Jormungandr.Transaction.ErrExceededInpsOrOuts
-instance Cardano.Wallet.Jormungandr.Transaction.MkTxWitness Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey
-instance Cardano.Wallet.Jormungandr.Transaction.MkTxWitness Cardano.Wallet.Primitive.AddressDerivation.Byron.ByronKey
+instance Cardano.Wallet.Jormungandr.Transaction.TxWitnessTagFor Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey
+instance Cardano.Wallet.Jormungandr.Transaction.TxWitnessTagFor Cardano.Wallet.Primitive.AddressDerivation.Byron.ByronKey
 
 
 -- | This module provides the main wallet server function for the

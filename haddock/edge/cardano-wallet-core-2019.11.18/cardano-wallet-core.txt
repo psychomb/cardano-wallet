@@ -4829,7 +4829,7 @@ unsafeFromText :: (FromText a, HasCallStack) => Text -> a
 --   preconditions for meeting the underlying error have been discarded.
 unsafeRunExceptT :: (MonadFail m, Show e) => ExceptT e m a -> m a
 
--- | Build a <a>XPrv</a> from an hex-encoded bytestring
+-- | Build a <a>XPrv</a> from a bytestring
 unsafeXPrv :: HasCallStack => ByteString -> XPrv
 
 -- | Build <a>Mnemonic</a> from literals
