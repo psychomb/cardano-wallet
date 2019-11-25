@@ -437,11 +437,15 @@ defaultManagerSettings :: ManagerSettings
 newManager :: ManagerSettings -> IO Manager
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Client.ErrGetBlockchainParams
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Client.ErrGetBlockchainParams
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Api.Client.ErrGetBlockchainParams
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Client.ErrGetDescendants
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Client.ErrGetDescendants
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Api.Client.ErrGetDescendants
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Client.ErrGetAccountState
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Client.ErrGetAccountState
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Api.Client.ErrGetAccountState
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Client.ErrUnexpectedNetworkFailure
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Api.Client.ErrUnexpectedNetworkFailure
 instance Cardano.Wallet.Jormungandr.Api.Client.LiftError (Cardano.Wallet.Network.ErrGetBlock -> Cardano.Wallet.Network.ErrNetworkTip)
 instance Cardano.Wallet.Jormungandr.Api.Client.LiftError (Cardano.Wallet.Network.ErrNetworkUnavailable -> Cardano.Wallet.Network.ErrGetBlock)
 instance Cardano.Wallet.Jormungandr.Api.Client.LiftError (Cardano.Wallet.Jormungandr.Api.Client.ErrGetDescendants -> Cardano.Wallet.Network.ErrGetBlock)

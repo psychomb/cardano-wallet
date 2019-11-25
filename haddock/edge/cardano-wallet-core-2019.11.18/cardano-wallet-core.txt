@@ -2662,6 +2662,7 @@ instance GHC.Show.Show Cardano.Wallet.Network.ErrPostTx
 instance GHC.Generics.Generic Cardano.Wallet.Network.ErrPostTx
 instance GHC.Classes.Eq Cardano.Wallet.Network.ErrGetBlock
 instance GHC.Show.Show Cardano.Wallet.Network.ErrGetBlock
+instance GHC.Generics.Generic Cardano.Wallet.Network.ErrGetBlock
 instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkTip
 instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkTip
 instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkTip
