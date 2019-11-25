@@ -3989,6 +3989,24 @@ StakePool :: PoolId -> Quantity "lovelace" Word64 -> Quantity "block" Word64 -> 
 [$sel:production:StakePool] :: StakePool -> Quantity "block" Word64
 [$sel:apparentPerformance:StakePool] :: StakePool -> Double
 
+-- | Very short name for a stake pool.
+data StakePoolTicker
+
+-- | Information about a stake pool. This information is not used directly
+--   by cardano-wallet. It is sourced from the stake pool registry and
+--   passed straight through to API consumers.
+data StakePoolMetadata
+StakePoolMetadata :: StakePoolTicker -> Text -> Text -> StakePoolMetadata
+
+-- | Short human-readable ID for the stake pool.
+[$sel:ticker:StakePoolMetadata] :: StakePoolMetadata -> StakePoolTicker
+
+-- | Absolute URL for the stake pool's homepage link.
+[$sel:homepage:StakePoolMetadata] :: StakePoolMetadata -> Text
+
+-- | Bech32-encoded address.
+[$sel:pledgeAddress:StakePoolMetadata] :: StakePoolMetadata -> Text
+
 -- | <tt>StakePoolLayer</tt> is a thin layer ontop of the DB. It is
 --   <i>one</i> value that can easily be passed to the API-server, where it
 --   can be used in a simple way.
@@ -4065,10 +4083,22 @@ instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance GHC.Show.Show Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMonitorStakePools
 instance GHC.Show.Show Cardano.Pool.Metrics.ErrMonitorStakePools
+instance GHC.Generics.Generic Cardano.Pool.Metrics.StakePoolMetadata
+instance GHC.Show.Show Cardano.Pool.Metrics.StakePoolMetadata
+instance GHC.Classes.Eq Cardano.Pool.Metrics.StakePoolMetadata
+instance Data.Text.Class.ToText Cardano.Pool.Metrics.StakePoolTicker
+instance GHC.Classes.Eq Cardano.Pool.Metrics.StakePoolTicker
+instance GHC.Show.Show Cardano.Pool.Metrics.StakePoolTicker
+instance GHC.Generics.Generic Cardano.Pool.Metrics.StakePoolTicker
 instance GHC.Generics.Generic Cardano.Pool.Metrics.StakePool
 instance GHC.Generics.Generic Cardano.Pool.Metrics.Block
 instance GHC.Show.Show Cardano.Pool.Metrics.Block
 instance GHC.Classes.Eq Cardano.Pool.Metrics.Block
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Pool.Metrics.StakePoolMetadata
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Pool.Metrics.StakePoolMetadata
+instance Data.Text.Class.FromText Cardano.Pool.Metrics.StakePoolTicker
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Pool.Metrics.StakePoolTicker
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Pool.Metrics.StakePoolTicker
 
 
 -- | An implementation of the DBLayer which uses Persistent and SQLite.
@@ -4425,10 +4455,11 @@ ApiAddress :: !(ApiT Address, Proxy n) -> !ApiT AddressState -> ApiAddress
 [$sel:id:ApiAddress] :: ApiAddress -> !(ApiT Address, Proxy n)
 [$sel:state:ApiAddress] :: ApiAddress -> !ApiT AddressState
 data ApiStakePool
-ApiStakePool :: !ApiT PoolId -> !ApiStakePoolMetrics -> !Double -> ApiStakePool
+ApiStakePool :: !ApiT PoolId -> !ApiStakePoolMetrics -> !Double -> !Maybe StakePoolMetadata -> ApiStakePool
 [$sel:id:ApiStakePool] :: ApiStakePool -> !ApiT PoolId
 [$sel:metrics:ApiStakePool] :: ApiStakePool -> !ApiStakePoolMetrics
 [$sel:apparentPerformance:ApiStakePool] :: ApiStakePool -> !Double
+[$sel:metadata:ApiStakePool] :: ApiStakePool -> !Maybe StakePoolMetadata
 data ApiStakePoolMetrics
 ApiStakePoolMetrics :: !Quantity "lovelace" Natural -> !Quantity "block" Natural -> ApiStakePoolMetrics
 [$sel:controlledStake:ApiStakePoolMetrics] :: ApiStakePoolMetrics -> !Quantity "lovelace" Natural
