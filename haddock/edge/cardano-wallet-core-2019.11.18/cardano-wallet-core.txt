@@ -1949,8 +1949,8 @@ instance GHC.Enum.Bounded Cardano.Wallet.Primitive.AddressDiscovery.Sequential.A
 instance GHC.Enum.Enum Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPoolGap
 
 
--- | Implementation of address derivation for the sequential schemes, as
---   implemented by Yoroi/Icarus and cardano-cli.
+-- | Implementation of address derivation for <tt>Shelley</tt> Keys.
+--   Shelley really means Jörmungandr here.
 module Cardano.Wallet.Primitive.AddressDerivation.Shelley
 
 -- | A cryptographic key for sequential-scheme address derivation, with
@@ -1976,8 +1976,10 @@ addrGroupedSize :: Int
 
 -- | Embed some constants into a network type.
 class KnownNetwork (n :: NetworkDiscriminant)
-single :: KnownNetwork n => Word8
-grouped :: KnownNetwork n => Word8
+addrSingle :: KnownNetwork n => Word8
+addrGrouped :: KnownNetwork n => Word8
+addrAccount :: KnownNetwork n => Word8
+knownDiscriminants :: KnownNetwork n => [Word8]
 
 -- | Generate a root key from a corresponding seed. The seed should be at
 --   least 16 bytes.
