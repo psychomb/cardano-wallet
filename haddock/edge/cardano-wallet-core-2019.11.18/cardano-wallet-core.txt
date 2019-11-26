@@ -521,6 +521,11 @@ Unused :: AddressState
 --   address
 newtype ChimericAccount
 ChimericAccount :: ByteString -> ChimericAccount
+[$sel:unChimericAccount:ChimericAccount] :: ChimericAccount -> ByteString
+
+-- | Construct a <a>ChimericAccount</a> by extracting the public key from
+--   the extended public key.
+chimericAccountFromXPub :: XPub -> ChimericAccount
 
 -- | Coins are stored as Lovelace (reminder: 1 Lovelace = 1e-6 ADA)
 newtype Coin
@@ -750,9 +755,7 @@ WalletBalance :: !Quantity "lovelace" Natural -> !Quantity "lovelace" Natural ->
 [$sel:available:WalletBalance] :: WalletBalance -> !Quantity "lovelace" Natural
 [$sel:total:WalletBalance] :: WalletBalance -> !Quantity "lovelace" Natural
 
--- | Represent stake pool identifier. VRF PubKey: 32 bytes (ristretto25519)
---   which translates to 64 hex character string see
---   <a>https://github.com/input-output-hk/chain-libs/blob/master/chain-impl-mockchain/doc/format.md</a>
+-- | Represents a stake pool.
 newtype PoolId
 PoolId :: ByteString -> PoolId
 [$sel:getPoolId:PoolId] :: PoolId -> ByteString
@@ -1623,7 +1626,7 @@ instance Data.Text.Class.FromText Cardano.Wallet.Primitive.AddressDerivation.Acc
 --   flexible to various backends.
 module Cardano.Wallet.Transaction
 data TransactionLayer t k
-TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkStdTx (Tx, SealedTx)) -> (CoinSelection -> Quantity "byte" Int) -> (Quantity "byte" Word16 -> Word8 -> Word8) -> (CoinSelection -> Either (ErrValidateSelection t) ()) -> (ByteString -> Either ErrDecodeSignedTx (Tx, SealedTx)) -> TransactionLayer t k
+TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkTx (Tx, SealedTx)) -> (PoolId -> (k  'AddressK XPrv, Passphrase "encryption") -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkTx (Tx, SealedTx)) -> (CoinSelection -> Quantity "byte" Int) -> (Quantity "byte" Word16 -> Word8 -> Word8) -> (CoinSelection -> Either (ErrValidateSelection t) ()) -> (ByteString -> Either ErrDecodeSignedTx (Tx, SealedTx)) -> TransactionLayer t k
 
 -- | Construct a standard transaction
 --   
@@ -1632,7 +1635,15 @@ TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryptio
 --   
 --   This expects as a first argument a mean to compute or lookup private
 --   key corresponding to a particular address.
-[mkStdTx] :: TransactionLayer t k -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkStdTx (Tx, SealedTx)
+[mkStdTx] :: TransactionLayer t k -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkTx (Tx, SealedTx)
+
+-- | Construct a transaction containing a certificate for delegating to a
+--   stake pool.
+--   
+--   The certificate is a combination of the <a>PoolId</a> and the public
+--   key of the reward account. (Note that this is an address key and HD
+--   account keys are something different)
+[mkDelegationCertTx] :: TransactionLayer t k -> PoolId -> (k  'AddressK XPrv, Passphrase "encryption") -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkTx (Tx, SealedTx)
 
 -- | Estimate the size of a <a>CoinSelection</a>, in bytes. This operation
 --   is seemingly coupled to the binary representation of a
@@ -1671,10 +1682,10 @@ TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryptio
 [decodeSignedTx] :: TransactionLayer t k -> ByteString -> Either ErrDecodeSignedTx (Tx, SealedTx)
 
 -- | Possible signing error
-newtype ErrMkStdTx
+newtype ErrMkTx
 
 -- | We tried to sign a transaction with inputs that are unknown to us?
-ErrKeyNotFoundForAddress :: Address -> ErrMkStdTx
+ErrKeyNotFoundForAddress :: Address -> ErrMkTx
 
 -- | A type family for validations that are specific to a particular
 --   backend type. This demands an instantiation of the family for a
@@ -1714,8 +1725,8 @@ EstimateMaxNumberOfInputsParams :: ([TxIn] -> [TxOut] -> [TxWitness] -> Int) -> 
 
 -- | Tx Witness size
 [estTxWitnessSize] :: EstimateMaxNumberOfInputsParams t -> Int
-instance GHC.Show.Show Cardano.Wallet.Transaction.ErrMkStdTx
-instance GHC.Classes.Eq Cardano.Wallet.Transaction.ErrMkStdTx
+instance GHC.Show.Show Cardano.Wallet.Transaction.ErrMkTx
+instance GHC.Classes.Eq Cardano.Wallet.Transaction.ErrMkTx
 instance GHC.Classes.Eq Cardano.Wallet.Transaction.ErrDecodeSignedTx
 instance GHC.Show.Show Cardano.Wallet.Transaction.ErrDecodeSignedTx
 
@@ -3651,15 +3662,15 @@ ErrEstimateTxFeeCoinSelection :: ErrCoinSelection e -> ErrEstimateTxFee e
 
 -- | Errors that can occur when signing a transaction.
 data ErrSignTx
-ErrSignTx :: ErrMkStdTx -> ErrSignTx
+ErrSignTx :: ErrMkTx -> ErrSignTx
 ErrSignTxNoSuchWallet :: ErrNoSuchWallet -> ErrSignTx
 ErrSignTxWithRootKey :: ErrWithRootKey -> ErrSignTx
 
 -- | Possible signing error
-newtype ErrMkStdTx
+newtype ErrMkTx
 
 -- | We tried to sign a transaction with inputs that are unknown to us?
-ErrKeyNotFoundForAddress :: Address -> ErrMkStdTx
+ErrKeyNotFoundForAddress :: Address -> ErrMkTx
 newtype ErrAdjustForFee
 
 -- | UTxO exhausted during fee covering We record what amount missed to
