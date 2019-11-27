@@ -397,6 +397,7 @@ errMsg403UTxO :: String
 errMsg403WrongPass :: String
 errMsg403NoPendingAnymore :: Text -> String
 errMsg404NoSuchPool :: Text -> String
+errMsg403PoolAlreadyJoined :: Text -> String
 errMsg403NothingToMigrate :: Text -> String
 errMsg404NoEndpoint :: String
 errMsg404CannotFindTx :: Text -> String
