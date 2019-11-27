@@ -1378,6 +1378,12 @@ class HardDerivation key => SoftDerivation (key :: Depth -> * -> *)
 --   This is the preferred way of deriving new sequential address public
 --   keys.
 deriveAddressPublicKey :: SoftDerivation key => key  'AccountK XPub -> AccountingStyle -> Index  'Soft  'AddressK -> key  'AddressK XPub
+
+-- | Derive a reward account from a root private key. It is agreed by
+--   standard that every HD wallet will use only a single reward account.
+--   This account is located into a special derivation path and uses the
+--   first index of that path.
+deriveRewardAccount :: (HardDerivation k, Bounded (Index (AddressIndexDerivationType k)  'AddressK)) => Passphrase "encryption" -> k  'RootK XPrv -> k  'AddressK XPrv
 data XPub
 XPub :: !ByteString -> !ChainCode -> XPub
 [xpubPublicKey] :: XPub -> !ByteString
@@ -1388,6 +1394,7 @@ data XPrv
 unXPub :: XPub -> ByteString
 unXPrv :: XPrv -> ByteString
 xprv :: ByteArrayAccess bin => bin -> Either String XPrv
+xpub :: ByteString -> Either String XPub
 
 -- | Encode a <a>ByteString</a> in base16
 hex :: ByteArrayAccess bin => bin -> ByteString
@@ -1403,7 +1410,7 @@ class NetworkDiscriminantVal (n :: NetworkDiscriminant)
 networkDiscriminantVal :: NetworkDiscriminantVal n => NetworkDiscriminant
 
 -- | Encoding of addresses for certain key types and backend targets.
-class MkKeyFingerprint key => PaymentAddress (network :: NetworkDiscriminant) key
+class MkKeyFingerprint key Address => PaymentAddress (network :: NetworkDiscriminant) key
 
 -- | Convert a public key to a payment <a>Address</a> valid for the given
 --   network discrimination.
@@ -1412,8 +1419,8 @@ class MkKeyFingerprint key => PaymentAddress (network :: NetworkDiscriminant) ke
 --   type application.
 paymentAddress :: PaymentAddress network key => key  'AddressK XPub -> Address
 
--- | Lift a payment fingerprint back into an address.
-liftPaymentFingerprint :: PaymentAddress network key => KeyFingerprint "payment" key -> Address
+-- | Lift a payment fingerprint back into a payment address.
+liftPaymentAddress :: PaymentAddress network key => KeyFingerprint "payment" key -> Address
 class PaymentAddress network key => DelegationAddress (network :: NetworkDiscriminant) key
 
 -- | Convert a public key and a staking key to a delegation <a>Address</a>
@@ -1424,6 +1431,9 @@ class PaymentAddress network key => DelegationAddress (network :: NetworkDiscrim
 --   Note that <a>delegationAddress</a> is ambiguous and requires therefore
 --   a type application.
 delegationAddress :: DelegationAddress network key => key  'AddressK XPub -> key  'AddressK XPub -> Address
+
+-- | Lift a payment fingerprint back into a delegation address.
+liftDelegationAddress :: DelegationAddress network key => KeyFingerprint "payment" key -> key  'AddressK XPub -> Address
 class WalletKey (key :: Depth -> * -> *)
 
 -- | Re-encrypt a private key using a different passphrase.
@@ -1496,11 +1506,10 @@ unsafeDeserializeXPub :: PersistPublicKey key => ByteString -> key XPub
 --   <li>For <tt>ShelleyKey</tt>, then the "payment" fingerprint refers to
 --   the payment key within a single or grouped address.</li>
 --   </ol>
-class MkKeyFingerprint (key :: Depth -> * -> *)
-paymentKeyFingerprint :: MkKeyFingerprint key => Address -> Either (ErrMkKeyFingerprint key) (KeyFingerprint "payment" key)
-delegationKeyFingerprint :: MkKeyFingerprint key => Address -> Either (ErrMkKeyFingerprint key) (Maybe (KeyFingerprint "delegation" key))
-data ErrMkKeyFingerprint key
-ErrInvalidAddress :: Address -> Proxy key -> ErrMkKeyFingerprint key
+class Show from => MkKeyFingerprint (key :: Depth -> * -> *) from
+paymentKeyFingerprint :: MkKeyFingerprint key from => from -> Either (ErrMkKeyFingerprint key from) (KeyFingerprint "payment" key)
+data ErrMkKeyFingerprint key from
+ErrInvalidAddress :: from -> Proxy key -> ErrMkKeyFingerprint key from
 
 -- | Something that uniquely identifies a public key. Typically, a hash of
 --   that key or the key itself.
@@ -1557,8 +1566,8 @@ encryptPassphrase :: MonadRandom m => Passphrase purpose -> m (Hash purpose)
 
 -- | Check whether a <a>Passphrase</a> matches with a stored <a>Hash</a>
 checkPassphrase :: Passphrase purpose -> Hash purpose -> Either ErrWrongPassphrase ()
-instance forall k (key :: k). GHC.Classes.Eq (Cardano.Wallet.Primitive.AddressDerivation.ErrMkKeyFingerprint key)
-instance forall k (key :: k). GHC.Show.Show (Cardano.Wallet.Primitive.AddressDerivation.ErrMkKeyFingerprint key)
+instance forall k (key :: k) from. GHC.Classes.Eq from => GHC.Classes.Eq (Cardano.Wallet.Primitive.AddressDerivation.ErrMkKeyFingerprint key from)
+instance forall k (key :: k) from. GHC.Show.Show from => GHC.Show.Show (Cardano.Wallet.Primitive.AddressDerivation.ErrMkKeyFingerprint key from)
 instance forall (s :: GHC.Types.Symbol) k (key :: k). GHC.Classes.Ord (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint s key)
 instance forall (s :: GHC.Types.Symbol) k (key :: k). GHC.Classes.Eq (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint s key)
 instance forall (s :: GHC.Types.Symbol) k (key :: k). GHC.Show.Show (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint s key)
@@ -1842,10 +1851,10 @@ mkAddressPoolGap :: Integer -> Either MkAddressPoolGapError AddressPoolGap
 --   &gt;&gt;&gt; mkAddressPool xpub gap accountingStyle mempty
 --   AddressPool { }
 --   </pre>
-data AddressPool (network :: NetworkDiscriminant) (chain :: AccountingStyle) (key :: Depth -> * -> *)
+data AddressPool (chain :: AccountingStyle) (key :: Depth -> * -> *)
 
 -- | The actual gap for the pool. This can't change for a given pool.
-gap :: AddressPool network chain key -> AddressPoolGap
+gap :: AddressPool chain key -> AddressPoolGap
 
 -- | Get all addresses in the pool, sorted from the first address
 --   discovered, up until the next one.
@@ -1855,7 +1864,7 @@ gap :: AddressPool network chain key -> AddressPoolGap
 --   <pre>
 --   mkAddressPool key g cc (addresses pool) == pool
 --   </pre>
-addresses :: forall n c k. PaymentAddress n k => AddressPool n c k -> [Address]
+addresses :: forall c k. () => (KeyFingerprint "payment" k -> Address) -> AddressPool c k -> [Address]
 
 -- | Bring a <a>AccountingStyle</a> type back to the term-level. This
 --   requires a type application and either a scoped type variable, or an
@@ -1873,7 +1882,7 @@ addresses :: forall n c k. PaymentAddress n k => AddressPool n c k -> [Address]
 accountingStyle :: forall (c :: AccountingStyle). Typeable c => AccountingStyle
 
 -- | Corresponding key for the pool (a pool is tied to only one account)
-accountPubKey :: AddressPool network chain key -> key  'AccountK XPub
+accountPubKey :: AddressPool chain key -> key  'AccountK XPub
 
 -- | Create a new Address pool from a list of addresses. Note that, the
 --   list is expected to be ordered in sequence (first indexes, first in
@@ -1884,13 +1893,13 @@ accountPubKey :: AddressPool network chain key -> key  'AccountK XPub
 --   undiscovered addresses in the pool.
 --   
 --   FIXME: Don't construct from addresses but from fingerprints!
-mkAddressPool :: forall n c k. (PaymentAddress n k, SoftDerivation k, Typeable c) => k  'AccountK XPub -> AddressPoolGap -> [Address] -> AddressPool n c k
+mkAddressPool :: forall c k. (MkKeyFingerprint k (k  'AddressK XPub), MkKeyFingerprint k Address, SoftDerivation k, Typeable c) => k  'AccountK XPub -> AddressPoolGap -> [Address] -> AddressPool c k
 
 -- | Lookup an address in the pool. When we find an address in a pool, the
 --   pool may be amended if the address was discovered near the edge. It is
 --   also possible that the pool is not amended at all - this happens in
 --   the case that an address is discovered <tt>far</tt> from the edge.
-lookupAddress :: forall n c k. (PaymentAddress n k, SoftDerivation k, Typeable c) => Address -> AddressPool n c k -> (Maybe (Index  'Soft  'AddressK), AddressPool n c k)
+lookupAddress :: forall c k. (MkKeyFingerprint k (k  'AddressK XPub), MkKeyFingerprint k Address, SoftDerivation k, Typeable c) => Address -> AddressPool c k -> (Maybe (Index  'Soft  'AddressK), AddressPool c k)
 
 -- | An ordered set of pending indexes. This keep track of indexes used
 data PendingIxs
@@ -1913,46 +1922,49 @@ pendingIxsFromList :: [Index  'Soft  'AddressK] -> PendingIxs
 --   parameterized by a type <tt>n</tt> which captures a particular network
 --   discrimination. This enables the state to be agnostic to the
 --   underlying address format.
-data SeqState n k
-SeqState :: !AddressPool n  'UTxOInternal k -> !AddressPool n  'UTxOExternal k -> !PendingIxs -> SeqState n k
+data SeqState (n :: NetworkDiscriminant) k
+SeqState :: !AddressPool  'UTxOInternal k -> !AddressPool  'UTxOExternal k -> !PendingIxs -> k  'AddressK XPub -> SeqState k
 
 -- | Addresses living on the <a>UTxOInternal</a>
-[internalPool] :: SeqState n k -> !AddressPool n  'UTxOInternal k
+[internalPool] :: SeqState k -> !AddressPool  'UTxOInternal k
 
 -- | Addresses living on the <a>UTxOExternal</a>
-[externalPool] :: SeqState n k -> !AddressPool n  'UTxOExternal k
+[externalPool] :: SeqState k -> !AddressPool  'UTxOExternal k
 
 -- | Indexes from the internal pool that have been used in pending
 --   transactions. The list is maintained sorted in descending order (cf:
 --   <a>PendingIxs</a>)
-[pendingChangeIxs] :: SeqState n k -> !PendingIxs
+[pendingChangeIxs] :: SeqState k -> !PendingIxs
+
+-- | Reward account public key associated with this wallet
+[rewardAccountKey] :: SeqState k -> k  'AddressK XPub
 
 -- | Construct a Sequential state for a wallet.
-mkSeqState :: forall n k. (SoftDerivation k, PaymentAddress n k, WalletKey k) => (k  'RootK XPrv, Passphrase "encryption") -> AddressPoolGap -> SeqState n k
+mkSeqState :: forall n k. (SoftDerivation k, MkKeyFingerprint k (k  'AddressK XPub), MkKeyFingerprint k Address, WalletKey k, Bounded (Index (AddressIndexDerivationType k)  'AddressK)) => (k  'RootK XPrv, Passphrase "encryption") -> AddressPoolGap -> SeqState n k
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.AddressDiscovery.Sequential.PendingIxs
 instance GHC.Show.Show Cardano.Wallet.Primitive.AddressDiscovery.Sequential.PendingIxs
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.AddressDiscovery.Sequential.PendingIxs
-instance GHC.Generics.Generic (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPool network chain key)
+instance GHC.Generics.Generic (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPool chain key)
 instance GHC.Show.Show Cardano.Wallet.Primitive.AddressDiscovery.Sequential.MkAddressPoolGapError
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.AddressDiscovery.Sequential.MkAddressPoolGapError
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPoolGap
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPoolGap
 instance GHC.Show.Show Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPoolGap
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPoolGap
-instance GHC.Show.Show (key 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub) => GHC.Show.Show (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPool network chain key)
-instance GHC.Classes.Eq (key 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub) => GHC.Classes.Eq (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPool network chain key)
-instance (GHC.Show.Show (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub), GHC.Show.Show (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint "payment" k)) => GHC.Show.Show (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
-instance (Control.DeepSeq.NFData (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub), Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint "payment" k)) => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
+instance GHC.Show.Show (key 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub) => GHC.Show.Show (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPool chain key)
+instance GHC.Classes.Eq (key 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub) => GHC.Classes.Eq (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPool chain key)
+instance (GHC.Show.Show (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub), GHC.Show.Show (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), GHC.Show.Show (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint "payment" k)) => GHC.Show.Show (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
+instance (Control.DeepSeq.NFData (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub), Control.DeepSeq.NFData (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint "payment" k)) => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK) => Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
-instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.PaymentAddress n k) => Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
-instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.PaymentAddress n k) => Cardano.Wallet.Primitive.AddressDiscovery.GenChange (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
-instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.PaymentAddress n k, Cardano.Wallet.Primitive.AddressDerivation.AddressIndexDerivationType k Data.Type.Equality.~ 'Cardano.Wallet.Primitive.AddressDerivation.Soft) => Cardano.Wallet.Primitive.AddressDiscovery.IsOwned (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k) k
-instance (Cardano.Wallet.Primitive.AddressDerivation.PaymentAddress n k, Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k) => Cardano.Wallet.Primitive.AddressDiscovery.CompareDiscovery (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
-instance Cardano.Wallet.Primitive.AddressDerivation.PaymentAddress n k => Cardano.Wallet.Primitive.AddressDiscovery.KnownAddresses (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
+instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k Cardano.Wallet.Primitive.Types.Address) => Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
+instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.DelegationAddress n k) => Cardano.Wallet.Primitive.AddressDiscovery.GenChange (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
+instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k Cardano.Wallet.Primitive.Types.Address, Cardano.Wallet.Primitive.AddressDerivation.AddressIndexDerivationType k Data.Type.Equality.~ 'Cardano.Wallet.Primitive.AddressDerivation.Soft) => Cardano.Wallet.Primitive.AddressDiscovery.IsOwned (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k) k
+instance (Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k Cardano.Wallet.Primitive.Types.Address, Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k) => Cardano.Wallet.Primitive.AddressDiscovery.CompareDiscovery (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
+instance Cardano.Wallet.Primitive.AddressDerivation.DelegationAddress n k => Cardano.Wallet.Primitive.AddressDiscovery.KnownAddresses (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.AddressDiscovery.Sequential.PendingIxs
-instance Control.DeepSeq.NFData (key 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub) => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPool network chain key)
-instance (Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (key 'Cardano.Wallet.Primitive.AddressDerivation.AccountK), Data.Typeable.Internal.Typeable chain) => Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPool network chain key)
+instance Control.DeepSeq.NFData (key 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub) => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPool chain key)
+instance (Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (key 'Cardano.Wallet.Primitive.AddressDerivation.AccountK), Data.Typeable.Internal.Typeable chain) => Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPool chain key)
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPoolGap
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPoolGap
 instance Data.Text.Class.ToText Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPoolGap
@@ -2017,9 +2029,10 @@ instance Control.DeepSeq.NFData key => Control.DeepSeq.NFData (Cardano.Wallet.Pr
 instance Cardano.Wallet.Primitive.AddressDerivation.HardDerivation Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey
 instance Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey
 instance Cardano.Wallet.Primitive.AddressDerivation.WalletKey Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey
-instance Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey
+instance Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey Cardano.Wallet.Primitive.Types.Address
+instance Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey (Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub)
 instance Cardano.Wallet.Primitive.AddressDerivation.PersistPrivateKey (Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey 'Cardano.Wallet.Primitive.AddressDerivation.RootK)
-instance Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey 'Cardano.Wallet.Primitive.AddressDerivation.AccountK)
+instance Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey depth)
 
 
 -- | Here we find the "business logic" to manage a Cardano wallet. This is
@@ -2886,11 +2899,12 @@ UTxO :: !WalletId -> !SlotId -> !TxId -> !Word32 -> !Address -> !Coin -> UTxO
 [utxoOutputCoin] :: UTxO -> !Coin
 type UTxOId = Key UTxO
 data SeqState
-SeqState :: !WalletId -> !AddressPoolGap -> !AddressPoolGap -> !ByteString -> SeqState
+SeqState :: !WalletId -> !AddressPoolGap -> !AddressPoolGap -> !ByteString -> !ByteString -> SeqState
 [seqStateWalletId] :: SeqState -> !WalletId
 [seqStateExternalGap] :: SeqState -> !AddressPoolGap
 [seqStateInternalGap] :: SeqState -> !AddressPoolGap
 [seqStateAccountXPub] :: SeqState -> !ByteString
+[seqStateRewardXPub] :: SeqState -> !ByteString
 type SeqStateId = Key SeqState
 data SeqStateAddress
 SeqStateAddress :: !WalletId -> !SlotId -> !Address -> !Word32 -> !AccountingStyle -> SeqStateAddress
@@ -3598,7 +3612,7 @@ ErrUpdatePassphraseWithRootKey :: ErrWithRootKey -> ErrUpdatePassphrase
 
 -- | List all addresses of a wallet with their metadata. Addresses are
 --   ordered from the most-recently-discovered to the oldest known.
-listAddresses :: forall ctx s k. (HasDBLayer s k ctx, IsOurs s, CompareDiscovery s, KnownAddresses s) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
+listAddresses :: forall ctx s k n. (HasDBLayer s k ctx, IsOurs s, CompareDiscovery s, KnownAddresses s, MkKeyFingerprint k Address, DelegationAddress n k, s ~ SeqState n k) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
 
 -- | Prepare a transaction and automatically select inputs from the wallet
 --   to cover the requested outputs. Note that this only runs coin
@@ -4322,7 +4336,7 @@ instance (Control.DeepSeq.NFData key, Control.DeepSeq.NFData (Cardano.Wallet.Pri
 instance Cardano.Wallet.Primitive.AddressDerivation.WalletKey Cardano.Wallet.Primitive.AddressDerivation.Byron.ByronKey
 instance Cardano.Wallet.Primitive.AddressDerivation.PaymentAddress 'Cardano.Wallet.Primitive.AddressDerivation.Testnet Cardano.Wallet.Primitive.AddressDerivation.Byron.ByronKey
 instance Cardano.Wallet.Primitive.AddressDerivation.PaymentAddress 'Cardano.Wallet.Primitive.AddressDerivation.Mainnet Cardano.Wallet.Primitive.AddressDerivation.Byron.ByronKey
-instance Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint Cardano.Wallet.Primitive.AddressDerivation.Byron.ByronKey
+instance Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint Cardano.Wallet.Primitive.AddressDerivation.Byron.ByronKey Cardano.Wallet.Primitive.Types.Address
 instance Cardano.Wallet.Primitive.AddressDerivation.PersistPrivateKey (Cardano.Wallet.Primitive.AddressDerivation.Byron.ByronKey 'Cardano.Wallet.Primitive.AddressDerivation.RootK)
 
 
@@ -4409,7 +4423,7 @@ insertState :: PersistState s => (WalletId, SlotId) -> s -> SqlPersistT IO ()
 -- | Load the state for a checkpoint.
 selectState :: PersistState s => (WalletId, SlotId) -> SqlPersistT IO (Maybe s)
 instance GHC.Show.Show Cardano.Wallet.DB.Sqlite.ErrRollbackTo
-instance (GHC.Classes.Eq (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK), Cardano.Wallet.Primitive.AddressDerivation.PaymentAddress n k, Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k) => Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
+instance (GHC.Classes.Eq (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK), Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.PaymentAddress n k, Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k) => Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState t)
 instance GHC.Exception.Type.Exception Cardano.Wallet.DB.Sqlite.ErrRollbackTo
 
@@ -4982,7 +4996,7 @@ data HostPreference
 
 -- | Start the application server, using the given settings and a bound
 --   socket.
-start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DecodeAddress n, EncodeAddress n, PaymentAddress n ShelleyKey, PaymentAddress n ByronKey) => Settings -> Trace IO Text -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
+start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DecodeAddress n, EncodeAddress n, DelegationAddress n ShelleyKey, PaymentAddress n ByronKey) => Settings -> Trace IO Text -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
 
 -- | Create a new instance of the wallet layer.
 newApiLayer :: forall ctx s t k. ctx ~ ApiLayer s t k => Trace IO Text -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> [WalletId] -> IO ctx
