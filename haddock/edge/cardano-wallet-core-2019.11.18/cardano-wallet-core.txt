@@ -751,9 +751,10 @@ newtype WalletPassphraseInfo
 WalletPassphraseInfo :: UTCTime -> WalletPassphraseInfo
 [$sel:lastUpdatedAt:WalletPassphraseInfo] :: WalletPassphraseInfo -> UTCTime
 data WalletBalance
-WalletBalance :: !Quantity "lovelace" Natural -> !Quantity "lovelace" Natural -> WalletBalance
+WalletBalance :: !Quantity "lovelace" Natural -> !Quantity "lovelace" Natural -> !Quantity "lovelace" Natural -> WalletBalance
 [$sel:available:WalletBalance] :: WalletBalance -> !Quantity "lovelace" Natural
 [$sel:total:WalletBalance] :: WalletBalance -> !Quantity "lovelace" Natural
+[$sel:reward:WalletBalance] :: WalletBalance -> !Quantity "lovelace" Natural
 
 -- | Represents a stake pool.
 newtype PoolId
@@ -4574,14 +4575,13 @@ ApiStakePoolMetrics :: !Quantity "lovelace" Natural -> !Quantity "block" Natural
 [$sel:controlledStake:ApiStakePoolMetrics] :: ApiStakePoolMetrics -> !Quantity "lovelace" Natural
 [$sel:producedBlocks:ApiStakePoolMetrics] :: ApiStakePoolMetrics -> !Quantity "block" Natural
 data ApiWallet
-ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !ApiT (WalletDelegation (ApiT PoolId)) -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !Quantity "lovelace" Natural -> !ApiT SyncProgress -> !ApiBlockReference -> ApiWallet
+ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !ApiT (WalletDelegation (ApiT PoolId)) -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> !ApiBlockReference -> ApiWallet
 [$sel:id:ApiWallet] :: ApiWallet -> !ApiT WalletId
 [$sel:addressPoolGap:ApiWallet] :: ApiWallet -> !ApiT AddressPoolGap
 [$sel:balance:ApiWallet] :: ApiWallet -> !ApiT WalletBalance
 [$sel:delegation:ApiWallet] :: ApiWallet -> !ApiT (WalletDelegation (ApiT PoolId))
 [$sel:name:ApiWallet] :: ApiWallet -> !ApiT WalletName
 [$sel:passphrase:ApiWallet] :: ApiWallet -> !Maybe (ApiT WalletPassphraseInfo)
-[$sel:reward:ApiWallet] :: ApiWallet -> !Quantity "lovelace" Natural
 [$sel:state:ApiWallet] :: ApiWallet -> !ApiT SyncProgress
 [$sel:tip:ApiWallet] :: ApiWallet -> !ApiBlockReference
 newtype ApiWalletPassphrase
@@ -4593,9 +4593,10 @@ ApiUtxoStatistics :: !Quantity "lovelace" Natural -> !ApiT BoundType -> !Map Wor
 [$sel:scale:ApiUtxoStatistics] :: ApiUtxoStatistics -> !ApiT BoundType
 [$sel:distribution:ApiUtxoStatistics] :: ApiUtxoStatistics -> !Map Word64 Word64
 data WalletBalance
-WalletBalance :: !Quantity "lovelace" Natural -> !Quantity "lovelace" Natural -> WalletBalance
+WalletBalance :: !Quantity "lovelace" Natural -> !Quantity "lovelace" Natural -> !Quantity "lovelace" Natural -> WalletBalance
 [$sel:available:WalletBalance] :: WalletBalance -> !Quantity "lovelace" Natural
 [$sel:total:WalletBalance] :: WalletBalance -> !Quantity "lovelace" Natural
+[$sel:reward:WalletBalance] :: WalletBalance -> !Quantity "lovelace" Natural
 data WalletPostData
 WalletPostData :: !Maybe (ApiT AddressPoolGap) -> !ApiMnemonicT '[15, 18, 21, 24] "seed" -> !Maybe (ApiMnemonicT '[9, 12] "generation") -> !ApiT WalletName -> !ApiT (Passphrase "encryption") -> WalletPostData
 [$sel:addressPoolGap:WalletPostData] :: WalletPostData -> !Maybe (ApiT AddressPoolGap)

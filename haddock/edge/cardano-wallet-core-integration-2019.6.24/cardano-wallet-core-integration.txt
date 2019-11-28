@@ -223,6 +223,7 @@ amount :: HasType (Quantity "lovelace" Natural) s => Lens' s Natural
 apparentPerformance :: HasType Double s => Lens' s Double
 balanceAvailable :: HasType (ApiT WalletBalance) s => Lens' s Natural
 balanceTotal :: HasType (ApiT WalletBalance) s => Lens' s Natural
+balanceReward :: HasType (ApiT WalletBalance) s => Lens' s Natural
 blocks :: HasField' "producedBlocks" s (Quantity "block" Natural) => Lens' s Natural
 delegation :: forall s d. (d ~ WalletDelegation (ApiT PoolId), HasType (ApiT d) s) => Lens' s (WalletDelegation (ApiT PoolId))
 direction :: HasType (ApiT Direction) s => Lens' s Direction
@@ -237,7 +238,6 @@ status :: HasType (ApiT TxStatus) s => Lens' s TxStatus
 syncProgress :: HasType (ApiT SyncProgress) s => Lens' s SyncProgress
 walletId :: HasType (ApiT WalletId) s => Lens' s Text
 walletName :: HasType (ApiT WalletName) s => Lens' s Text
-walletReward :: forall s q. (q ~ Quantity "lovelace" Natural, HasType q s) => Lens' s Natural
 (</>) :: ToHttpApiData a => Text -> a -> Text
 infixr 5 </>
 
