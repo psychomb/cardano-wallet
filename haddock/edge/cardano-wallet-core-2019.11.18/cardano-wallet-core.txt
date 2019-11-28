@@ -1749,7 +1749,9 @@ instance GHC.Show.Show Cardano.Wallet.Transaction.ErrDecodeSignedTx
 --   </ul>
 module Cardano.Wallet.Primitive.AddressDiscovery
 
--- | This abstraction exists to give us the ability to keep the wallet
+-- | Checks whether or not a given entity belongs to us.
+--   
+--   This abstraction exists to give us the ability to keep the wallet
 --   business logic agnostic to the address derivation and discovery
 --   mechanisms.
 --   
@@ -1767,8 +1769,8 @@ module Cardano.Wallet.Primitive.AddressDiscovery
 --   In practice, we will need a wallet that can support both, even if not
 --   at the same time, and this little abstraction can buy us this without
 --   introducing too much overhead.
-class IsOurs s
-isOurs :: IsOurs s => Address -> s -> (Bool, s)
+class IsOurs s entity
+isOurs :: IsOurs s entity => entity -> s -> (Bool, s)
 
 -- | More powerful than <a>isOurs</a>, this abstractions offer the
 --   underlying state the ability to find / compute the address private key
@@ -1778,7 +1780,7 @@ isOurs :: IsOurs s => Address -> s -> (Bool, s)
 --   to recover the root private key of a particular wallet. This isn't
 --   true for externally owned wallet which would delegate its key
 --   management to a third party (like a hardware Ledger or Trezor).
-class IsOurs s => IsOwned s key
+class IsOurs s Address => IsOwned s key
 isOwned :: IsOwned s key => s -> (key  'RootK XPrv, Passphrase "encryption") -> Address -> Maybe (key  'AddressK XPrv, Passphrase "encryption")
 
 -- | Abstracting over change address generation. In theory, this is only
@@ -1957,7 +1959,8 @@ instance GHC.Classes.Eq (key 'Cardano.Wallet.Primitive.AddressDerivation.Account
 instance (GHC.Show.Show (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub), GHC.Show.Show (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), GHC.Show.Show (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint "payment" k)) => GHC.Show.Show (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance (Control.DeepSeq.NFData (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub), Control.DeepSeq.NFData (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint "payment" k)) => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK) => Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
-instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k Cardano.Wallet.Primitive.Types.Address) => Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
+instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k Cardano.Wallet.Primitive.Types.Address) => Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k) Cardano.Wallet.Primitive.Types.Address
+instance Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k) Cardano.Wallet.Primitive.Types.ChimericAccount
 instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.DelegationAddress n k) => Cardano.Wallet.Primitive.AddressDiscovery.GenChange (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k Cardano.Wallet.Primitive.Types.Address, Cardano.Wallet.Primitive.AddressDerivation.AddressIndexDerivationType k Data.Type.Equality.~ 'Cardano.Wallet.Primitive.AddressDerivation.Soft) => Cardano.Wallet.Primitive.AddressDiscovery.IsOwned (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k) k
 instance (Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k Cardano.Wallet.Primitive.Types.Address, Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k) => Cardano.Wallet.Primitive.AddressDiscovery.CompareDiscovery (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
@@ -2114,10 +2117,10 @@ BlockchainParameters :: Hash "Genesis" -> StartTime -> FeePolicy -> SlotLength -
 -- | Create a an empty wallet and apply the given genesis block
 --   
 --   The wallet tip will be set to the header of the applied genesis block.
-initWallet :: (IsOurs s, NFData s, Show s) => Block -> BlockchainParameters -> s -> ([(Tx, TxMeta)], Wallet s)
+initWallet :: (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s) => Block -> BlockchainParameters -> s -> ([(Tx, TxMeta)], Wallet s)
 
 -- | Update the state of an existing Wallet model
-updateState :: (IsOurs s, NFData s, Show s) => s -> Wallet s -> Wallet s
+updateState :: (IsOurs s Address, NFData s, Show s) => s -> Wallet s -> Wallet s
 
 -- | Apply Block is the primary way of making the wallet evolve. It returns
 --   the updated wallet state, as well as a set of all transactions
@@ -2161,7 +2164,7 @@ applyBlocks :: NonEmpty Block -> Wallet s -> NonEmpty ([(Tx, TxMeta)], Wallet s)
 --   invariants to be broken. Therefore it should only be used in the
 --   special case of loading wallet checkpoints from the database (where it
 --   is assumed a valid wallet was stored into the database).
-unsafeInitWallet :: (IsOurs s, NFData s, Show s) => UTxO -> BlockHeader -> s -> BlockchainParameters -> Wallet s
+unsafeInitWallet :: (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s) => UTxO -> BlockHeader -> s -> BlockchainParameters -> Wallet s
 
 -- | Get the wallet current tip
 currentTip :: Wallet s -> BlockHeader
@@ -3561,7 +3564,7 @@ type HasGenesisData = HasType (Block, BlockchainParameters, SyncTolerance)
 genesisData :: forall ctx. HasGenesisData ctx => Lens' ctx (Block, BlockchainParameters, SyncTolerance)
 
 -- | Initialise and store a new wallet, returning its ID.
-createWallet :: forall ctx s k. (HasGenesisData ctx, HasDBLayer s k ctx, Show s, NFData s, IsOurs s) => ctx -> WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
+createWallet :: forall ctx s k. (HasGenesisData ctx, HasDBLayer s k ctx, Show s, NFData s, IsOurs s Address, IsOurs s ChimericAccount) => ctx -> WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
 
 -- | Attach a given private key to a wallet. The private key is necessary
 --   for some operations like signing transactions, or generating new
@@ -3612,7 +3615,7 @@ ErrUpdatePassphraseWithRootKey :: ErrWithRootKey -> ErrUpdatePassphrase
 
 -- | List all addresses of a wallet with their metadata. Addresses are
 --   ordered from the most-recently-discovered to the oldest known.
-listAddresses :: forall ctx s k n. (HasDBLayer s k ctx, IsOurs s, CompareDiscovery s, KnownAddresses s, MkKeyFingerprint k Address, DelegationAddress n k, s ~ SeqState n k) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
+listAddresses :: forall ctx s k n. (HasDBLayer s k ctx, IsOurs s Address, CompareDiscovery s, KnownAddresses s, MkKeyFingerprint k Address, DelegationAddress n k, s ~ SeqState n k) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
 
 -- | Prepare a transaction and automatically select inputs from the wallet
 --   to cover the requested outputs. Note that this only runs coin
@@ -3703,7 +3706,7 @@ selectCoinsForMigration :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDB
 --   
 --   All addresses generated by this function are also registered as
 --   pending change addresses for the target wallet.
-assignMigrationTargetAddresses :: forall ctx s k. (HasDBLayer s k ctx, GenChange s, IsOurs s, NFData s, Show s) => ctx -> WalletId -> ArgGenChange s -> [CoinSelection] -> ExceptT ErrNoSuchWallet IO [CoinSelection]
+assignMigrationTargetAddresses :: forall ctx s k. (HasDBLayer s k ctx, GenChange s, IsOurs s Address, NFData s, Show s) => ctx -> WalletId -> ArgGenChange s -> [CoinSelection] -> ExceptT ErrNoSuchWallet IO [CoinSelection]
 
 -- | Select necessary coins to cover for a single delegation request
 --   (including one certificate).
@@ -4367,7 +4370,8 @@ instance GHC.Generics.Generic (Cardano.Wallet.Primitive.AddressDiscovery.Random.
 instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState network)
 instance GHC.Show.Show (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState network)
 instance Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState network)
-instance Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState n)
+instance Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState n) Cardano.Wallet.Primitive.Types.Address
+instance Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState n) Cardano.Wallet.Primitive.Types.ChimericAccount
 instance Cardano.Wallet.Primitive.AddressDiscovery.IsOwned (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState n) Cardano.Wallet.Primitive.AddressDerivation.Byron.ByronKey
 instance Cardano.Wallet.Primitive.AddressDerivation.PaymentAddress n Cardano.Wallet.Primitive.AddressDerivation.Byron.ByronKey => Cardano.Wallet.Primitive.AddressDiscovery.GenChange (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState n)
 instance Cardano.Wallet.Primitive.AddressDiscovery.CompareDiscovery (Cardano.Wallet.Primitive.AddressDiscovery.Random.RndState n)
@@ -4388,10 +4392,10 @@ module Cardano.Wallet.DB.Sqlite
 --   implementation. The database should be closed with
 --   <a>destroyDBLayer</a>. If you use <a>withDBLayer</a> then both of
 --   these things will be handled for you.
-newDBLayer :: forall s k. (IsOurs s, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK)) => Configuration -> Trace IO Text -> Maybe FilePath -> IO (SqliteContext, DBLayer IO s k)
+newDBLayer :: forall s k. (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK)) => Configuration -> Trace IO Text -> Maybe FilePath -> IO (SqliteContext, DBLayer IO s k)
 
 -- | Instantiate a <a>DBFactory</a> from a given directory
-mkDBFactory :: forall s k. (IsOurs s, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK), WalletKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> DBFactory IO s k
+mkDBFactory :: forall s k. (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK), WalletKey k) => Configuration -> Trace IO Text -> Maybe FilePath -> DBFactory IO s k
 
 -- | Return all wallet databases that match the specified key type within
 --   the specified directory.
@@ -4403,7 +4407,7 @@ findDatabases :: forall k. WalletKey k => Trace IO Text -> FilePath -> IO [Walle
 --   
 --   If the given file path does not exist, it will be created by the
 --   sqlite library.
-withDBLayer :: forall s k a. (IsOurs s, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK)) => Configuration -> Trace IO Text -> Maybe FilePath -> (DBLayer IO s k -> IO a) -> IO a
+withDBLayer :: forall s k a. (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK)) => Configuration -> Trace IO Text -> Maybe FilePath -> (DBLayer IO s k -> IO a) -> IO a
 
 -- | Functions for saving/loading the wallet's address discovery state into
 --   SQLite.
