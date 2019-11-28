@@ -523,10 +523,6 @@ newtype ChimericAccount
 ChimericAccount :: ByteString -> ChimericAccount
 [$sel:unChimericAccount:ChimericAccount] :: ChimericAccount -> ByteString
 
--- | Construct a <a>ChimericAccount</a> by extracting the public key from
---   the extended public key.
-chimericAccountFromXPub :: XPub -> ChimericAccount
-
 -- | Coins are stored as Lovelace (reminder: 1 Lovelace = 1e-6 ADA)
 newtype Coin
 Coin :: Word64 -> Coin
@@ -1380,11 +1376,22 @@ class HardDerivation key => SoftDerivation (key :: Depth -> * -> *)
 --   keys.
 deriveAddressPublicKey :: SoftDerivation key => key  'AccountK XPub -> AccountingStyle -> Index  'Soft  'AddressK -> key  'AddressK XPub
 
+-- | Also known as a staking key, chimeric account is used in group-type
+--   address for staking purposes. It is a public key of the account
+--   address
+newtype ChimericAccount
+ChimericAccount :: ByteString -> ChimericAccount
+[$sel:unChimericAccount:ChimericAccount] :: ChimericAccount -> ByteString
+
 -- | Derive a reward account from a root private key. It is agreed by
 --   standard that every HD wallet will use only a single reward account.
 --   This account is located into a special derivation path and uses the
 --   first index of that path.
 deriveRewardAccount :: (HardDerivation k, Bounded (Index (AddressIndexDerivationType k)  'AddressK)) => Passphrase "encryption" -> k  'RootK XPrv -> k  'AddressK XPrv
+
+-- | Construct a <a>ChimericAccount</a> by extracting the public key from
+--   the extended public key.
+toChimericAccount :: WalletKey k => k  'AddressK XPub -> ChimericAccount
 data XPub
 XPub :: !ByteString -> !ChainCode -> XPub
 [xpubPublicKey] :: XPub -> !ByteString
@@ -1961,7 +1968,7 @@ instance (GHC.Show.Show (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK 
 instance (Control.DeepSeq.NFData (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub), Control.DeepSeq.NFData (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint "payment" k)) => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (k 'Cardano.Wallet.Primitive.AddressDerivation.AccountK) => Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k Cardano.Wallet.Primitive.Types.Address) => Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k) Cardano.Wallet.Primitive.Types.Address
-instance Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k) Cardano.Wallet.Primitive.Types.ChimericAccount
+instance Cardano.Wallet.Primitive.AddressDerivation.WalletKey k => Cardano.Wallet.Primitive.AddressDiscovery.IsOurs (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k) Cardano.Wallet.Primitive.Types.ChimericAccount
 instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.DelegationAddress n k) => Cardano.Wallet.Primitive.AddressDiscovery.GenChange (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k Cardano.Wallet.Primitive.Types.Address, Cardano.Wallet.Primitive.AddressDerivation.AddressIndexDerivationType k Data.Type.Equality.~ 'Cardano.Wallet.Primitive.AddressDerivation.Soft) => Cardano.Wallet.Primitive.AddressDiscovery.IsOwned (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k) k
 instance (Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k Cardano.Wallet.Primitive.Types.Address, Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k) => Cardano.Wallet.Primitive.AddressDiscovery.CompareDiscovery (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
@@ -2238,10 +2245,26 @@ initWallet :: (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s) => 
 -- | Update the state of an existing Wallet model
 updateState :: (IsOurs s Address, NFData s, Show s) => s -> Wallet s -> Wallet s
 
--- | Apply Block is the primary way of making the wallet evolve. It returns
---   the updated wallet state, as well as a set of all transactions
---   belonging to the wallet discovered while applying the block.
-applyBlock :: Block -> Wallet s -> ([(Tx, TxMeta)], Wallet s)
+-- | Represents the subset of data from a single block that are relevant to
+--   a particular wallet, discovered when applying a block to that wallet.
+data FilteredBlock
+FilteredBlock :: ![PoolId] -> ![(Tx, TxMeta)] -> FilteredBlock
+
+-- | Stake delegations made on behalf of the wallet, listed in order of
+--   discovery. If the list contains more than element, those that appear
+--   later in the list supercede those that appear earlier on.
+[$sel:delegations:FilteredBlock] :: FilteredBlock -> ![PoolId]
+
+-- | The set of transactions that affect the wallet.
+[$sel:transactions:FilteredBlock] :: FilteredBlock -> ![(Tx, TxMeta)]
+
+-- | Apply a single block to a wallet.
+--   
+--   This is the primary way of making a wallet evolve.
+--   
+--   Returns an updated wallet, as well as the set of data relevant to the
+--   wallet that were discovered while applying the block.
+applyBlock :: Block -> Wallet s -> (FilteredBlock, Wallet s)
 
 -- | Apply multiple blocks in sequence to an existing wallet, returning a
 --   list of intermediate wallet states.
@@ -2273,7 +2296,7 @@ applyBlock :: Block -> Wallet s -> ([(Tx, TxMeta)], Wallet s)
 --   <li><b><tt>(w + bi)</tt></b> is the wallet state after applying block
 --   <b><tt>bi</tt></b> to wallet <b><tt>w</tt></b>.</li>
 --   </ul>
-applyBlocks :: NonEmpty Block -> Wallet s -> NonEmpty ([(Tx, TxMeta)], Wallet s)
+applyBlocks :: NonEmpty Block -> Wallet s -> NonEmpty (FilteredBlock, Wallet s)
 
 -- | Constructs a wallet from the exact given state. Using this function
 --   instead of <a>initWallet</a> and <a>applyBlock</a> allows the wallet
@@ -2309,6 +2332,9 @@ utxo :: Wallet s -> UTxO
 --   of them as part of the wallet checkpoints.
 blockchainParameters :: Wallet s -> BlockchainParameters
 slotParams :: BlockchainParameters -> SlotParameters
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Model.FilteredBlock
+instance GHC.Show.Show Cardano.Wallet.Primitive.Model.FilteredBlock
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Model.FilteredBlock
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Model.BlockchainParameters
 instance GHC.Show.Show Cardano.Wallet.Primitive.Model.BlockchainParameters
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Model.BlockchainParameters
@@ -3469,15 +3495,15 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] 
 
 -- | Binds a stake pool id to a wallet. This will have an influence on the
 --   wallet metadata: the last known certificate will indicate to which
---   pool a wallet is currently delegating to.
+--   pool a wallet is currently delegating.
 --   
 --   This is done separately from <a>putWalletMeta</a> because certificate
---   declaration are:
+--   declarations are:
 --   
 --   <ol>
---   <li>Stored on-chain</li>
---   <li>Affected by rollbacks (or said differently, tight to a
---   <a>SlotId</a>)</li>
+--   <li>Stored on-chain.</li>
+--   <li>Affected by rollbacks (or said differently, tied to a
+--   <a>SlotId</a>).</li>
 --   </ol>
 [putDelegationCertificate] :: DBLayer m s k -> PrimaryKey WalletId -> PoolId -> SlotId -> ExceptT ErrNoSuchWallet stm ()
 
