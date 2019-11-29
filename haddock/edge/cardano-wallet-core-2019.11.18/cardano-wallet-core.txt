@@ -4590,6 +4590,10 @@ data ApiAddress (n :: NetworkDiscriminant)
 ApiAddress :: !(ApiT Address, Proxy n) -> !ApiT AddressState -> ApiAddress
 [$sel:id:ApiAddress] :: ApiAddress -> !(ApiT Address, Proxy n)
 [$sel:state:ApiAddress] :: ApiAddress -> !ApiT AddressState
+data ApiEpochInfo
+ApiEpochInfo :: !ApiT EpochNo -> !UTCTime -> ApiEpochInfo
+[$sel:epochNumber:ApiEpochInfo] :: ApiEpochInfo -> !ApiT EpochNo
+[$sel:epochStartTime:ApiEpochInfo] :: ApiEpochInfo -> !UTCTime
 data ApiStakePool
 ApiStakePool :: !ApiT PoolId -> !ApiStakePoolMetrics -> !Double -> !Maybe StakePoolMetadata -> ApiStakePool
 [$sel:id:ApiStakePool] :: ApiStakePool -> !ApiT PoolId
@@ -4802,6 +4806,9 @@ instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpo
 instance GHC.Show.Show (Cardano.Wallet.Api.Types.ApiAddress n)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiAddress n)
 instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiAddress n)
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiEpochInfo
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiEpochInfo
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiEpochInfo
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiWallet
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiWallet
@@ -4900,6 +4907,8 @@ instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ByronWallet
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ByronWalletPostData
 instance Cardano.Wallet.Primitive.AddressDerivation.FromMnemonic sizes purpose => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiEpochInfo
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiEpochInfo
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWallet
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiWallet
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWalletPassphrase
