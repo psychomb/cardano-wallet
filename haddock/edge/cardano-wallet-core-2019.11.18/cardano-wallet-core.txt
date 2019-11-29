@@ -1655,7 +1655,7 @@ instance Data.Text.Class.FromText Cardano.Wallet.Primitive.AddressDerivation.Acc
 --   flexible to various backends.
 module Cardano.Wallet.Transaction
 data TransactionLayer t k
-TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkTx (Tx, SealedTx)) -> (PoolId -> (k  'AddressK XPrv, Passphrase "encryption") -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkTx (Tx, SealedTx)) -> (CoinSelection -> Quantity "byte" Int) -> (Quantity "byte" Word16 -> Word8 -> Word8) -> (CoinSelection -> Either (ErrValidateSelection t) ()) -> (ByteString -> Either ErrDecodeSignedTx (Tx, SealedTx)) -> TransactionLayer t k
+TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkTx (Tx, SealedTx)) -> (PoolId -> (k  'AddressK XPrv, Passphrase "encryption") -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkTx (Tx, SealedTx)) -> ((k  'AddressK XPrv, Passphrase "encryption") -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkTx (Tx, SealedTx)) -> (CoinSelection -> Quantity "byte" Int) -> (Quantity "byte" Word16 -> Word8 -> Word8) -> (CoinSelection -> Either (ErrValidateSelection t) ()) -> (ByteString -> Either ErrDecodeSignedTx (Tx, SealedTx)) -> TransactionLayer t k
 
 -- | Construct a standard transaction
 --   
@@ -1672,7 +1672,13 @@ TransactionLayer :: ((Address -> Maybe (k  'AddressK XPrv, Passphrase "encryptio
 --   The certificate is a combination of the <a>PoolId</a> and the public
 --   key of the reward account. (Note that this is an address key and HD
 --   account keys are something different)
-[mkDelegationCertTx] :: TransactionLayer t k -> PoolId -> (k  'AddressK XPrv, Passphrase "encryption") -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkTx (Tx, SealedTx)
+[mkDelegationJoinTx] :: TransactionLayer t k -> PoolId -> (k  'AddressK XPrv, Passphrase "encryption") -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkTx (Tx, SealedTx)
+
+-- | Construct a transaction containing a certificate for quiting from a
+--   stake pool.
+--   
+--   The certificate is the public key of the reward account.
+[mkDelegationQuitTx] :: TransactionLayer t k -> (k  'AddressK XPrv, Passphrase "encryption") -> (Address -> Maybe (k  'AddressK XPrv, Passphrase "encryption")) -> [(TxIn, TxOut)] -> [TxOut] -> Either ErrMkTx (Tx, SealedTx)
 
 -- | Estimate the size of a <a>CoinSelection</a>, in bytes. This operation
 --   is seemingly coupled to the binary representation of a
@@ -3865,7 +3871,7 @@ assignMigrationTargetAddresses :: forall ctx s k. (HasDBLayer s k ctx, GenChange
 -- | Select necessary coins to cover for a single delegation request
 --   (including one certificate).
 selectCoinsForDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrSelectForDelegation IO CoinSelection
-signDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> PoolId -> ExceptT ErrSignDelegation IO (Tx, TxMeta, UTCTime, SealedTx)
+signDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> PoolId -> DelegationAction -> ExceptT ErrSignDelegation IO (Tx, TxMeta, UTCTime, SealedTx)
 
 -- | Errors that can occur when creating unsigned delegation certificate
 --   transaction.
@@ -3874,12 +3880,17 @@ ErrSelectForDelegationNoSuchPool :: PoolId -> ErrSelectForDelegation
 ErrSelectForDelegationPoolAlreadyJoined :: PoolId -> ErrSelectForDelegation
 ErrSelectForDelegationNoSuchWallet :: ErrNoSuchWallet -> ErrSelectForDelegation
 ErrSelectForDelegationFee :: ErrAdjustForFee -> ErrSelectForDelegation
+ErrSelectForDelegationNotDelegating :: ErrSelectForDelegation
+ErrSelectForDelegationWrongPoolId :: PoolId -> ErrSelectForDelegation
 
 -- | Errors that can occur when signing a delegation certificate.
 data ErrSignDelegation
 ErrSignDelegationNoSuchWallet :: ErrNoSuchWallet -> ErrSignDelegation
 ErrSignDelegationWithRootKey :: ErrWithRootKey -> ErrSignDelegation
 ErrSignDelegationMkTx :: ErrMkTx -> ErrSignDelegation
+data DelegationAction
+Join :: DelegationAction
+Quit :: DelegationAction
 
 -- | Forget pending transaction.
 forgetPendingTx :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx IO ()
@@ -3985,6 +3996,8 @@ instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrEstimatePaymentFe
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrEstimatePaymentFee e)
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrSelectForPayment e)
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrSelectForPayment e)
+instance GHC.Classes.Eq Cardano.Wallet.DelegationAction
+instance GHC.Show.Show Cardano.Wallet.DelegationAction
 instance GHC.Generics.Generic (Cardano.Wallet.WalletLayer s t k)
 
 module Cardano.Wallet.Registry
@@ -4725,6 +4738,8 @@ NotSynced :: ApiErrorCode
 NothingToMigrate :: ApiErrorCode
 NoSuchPool :: ApiErrorCode
 PoolAlreadyJoined :: ApiErrorCode
+WrongPool :: ApiErrorCode
+NotDelegating :: ApiErrorCode
 data ApiNetworkInformation
 ApiNetworkInformation :: !ApiT SyncProgress -> !ApiBlockReference -> !ApiNetworkTip -> ApiNetworkInformation
 [$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
