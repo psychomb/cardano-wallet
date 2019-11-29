@@ -86,6 +86,10 @@ ProposalExpiration :: Quantity "epoch" Word32 -> ConfigParam
 -- | Maximum number of seconds per update for KES keys known by the system
 --   after start time.
 KesUpdateSpeed :: Quantity "second/update" Word32 -> ConfigParam
+
+-- | Per certificate fees, override the <tt>certificate</tt> fee of the
+--   linear fee
+ConfigPerCertificate :: PerCertificateFee -> ConfigParam
 UnimplementedConfigParam :: Word16 -> ConfigParam
 data ConsensusVersion
 BFT :: ConsensusVersion
@@ -117,6 +121,11 @@ FragmentDelegation :: FragmentSpec
 --   'Milli 3142'.
 newtype Milli
 Milli :: Word64 -> Milli
+data PerCertificateFee
+PerCertificateFee :: Word64 -> Word64 -> Word64 -> PerCertificateFee
+[feePoolRegistration] :: PerCertificateFee -> Word64
+[feeStakeDelegation] :: PerCertificateFee -> Word64
+[feeOwnerStakeDelegation] :: PerCertificateFee -> Word64
 getBlock :: Get Block
 getBlockHeader :: Get BlockHeader
 
@@ -130,6 +139,14 @@ getFragment :: Get Fragment
 
 -- | Decode the contents of a <tt>Transaction</tt>-fragment.
 getTransaction :: Hash "Tx" -> Get Tx
+
+-- | Take an existing fee policy and override the <tt>certificate</tt>
+--   using the a given per certificate policy.
+--   
+--   This relies on the assumption that the certificate in the
+--   <a>FeePolicy</a> is only interpret as a 'stake delegation'
+--   certificate.
+overrideFeePolicy :: FeePolicy -> PerCertificateFee -> FeePolicy
 data MkFragment
 MkFragmentSimpleTransaction :: TxWitnessTag -> MkFragment
 MkFragmentStakeDelegation :: TxWitnessTag -> StakeDelegationType -> ChimericAccount -> (XPrv, Passphrase "encryption") -> MkFragment
@@ -193,6 +210,9 @@ instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.Fragment
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.ConfigParam
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.ConfigParam
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.ConfigParam
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.PerCertificateFee
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.PerCertificateFee
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.PerCertificateFee
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.ConsensusVersion
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.ConsensusVersion
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.ConsensusVersion
@@ -213,6 +233,7 @@ instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.BlockHeader
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.Block
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.Fragment
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.ConfigParam
+instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.PerCertificateFee
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.ConsensusVersion
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.LeaderId
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.Milli
