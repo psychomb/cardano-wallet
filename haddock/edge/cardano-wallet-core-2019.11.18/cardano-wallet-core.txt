@@ -341,10 +341,10 @@ instance Data.Text.Class.ToText b => Data.Text.Class.ToText (Data.Quantity.Quant
 --   few primitive operations on Wallet core types as well.
 module Cardano.Wallet.Primitive.Types
 data Block
-Block :: !BlockHeader -> ![Tx] -> ![(ChimericAccount, PoolId)] -> Block
+Block :: !BlockHeader -> ![Tx] -> ![DelegationCertificate] -> Block
 [$sel:header:Block] :: Block -> !BlockHeader
 [$sel:transactions:Block] :: Block -> ![Tx]
-[$sel:delegations:Block] :: Block -> ![(ChimericAccount, PoolId)]
+[$sel:delegations:Block] :: Block -> ![DelegationCertificate]
 data BlockHeader
 BlockHeader :: SlotId -> Quantity "block" Word32 -> !Hash "BlockHeader" -> !Hash "BlockHeader" -> BlockHeader
 [$sel:slotId:BlockHeader] :: BlockHeader -> SlotId
@@ -522,6 +522,13 @@ Unused :: AddressState
 newtype ChimericAccount
 ChimericAccount :: ByteString -> ChimericAccount
 [$sel:unChimericAccount:ChimericAccount] :: ChimericAccount -> ByteString
+
+-- | Represent a delegation certificate.
+data DelegationCertificate
+CertDelegateNone :: ChimericAccount -> DelegationCertificate
+CertDelegateFull :: ChimericAccount -> PoolId -> DelegationCertificate
+dlgCertAccount :: DelegationCertificate -> ChimericAccount
+dlgCertPoolId :: DelegationCertificate -> Maybe PoolId
 
 -- | Coins are stored as Lovelace (reminder: 1 Lovelace = 1e-6 ADA)
 newtype Coin
@@ -913,6 +920,10 @@ instance GHC.Classes.Ord (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Show.Show (Cardano.Wallet.Primitive.Types.Hash tag)
+instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.DelegationCertificate
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.DelegationCertificate
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.DelegationCertificate
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.DelegationCertificate
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.ChimericAccount
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.ChimericAccount
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.ChimericAccount
@@ -1075,6 +1086,7 @@ instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Account"
 instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Genesis")
 instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Block")
 instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "BlockHeader")
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.DelegationCertificate
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.ChimericAccount
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.StartTime
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.EpochLength
@@ -2248,12 +2260,12 @@ updateState :: (IsOurs s Address, NFData s, Show s) => s -> Wallet s -> Wallet s
 -- | Represents the subset of data from a single block that are relevant to
 --   a particular wallet, discovered when applying a block to that wallet.
 data FilteredBlock
-FilteredBlock :: ![PoolId] -> ![(Tx, TxMeta)] -> FilteredBlock
+FilteredBlock :: ![DelegationCertificate] -> ![(Tx, TxMeta)] -> FilteredBlock
 
 -- | Stake delegations made on behalf of the wallet, listed in order of
 --   discovery. If the list contains more than element, those that appear
 --   later in the list supercede those that appear earlier on.
-[$sel:delegations:FilteredBlock] :: FilteredBlock -> ![PoolId]
+[$sel:delegations:FilteredBlock] :: FilteredBlock -> ![DelegationCertificate]
 
 -- | The set of transactions that affect the wallet.
 [$sel:transactions:FilteredBlock] :: FilteredBlock -> ![(Tx, TxMeta)]
@@ -2370,9 +2382,9 @@ Database :: !Map wid (WalletDatabase s xprv) -> Map (Hash "Tx") Tx -> Database w
 
 -- | Model database record for a single wallet.
 data WalletDatabase s xprv
-WalletDatabase :: !Map SlotId (Wallet s) -> !Map SlotId PoolId -> !WalletMetadata -> !Map (Hash "Tx") TxMeta -> !Maybe xprv -> WalletDatabase s xprv
+WalletDatabase :: !Map SlotId (Wallet s) -> !Map SlotId (Maybe PoolId) -> !WalletMetadata -> !Map (Hash "Tx") TxMeta -> !Maybe xprv -> WalletDatabase s xprv
 [$sel:checkpoints:WalletDatabase] :: WalletDatabase s xprv -> !Map SlotId (Wallet s)
-[$sel:certificates:WalletDatabase] :: WalletDatabase s xprv -> !Map SlotId PoolId
+[$sel:certificates:WalletDatabase] :: WalletDatabase s xprv -> !Map SlotId (Maybe PoolId)
 [$sel:metadata:WalletDatabase] :: WalletDatabase s xprv -> !WalletMetadata
 [$sel:txHistory:WalletDatabase] :: WalletDatabase s xprv -> !Map (Hash "Tx") TxMeta
 [$sel:xprv:WalletDatabase] :: WalletDatabase s xprv -> !Maybe xprv
@@ -2415,7 +2427,7 @@ mListCheckpoints :: Ord wid => wid -> ModelOp wid s xprv [BlockHeader]
 mRollbackTo :: Ord wid => wid -> SlotId -> ModelOp wid s xprv ()
 mPutWalletMeta :: Ord wid => wid -> WalletMetadata -> ModelOp wid s xprv ()
 mReadWalletMeta :: Ord wid => wid -> ModelOp wid s xprv (Maybe WalletMetadata)
-mPutDelegationCertificate :: Ord wid => wid -> PoolId -> SlotId -> ModelOp wid s xprv ()
+mPutDelegationCertificate :: Ord wid => wid -> DelegationCertificate -> SlotId -> ModelOp wid s xprv ()
 mPutTxHistory :: forall wid s xprv. Ord wid => wid -> TxHistory -> ModelOp wid s xprv ()
 mReadTxHistory :: forall wid s xprv. Ord wid => wid -> SortOrder -> Range SlotId -> Maybe TxStatus -> ModelOp wid s xprv TxHistory
 mPutPrivateKey :: Ord wid => wid -> xprv -> ModelOp wid s xprv ()
@@ -3029,10 +3041,10 @@ Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !BlockId -> !Word32 -> !BlockI
 [checkpointEpochStability] :: Checkpoint -> !Word32
 type CheckpointId = Key Checkpoint
 data DelegationCertificate
-DelegationCertificate :: !WalletId -> !SlotId -> !PoolId -> DelegationCertificate
+DelegationCertificate :: !WalletId -> !SlotId -> !Maybe PoolId -> DelegationCertificate
 [certWalletId] :: DelegationCertificate -> !WalletId
 [certSlot] :: DelegationCertificate -> !SlotId
-[certPoolId] :: DelegationCertificate -> !PoolId
+[certPoolId] :: DelegationCertificate -> !Maybe PoolId
 type DelegationCertificateId = Key DelegationCertificate
 data UTxO
 UTxO :: !WalletId -> !SlotId -> !TxId -> !Word32 -> !Address -> !Coin -> UTxO
@@ -3453,7 +3465,7 @@ module Cardano.Wallet.DB
 --   <tt>let</tt> binding here as the semantic for those are slightly
 --   different: we really need a pattern match here!
 data DBLayer m s k
-DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists stm ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> stm [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (Wallet s))) -> (PrimaryKey WalletId -> stm [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe WalletMetadata)) -> (PrimaryKey WalletId -> PoolId -> SlotId -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> stm [(Tx, TxMeta)]) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx stm ()) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> (forall a. stm a -> m a) -> DBLayer m s k
+DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists stm ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> stm [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (Wallet s))) -> (PrimaryKey WalletId -> stm [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe WalletMetadata)) -> (PrimaryKey WalletId -> DelegationCertificate -> SlotId -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> stm [(Tx, TxMeta)]) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx stm ()) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> (forall a. stm a -> m a) -> DBLayer m s k
 
 -- | Initialize a database entry for a given wallet. <a>putCheckpoint</a>,
 --   <a>putWalletMeta</a> or <a>putTxHistory</a> will actually all fail if
@@ -3505,7 +3517,7 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] 
 --   <li>Affected by rollbacks (or said differently, tied to a
 --   <a>SlotId</a>).</li>
 --   </ol>
-[putDelegationCertificate] :: DBLayer m s k -> PrimaryKey WalletId -> PoolId -> SlotId -> ExceptT ErrNoSuchWallet stm ()
+[putDelegationCertificate] :: DBLayer m s k -> PrimaryKey WalletId -> DelegationCertificate -> SlotId -> ExceptT ErrNoSuchWallet stm ()
 
 -- | Augments the transaction history for a known wallet.
 --   

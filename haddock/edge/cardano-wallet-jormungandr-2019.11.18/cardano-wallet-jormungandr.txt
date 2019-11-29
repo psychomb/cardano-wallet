@@ -104,7 +104,7 @@ Initial :: [ConfigParam] -> Fragment
 Transaction :: Tx -> Fragment
 
 -- | A signed transaction with stake pool delegation
-StakeDelegation :: (PoolId, ChimericAccount, Tx) -> Fragment
+StakeDelegation :: (StakeDelegationType, ChimericAccount, Tx) -> Fragment
 UnimplementedFragment :: Word8 -> Fragment
 data FragmentSpec
 FragmentInitial :: FragmentSpec
@@ -204,6 +204,7 @@ instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.Milli
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.Milli
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.StakeDelegationType
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.StakeDelegationType
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.StakeDelegationType
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.TxWitnessTag
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.TxWitnessTag
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.BlockHeader
@@ -215,6 +216,7 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.ConfigParam
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.ConsensusVersion
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.LeaderId
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.Milli
+instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.StakeDelegationType
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.BlockHeader
 
 
