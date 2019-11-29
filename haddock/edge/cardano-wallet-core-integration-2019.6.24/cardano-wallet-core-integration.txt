@@ -389,9 +389,11 @@ updateNamePayload :: Text -> Payload
 updatePassPayload :: Text -> Text -> Payload
 getHeaderCases :: forall a. Show a => Status -> [(String, Headers, [(Status, Either RequestException a) -> IO ()])]
 postHeaderCases :: Show a => [(String, Headers, [(Status, Either RequestException a) -> IO ()])]
+stakeDelegationFee :: Natural
 errMsgWalletIdEncoding :: String
 errMsg400StartTimeLaterThanEndTime :: String -> String -> String
 errMsg403Fee :: String
+errMsg403DelegationFee :: Natural -> String
 errMsg403NotEnoughMoney :: Int -> Int -> String
 errMsg403UTxO :: String
 errMsg403WrongPass :: String
@@ -399,7 +401,6 @@ errMsg403NoPendingAnymore :: Text -> String
 errMsg404NoSuchPool :: Text -> String
 errMsg403PoolAlreadyJoined :: Text -> String
 errMsg403WrongPool :: Text -> String
-errMsg403NotDelegating :: String
 errMsg403NothingToMigrate :: Text -> String
 errMsg404NoEndpoint :: String
 errMsg404CannotFindTx :: Text -> String

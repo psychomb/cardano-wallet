@@ -3868,29 +3868,41 @@ selectCoinsForMigration :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDB
 --   pending change addresses for the target wallet.
 assignMigrationTargetAddresses :: forall ctx s k. (HasDBLayer s k ctx, GenChange s, IsOurs s Address, NFData s, Show s) => ctx -> WalletId -> ArgGenChange s -> [CoinSelection] -> ExceptT ErrNoSuchWallet IO [CoinSelection]
 
+-- | Helper function to factor necessary logic for joining a stake pool.
+joinStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger ctx, HasNetworkLayer t ctx, HasTransactionLayer t k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> (PoolId, [PoolId]) -> ArgGenChange s -> Passphrase "encryption" -> ExceptT ErrJoinStakePool IO (Tx, TxMeta, UTCTime)
+
+-- | Helper function to factor necessary logic for quitting a stake pool.
+quitStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger ctx, HasNetworkLayer t ctx, HasTransactionLayer t k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> PoolId -> ArgGenChange s -> Passphrase "encryption" -> ExceptT ErrQuitStakePool IO (Tx, TxMeta, UTCTime)
+
 -- | Select necessary coins to cover for a single delegation request
 --   (including one certificate).
 selectCoinsForDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrSelectForDelegation IO CoinSelection
 signDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> PoolId -> DelegationAction -> ExceptT ErrSignDelegation IO (Tx, TxMeta, UTCTime, SealedTx)
+data ErrJoinStakePool
+ErrJoinStakePoolNoSuchWallet :: ErrNoSuchWallet -> ErrJoinStakePool
+ErrJoinStakePoolAlreadyDelegating :: PoolId -> ErrJoinStakePool
+ErrJoinStakePoolNoSuchPool :: PoolId -> ErrJoinStakePool
+ErrJoinStakePoolSelectCoin :: ErrSelectForDelegation -> ErrJoinStakePool
+ErrJoinStakePoolSignDelegation :: ErrSignDelegation -> ErrJoinStakePool
+ErrJoinStakePoolSubmitTx :: ErrSubmitTx -> ErrJoinStakePool
+data ErrQuitStakePool
+ErrQuitStakePoolNoSuchWallet :: ErrNoSuchWallet -> ErrQuitStakePool
+ErrQuitStakePoolNotDelegatingTo :: PoolId -> ErrQuitStakePool
+ErrQuitStakePoolSelectCoin :: ErrSelectForDelegation -> ErrQuitStakePool
+ErrQuitStakePoolSignDelegation :: ErrSignDelegation -> ErrQuitStakePool
+ErrQuitStakePoolSubmitTx :: ErrSubmitTx -> ErrQuitStakePool
 
 -- | Errors that can occur when creating unsigned delegation certificate
 --   transaction.
 data ErrSelectForDelegation
-ErrSelectForDelegationNoSuchPool :: PoolId -> ErrSelectForDelegation
-ErrSelectForDelegationPoolAlreadyJoined :: PoolId -> ErrSelectForDelegation
 ErrSelectForDelegationNoSuchWallet :: ErrNoSuchWallet -> ErrSelectForDelegation
 ErrSelectForDelegationFee :: ErrAdjustForFee -> ErrSelectForDelegation
-ErrSelectForDelegationNotDelegating :: ErrSelectForDelegation
-ErrSelectForDelegationWrongPoolId :: PoolId -> ErrSelectForDelegation
 
 -- | Errors that can occur when signing a delegation certificate.
 data ErrSignDelegation
 ErrSignDelegationNoSuchWallet :: ErrNoSuchWallet -> ErrSignDelegation
 ErrSignDelegationWithRootKey :: ErrWithRootKey -> ErrSignDelegation
 ErrSignDelegationMkTx :: ErrMkTx -> ErrSignDelegation
-data DelegationAction
-Join :: DelegationAction
-Quit :: DelegationAction
 
 -- | Forget pending transaction.
 forgetPendingTx :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx IO ()
@@ -3972,6 +3984,12 @@ ErrWithRootKeyWrongPassphrase :: WalletId -> ErrWrongPassphrase -> ErrWithRootKe
 -- | Indicate a failure when checking for a given <a>Passphrase</a> match
 data ErrWrongPassphrase
 ErrWrongPassphrase :: ErrWrongPassphrase
+instance GHC.Show.Show Cardano.Wallet.ErrQuitStakePool
+instance GHC.Classes.Eq Cardano.Wallet.ErrQuitStakePool
+instance GHC.Generics.Generic Cardano.Wallet.ErrQuitStakePool
+instance GHC.Show.Show Cardano.Wallet.ErrJoinStakePool
+instance GHC.Classes.Eq Cardano.Wallet.ErrJoinStakePool
+instance GHC.Generics.Generic Cardano.Wallet.ErrJoinStakePool
 instance GHC.Classes.Eq Cardano.Wallet.ErrSignDelegation
 instance GHC.Show.Show Cardano.Wallet.ErrSignDelegation
 instance GHC.Classes.Eq Cardano.Wallet.ErrSelectForDelegation
@@ -3996,8 +4014,6 @@ instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrEstimatePaymentFe
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrEstimatePaymentFee e)
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrSelectForPayment e)
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrSelectForPayment e)
-instance GHC.Classes.Eq Cardano.Wallet.DelegationAction
-instance GHC.Show.Show Cardano.Wallet.DelegationAction
 instance GHC.Generics.Generic (Cardano.Wallet.WalletLayer s t k)
 
 module Cardano.Wallet.Registry
@@ -4681,7 +4697,7 @@ ApiTimeReference :: !UTCTime -> !ApiBlockReference -> ApiTimeReference
 [$sel:time:ApiTimeReference] :: ApiTimeReference -> !UTCTime
 [$sel:block:ApiTimeReference] :: ApiTimeReference -> !ApiBlockReference
 data ApiTransaction n
-ApiTransaction :: !ApiT (Hash "Tx") -> !Quantity "lovelace" Natural -> !Maybe ApiTimeReference -> !Maybe ApiTimeReference -> !Quantity "block" Natural -> !ApiT Direction -> ![ApiTxInput n] -> !NonEmpty (AddressAmount n) -> !ApiT TxStatus -> ApiTransaction n
+ApiTransaction :: !ApiT (Hash "Tx") -> !Quantity "lovelace" Natural -> !Maybe ApiTimeReference -> !Maybe ApiTimeReference -> !Quantity "block" Natural -> !ApiT Direction -> ![ApiTxInput n] -> ![AddressAmount n] -> !ApiT TxStatus -> ApiTransaction n
 [$sel:id:ApiTransaction] :: ApiTransaction n -> !ApiT (Hash "Tx")
 [$sel:amount:ApiTransaction] :: ApiTransaction n -> !Quantity "lovelace" Natural
 [$sel:insertedAt:ApiTransaction] :: ApiTransaction n -> !Maybe ApiTimeReference
@@ -4689,7 +4705,7 @@ ApiTransaction :: !ApiT (Hash "Tx") -> !Quantity "lovelace" Natural -> !Maybe Ap
 [$sel:depth:ApiTransaction] :: ApiTransaction n -> !Quantity "block" Natural
 [$sel:direction:ApiTransaction] :: ApiTransaction n -> !ApiT Direction
 [$sel:inputs:ApiTransaction] :: ApiTransaction n -> ![ApiTxInput n]
-[$sel:outputs:ApiTransaction] :: ApiTransaction n -> !NonEmpty (AddressAmount n)
+[$sel:outputs:ApiTransaction] :: ApiTransaction n -> ![AddressAmount n]
 [$sel:status:ApiTransaction] :: ApiTransaction n -> !ApiT TxStatus
 newtype ApiFee
 ApiFee :: Quantity "lovelace" Natural -> ApiFee
@@ -4738,8 +4754,7 @@ NotSynced :: ApiErrorCode
 NothingToMigrate :: ApiErrorCode
 NoSuchPool :: ApiErrorCode
 PoolAlreadyJoined :: ApiErrorCode
-WrongPool :: ApiErrorCode
-NotDelegating :: ApiErrorCode
+NotDelegatingTo :: ApiErrorCode
 data ApiNetworkInformation
 ApiNetworkInformation :: !ApiT SyncProgress -> !ApiBlockReference -> !ApiNetworkTip -> ApiNetworkInformation
 [$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
@@ -5172,6 +5187,7 @@ instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSignPayment
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Transaction.ErrDecodeSignedTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSubmitExternalTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrRemovePendingTx
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrPostTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSubmitTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrNetworkUnavailable
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrUpdatePassphrase
@@ -5182,6 +5198,8 @@ instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Pool.Metrics.ErrListStake
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSelectForDelegation
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSignDelegation
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrJoinStakePool
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrQuitStakePool
 instance Cardano.Wallet.Api.Server.LiftHandler (Network.Wai.Internal.Request, Servant.Server.Internal.ServantErr.ServantErr)
 
 
