@@ -18,6 +18,15 @@ module Test.Hspec.Extra
 aroundAll :: forall a. HasCallStack => (ActionWith a -> IO ()) -> SpecWith a -> Spec
 
 
+-- | Utility function for finding the package test data directory.
+module Test.Utils.Paths
+
+-- | A TH function to get the test data directory. It combines the current
+--   source file location and cabal file to locate the package directory in
+--   such a way that works in both the package build and ghci.
+getTestData :: Q Exp
+
+
 -- | Provides functions for checking if TCP ports are available to listen
 --   on. These can be used to start servers for testing when there may be
 --   multiple test suites running in parallel.
