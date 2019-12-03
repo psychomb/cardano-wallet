@@ -1207,14 +1207,6 @@ CoinSelectionOptions :: (Word8 -> Word8) -> (CoinSelection -> Either e ()) -> Co
 
 -- | Returns any backend-specific error regarding coin selection
 [validate] :: CoinSelectionOptions e -> CoinSelection -> Either e ()
-
--- | Shuffles a list of elements.
---   
---   <pre>
---   &gt;&gt;&gt; shuffle (outputs coinSel)
---   [...]
---   </pre>
-shuffle :: [a] -> IO [a]
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.Primitive.CoinSelection.ErrCoinSelection e)
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.Primitive.CoinSelection.ErrCoinSelection e)
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.CoinSelection.CoinSelectionOptions e)
@@ -3686,404 +3678,6 @@ instance GHC.Show.Show Cardano.Wallet.DB.MVar.MVarDBError
 instance GHC.Exception.Type.Exception Cardano.Wallet.DB.MVar.MVarDBError
 
 
--- | Provides wallet layer functions that are used by API layer. Uses both
---   <a>Cardano.Wallet.DB</a> and <a>Cardano.Wallet.Network</a> to realize
---   its role as being intermediary between the three.
---   
---   Functions of the wallet layer are often parameterized with variables
---   following the convention below:
---   
---   <ul>
---   <li><tt>s</tt>: A <b>s</b>tate used to keep track of known addresses.
---   Typically, possible values for this parameter are described in
---   <a>AddressDiscovery</a> sub-modules. For instance <tt>SeqState</tt> or
---   <tt>Rnd State</tt>.</li>
---   <li><tt>t</tt>: A <b>t</b>arget backend which captures details
---   specific to a particular chain producer (binary formats, fee policy,
---   networking layer).</li>
---   <li><tt>k</tt>: A <b>k</b>ey derivation scheme intrisically connected
---   to the underlying discovery state <tt>s</tt>. This describes how the
---   hierarchical structure of a wallet is defined as well as the
---   relationship between secret keys and public addresses.</li>
---   </ul>
-module Cardano.Wallet
-data WalletLayer s t (k :: Depth -> * -> *)
-WalletLayer :: Trace IO Text -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBLayer IO s k -> WalletLayer s t
-type HasDBLayer s k = HasType (DBLayer IO s k)
-dbLayer :: forall s k ctx. HasDBLayer s k ctx => Lens' ctx (DBLayer IO s k)
-type HasLogger = HasType (Trace IO Text)
-logger :: forall ctx. HasLogger ctx => Lens' ctx (Trace IO Text)
-
--- | This module is only interested in one block-, and tx-type. This
---   constraint hides that choice, for some ease of use.
-type HasNetworkLayer t = HasType (NetworkLayer IO t Block)
-networkLayer :: forall t ctx. HasNetworkLayer t ctx => Lens' ctx (NetworkLayer IO t Block)
-type HasTransactionLayer t k = HasType (TransactionLayer t k)
-transactionLayer :: forall t k ctx. HasTransactionLayer t k ctx => Lens' ctx (TransactionLayer t k)
-type HasGenesisData = HasType (Block, BlockchainParameters, SyncTolerance)
-genesisData :: forall ctx. HasGenesisData ctx => Lens' ctx (Block, BlockchainParameters, SyncTolerance)
-
--- | Initialise and store a new wallet, returning its ID.
-createWallet :: forall ctx s k. (HasGenesisData ctx, HasDBLayer s k ctx, Show s, NFData s, IsOurs s Address, IsOurs s ChimericAccount) => ctx -> WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
-
--- | Attach a given private key to a wallet. The private key is necessary
---   for some operations like signing transactions, or generating new
---   accounts.
-attachPrivateKey :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> (k  'RootK XPrv, Passphrase "encryption") -> ExceptT ErrNoSuchWallet IO ()
-
--- | List the wallet's UTxO statistics.
-listUtxoStatistics :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT ErrListUTxOStatistics IO UTxOStatistics
-
--- | Retrieve the wallet state for the wallet with the given ID.
-readWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO (Wallet s, WalletMetadata, Set Tx)
-
--- | Remove an existing wallet. Note that there's no particular work to be
---   done regarding the restoration worker as it will simply terminate on
---   the next tick when noticing that the corresponding wallet is gone.
-deleteWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
-
--- | Restore a wallet from its current tip up to the network tip.
---   
---   This function returns immediately, starting a worker thread in the
---   background that will fetch and apply remaining blocks until the
---   network tip is reached or until failure.
-restoreWallet :: forall ctx s t k. (HasLogger ctx, HasNetworkLayer t ctx, HasDBLayer s k ctx, HasGenesisData ctx) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
-
--- | Update a wallet's metadata with the given update function.
-updateWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> (WalletMetadata -> WalletMetadata) -> ExceptT ErrNoSuchWallet IO ()
-
--- | Change a wallet's passphrase to the given passphrase.
-updateWalletPassphrase :: forall ctx s k. (HasDBLayer s k ctx, WalletKey k) => ctx -> WalletId -> (Passphrase "encryption-old", Passphrase "encryption-new") -> ExceptT ErrUpdatePassphrase IO ()
-walletSyncProgress :: forall ctx s. HasGenesisData ctx => ctx -> Wallet s -> IO SyncProgress
-
--- | Forbidden operation was executed on an already existing wallet
-newtype ErrWalletAlreadyExists
-ErrWalletAlreadyExists :: WalletId -> ErrWalletAlreadyExists
-
--- | Can't perform given operation because there's no wallet
-newtype ErrNoSuchWallet
-ErrNoSuchWallet :: WalletId -> ErrNoSuchWallet
-
--- | Errors that can occur when listing UTxO statistics.
-newtype ErrListUTxOStatistics
-ErrListUTxOStatisticsNoSuchWallet :: ErrNoSuchWallet -> ErrListUTxOStatistics
-
--- | Errors that can occur when trying to change a wallet's passphrase.
-data ErrUpdatePassphrase
-ErrUpdatePassphraseNoSuchWallet :: ErrNoSuchWallet -> ErrUpdatePassphrase
-ErrUpdatePassphraseWithRootKey :: ErrWithRootKey -> ErrUpdatePassphrase
-
--- | List all addresses of a wallet with their metadata. Addresses are
---   ordered from the most-recently-discovered to the oldest known.
-listAddresses :: forall ctx s k n. (HasDBLayer s k ctx, IsOurs s Address, CompareDiscovery s, KnownAddresses s, MkKeyFingerprint k Address, DelegationAddress n k, s ~ SeqState n k) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
-
--- | Prepare a transaction and automatically select inputs from the wallet
---   to cover the requested outputs. Note that this only runs coin
---   selection for the given outputs. In order to construct (and sign) an
---   actual transaction, use <a>signPayment</a>.
-selectCoinsForPayment :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s k ctx, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrSelectForPayment e) IO CoinSelection
-
--- | Estimate a transaction fee by automatically selecting inputs from the
---   wallet to cover the requested outputs.
-estimatePaymentFee :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimatePaymentFee e) IO Fee
-
--- | Produce witnesses and construct a transaction from a given selection.
---   Requires the encryption passphrase in order to decrypt the root
---   private key. Note that this doesn't broadcast the transaction to the
---   network. In order to do so, use <a>submitTx</a>.
-signPayment :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignPayment IO (Tx, TxMeta, UTCTime, SealedTx)
-
--- | Errors that can occur when creating an unsigned transaction.
-data ErrSelectForPayment e
-ErrSelectForPaymentNoSuchWallet :: ErrNoSuchWallet -> ErrSelectForPayment e
-ErrSelectForPaymentCoinSelection :: ErrCoinSelection e -> ErrSelectForPayment e
-ErrSelectForPaymentFee :: ErrAdjustForFee -> ErrSelectForPayment e
-
--- | Errors that can occur when estimating transaction fees.
-data ErrEstimatePaymentFee e
-ErrEstimatePaymentFeeNoSuchWallet :: ErrNoSuchWallet -> ErrEstimatePaymentFee e
-ErrEstimatePaymentFeeCoinSelection :: ErrCoinSelection e -> ErrEstimatePaymentFee e
-
--- | Errors that can occur when signing a transaction.
-data ErrSignPayment
-ErrSignPaymentMkTx :: ErrMkTx -> ErrSignPayment
-ErrSignPaymentNoSuchWallet :: ErrNoSuchWallet -> ErrSignPayment
-ErrSignPaymentWithRootKey :: ErrWithRootKey -> ErrSignPayment
-data ErrCoinSelection e
-
--- | UTxO exhausted during input selection We record the balance of the
---   UTxO as well as the size of the payment we tried to make.
-ErrNotEnoughMoney :: Word64 -> Word64 -> ErrCoinSelection e
-
--- | UTxO is not enough fragmented for the number of transaction outputs We
---   record the number of UTxO entries as well as the number of the outputs
---   of the transaction.
-ErrUtxoNotEnoughFragmented :: Word64 -> Word64 -> ErrCoinSelection e
-
--- | When trying to construct a transaction, the max number of allowed
---   inputs was reached.
-ErrMaximumInputsReached :: Word64 -> ErrCoinSelection e
-
--- | When trying to construct a transaction, the available inputs are
---   depleted even when UTxO is properly fragmented and with enough funds
---   to cover payment
-ErrInputsDepleted :: ErrCoinSelection e
-
--- | Somewhat, we ended up generating an invalid coin selection because of
---   inputs passed down to the coin selection function, or because a target
---   backend has extra-limitations not covered by our coin selection
---   algorithm.
-ErrInvalidSelection :: e -> ErrCoinSelection e
-newtype ErrAdjustForFee
-
--- | UTxO exhausted during fee covering We record what amount missed to
---   cover the fee
-ErrCannotCoverFee :: Word64 -> ErrAdjustForFee
-
--- | A type family for validations that are specific to a particular
---   backend type. This demands an instantiation of the family for a
---   particular backend:
---   
---   type instance (ErrValidateSelection MyBackend) = MyCustomError
-type family ErrValidateSelection t
-
--- | Constructs a set of coin selections that select all funds from the
---   given source wallet, returning them as change.
---   
---   If the coin selections returned by this function are used to create
---   transactions from the given wallet to a target wallet, executing those
---   transactions will have the effect of migrating all funds from the
---   given source wallet to the specified target wallet.
-selectCoinsForMigration :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [CoinSelection]
-
--- | Transform the given set of migration coin selections (for a source
---   wallet) into a set of coin selections that will migrate funds to the
---   specified target wallet.
---   
---   Each change entry in the specified set of coin selections is replaced
---   with a corresponding output entry in the returned set, where the
---   output entry has a address corresponding to the target wallet.
---   
---   All addresses generated by this function are also registered as
---   pending change addresses for the target wallet.
-assignMigrationTargetAddresses :: forall ctx s k. (HasDBLayer s k ctx, GenChange s, IsOurs s Address, NFData s, Show s) => ctx -> WalletId -> ArgGenChange s -> [CoinSelection] -> ExceptT ErrNoSuchWallet IO [CoinSelection]
-
--- | Helper function to factor necessary logic for joining a stake pool.
-joinStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger ctx, HasNetworkLayer t ctx, HasTransactionLayer t k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> (PoolId, [PoolId]) -> ArgGenChange s -> Passphrase "encryption" -> ExceptT ErrJoinStakePool IO (Tx, TxMeta, UTCTime)
-
--- | Helper function to factor necessary logic for quitting a stake pool.
-quitStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger ctx, HasNetworkLayer t ctx, HasTransactionLayer t k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> PoolId -> ArgGenChange s -> Passphrase "encryption" -> ExceptT ErrQuitStakePool IO (Tx, TxMeta, UTCTime)
-
--- | Select necessary coins to cover for a single delegation request
---   (including one certificate).
-selectCoinsForDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrSelectForDelegation IO CoinSelection
-signDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> PoolId -> DelegationAction -> ExceptT ErrSignDelegation IO (Tx, TxMeta, UTCTime, SealedTx)
-data ErrJoinStakePool
-ErrJoinStakePoolNoSuchWallet :: ErrNoSuchWallet -> ErrJoinStakePool
-ErrJoinStakePoolAlreadyDelegating :: PoolId -> ErrJoinStakePool
-ErrJoinStakePoolNoSuchPool :: PoolId -> ErrJoinStakePool
-ErrJoinStakePoolSelectCoin :: ErrSelectForDelegation -> ErrJoinStakePool
-ErrJoinStakePoolSignDelegation :: ErrSignDelegation -> ErrJoinStakePool
-ErrJoinStakePoolSubmitTx :: ErrSubmitTx -> ErrJoinStakePool
-data ErrQuitStakePool
-ErrQuitStakePoolNoSuchWallet :: ErrNoSuchWallet -> ErrQuitStakePool
-ErrQuitStakePoolNotDelegatingTo :: PoolId -> ErrQuitStakePool
-ErrQuitStakePoolSelectCoin :: ErrSelectForDelegation -> ErrQuitStakePool
-ErrQuitStakePoolSignDelegation :: ErrSignDelegation -> ErrQuitStakePool
-ErrQuitStakePoolSubmitTx :: ErrSubmitTx -> ErrQuitStakePool
-
--- | Errors that can occur when creating unsigned delegation certificate
---   transaction.
-data ErrSelectForDelegation
-ErrSelectForDelegationNoSuchWallet :: ErrNoSuchWallet -> ErrSelectForDelegation
-ErrSelectForDelegationFee :: ErrAdjustForFee -> ErrSelectForDelegation
-
--- | Errors that can occur when signing a delegation certificate.
-data ErrSignDelegation
-ErrSignDelegationNoSuchWallet :: ErrNoSuchWallet -> ErrSignDelegation
-ErrSignDelegationWithRootKey :: ErrWithRootKey -> ErrSignDelegation
-ErrSignDelegationMkTx :: ErrMkTx -> ErrSignDelegation
-
--- | Forget pending transaction.
-forgetPendingTx :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx IO ()
-
--- | List all transactions and metadata from history for a given wallet.
-listTransactions :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]
-
--- | Broadcast an externally-signed transaction to the network.
-submitExternalTx :: forall ctx t k. (HasNetworkLayer t ctx, HasTransactionLayer t k ctx) => ctx -> ByteString -> ExceptT ErrSubmitExternalTx IO Tx
-
--- | Broadcast a (signed) transaction to the network.
-submitTx :: forall ctx s t k. (HasNetworkLayer t ctx, HasDBLayer s k ctx) => ctx -> WalletId -> (Tx, TxMeta, SealedTx) -> ExceptT ErrSubmitTx IO ()
-
--- | Possible signing error
-newtype ErrMkTx
-
--- | We tried to sign a transaction with inputs that are unknown to us?
-ErrKeyNotFoundForAddress :: Address -> ErrMkTx
-
--- | Errors that can occur when submitting a signed transaction to the
---   network.
-data ErrSubmitTx
-ErrSubmitTxNetwork :: ErrPostTx -> ErrSubmitTx
-ErrSubmitTxNoSuchWallet :: ErrNoSuchWallet -> ErrSubmitTx
-
--- | Errors that can occur when submitting an externally-signed transaction
---   to the network.
-data ErrSubmitExternalTx
-ErrSubmitExternalTxNetwork :: ErrPostTx -> ErrSubmitExternalTx
-ErrSubmitExternalTxDecode :: ErrDecodeSignedTx -> ErrSubmitExternalTx
-
--- | Can't perform removing pending transaction
-data ErrRemovePendingTx
-ErrRemovePendingTxNoSuchWallet :: ErrNoSuchWallet -> ErrRemovePendingTx
-ErrRemovePendingTxNoSuchTransaction :: Hash "Tx" -> ErrRemovePendingTx
-ErrRemovePendingTxTransactionNoMorePending :: Hash "Tx" -> ErrRemovePendingTx
-
--- | Error while trying to send a transaction
-data ErrPostTx
-ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
-ErrPostTxBadRequest :: Text -> ErrPostTx
-ErrPostTxProtocolFailure :: Text -> ErrPostTx
-
--- | Error while trying to decode externally signed transaction
-data ErrDecodeSignedTx
-ErrDecodeSignedTxWrongPayload :: Text -> ErrDecodeSignedTx
-ErrDecodeSignedTxNotSupported :: ErrDecodeSignedTx
-
--- | Errors that can occur when trying to list transactions.
-data ErrListTransactions
-ErrListTransactionsNoSuchWallet :: ErrNoSuchWallet -> ErrListTransactions
-ErrListTransactionsStartTimeLaterThanEndTime :: ErrStartTimeLaterThanEndTime -> ErrListTransactions
-
--- | Network is unavailable
-data ErrNetworkUnavailable
-
--- | Cannot connect to network backend.
-ErrNetworkUnreachable :: Text -> ErrNetworkUnavailable
-
--- | Network backend reports that the requested network is invalid.
-ErrNetworkInvalid :: Text -> ErrNetworkUnavailable
-
--- | Indicates that the specified start time is later than the specified
---   end time.
-data ErrStartTimeLaterThanEndTime
-ErrStartTimeLaterThanEndTime :: UTCTime -> UTCTime -> ErrStartTimeLaterThanEndTime
-[$sel:errStartTime:ErrStartTimeLaterThanEndTime] :: ErrStartTimeLaterThanEndTime -> UTCTime
-[$sel:errEndTime:ErrStartTimeLaterThanEndTime] :: ErrStartTimeLaterThanEndTime -> UTCTime
-
--- | Execute an action which requires holding a root XPrv.
-withRootKey :: forall ctx s k e a. HasDBLayer s k ctx => ctx -> WalletId -> Passphrase "encryption" -> (ErrWithRootKey -> e) -> (k  'RootK XPrv -> ExceptT e IO a) -> ExceptT e IO a
-
--- | Errors that can occur when trying to perform an operation on a wallet
---   that requires a private key, but where none is attached to the wallet.
-data ErrWithRootKey
-ErrWithRootKeyNoRootKey :: WalletId -> ErrWithRootKey
-ErrWithRootKeyWrongPassphrase :: WalletId -> ErrWrongPassphrase -> ErrWithRootKey
-
--- | Indicate a failure when checking for a given <a>Passphrase</a> match
-data ErrWrongPassphrase
-ErrWrongPassphrase :: ErrWrongPassphrase
-instance GHC.Show.Show Cardano.Wallet.ErrQuitStakePool
-instance GHC.Classes.Eq Cardano.Wallet.ErrQuitStakePool
-instance GHC.Generics.Generic Cardano.Wallet.ErrQuitStakePool
-instance GHC.Show.Show Cardano.Wallet.ErrJoinStakePool
-instance GHC.Classes.Eq Cardano.Wallet.ErrJoinStakePool
-instance GHC.Generics.Generic Cardano.Wallet.ErrJoinStakePool
-instance GHC.Classes.Eq Cardano.Wallet.ErrSignDelegation
-instance GHC.Show.Show Cardano.Wallet.ErrSignDelegation
-instance GHC.Classes.Eq Cardano.Wallet.ErrSelectForDelegation
-instance GHC.Show.Show Cardano.Wallet.ErrSelectForDelegation
-instance GHC.Classes.Eq Cardano.Wallet.ErrListTransactions
-instance GHC.Show.Show Cardano.Wallet.ErrListTransactions
-instance GHC.Classes.Eq Cardano.Wallet.ErrStartTimeLaterThanEndTime
-instance GHC.Show.Show Cardano.Wallet.ErrStartTimeLaterThanEndTime
-instance GHC.Classes.Eq Cardano.Wallet.ErrSignPayment
-instance GHC.Show.Show Cardano.Wallet.ErrSignPayment
-instance GHC.Classes.Eq Cardano.Wallet.ErrUpdatePassphrase
-instance GHC.Show.Show Cardano.Wallet.ErrUpdatePassphrase
-instance GHC.Classes.Eq Cardano.Wallet.ErrWithRootKey
-instance GHC.Show.Show Cardano.Wallet.ErrWithRootKey
-instance GHC.Classes.Eq Cardano.Wallet.ErrSubmitExternalTx
-instance GHC.Show.Show Cardano.Wallet.ErrSubmitExternalTx
-instance GHC.Classes.Eq Cardano.Wallet.ErrSubmitTx
-instance GHC.Show.Show Cardano.Wallet.ErrSubmitTx
-instance GHC.Classes.Eq Cardano.Wallet.ErrListUTxOStatistics
-instance GHC.Show.Show Cardano.Wallet.ErrListUTxOStatistics
-instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrEstimatePaymentFee e)
-instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrEstimatePaymentFee e)
-instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrSelectForPayment e)
-instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrSelectForPayment e)
-instance GHC.Generics.Generic (Cardano.Wallet.WalletLayer s t k)
-
-module Cardano.Wallet.Registry
-
--- | A registry to keep track of worker threads and acquired resources.
-data WorkerRegistry key resource
-
--- | Construct a new empty registry
-empty :: Ord key => IO (WorkerRegistry key resource)
-
--- | Register a new worker
-insert :: Ord key => WorkerRegistry key resource -> Worker key resource -> IO ()
-
--- | Get all registered keys in the registry
-keys :: WorkerRegistry key resource -> IO [key]
-
--- | Lookup the registry for a given worker
-lookup :: (MonadIO m, Ord key) => WorkerRegistry key resource -> key -> m (Maybe (Worker key resource))
-
--- | Remove a worker from the registry (and cancel any running task)
-remove :: Ord key => WorkerRegistry key resource -> key -> IO ()
-
--- | A worker which holds and manipulate a paticular acquired resource.
---   That resource can be, for example, a handle to a database connection.
-data Worker key resource
-
--- | See <a>newWorker</a>
-data MkWorker key resource ctx
-MkWorker :: (WorkerCtx ctx -> key -> IO ()) -> (WorkerCtx ctx -> key -> IO ()) -> (Trace IO Text -> Either SomeException () -> IO ()) -> ((resource -> IO ()) -> IO ()) -> MkWorker key resource ctx
-
--- | A task to execute before the main worker's task. When creating a
---   worker, this task is guaranteed to have terminated once
---   <a>newWorker</a> returns.
-[workerBefore] :: MkWorker key resource ctx -> WorkerCtx ctx -> key -> IO ()
-
--- | A task for the worker, possibly infinite
-[workerMain] :: MkWorker key resource ctx -> WorkerCtx ctx -> key -> IO ()
-
--- | Action to run when the worker exits
-[workerAfter] :: MkWorker key resource ctx -> Trace IO Text -> Either SomeException () -> IO ()
-
--- | A bracket-style factory to acquire a resource
-[workerAcquire] :: MkWorker key resource ctx -> (resource -> IO ()) -> IO ()
-
--- | Create a new worker for a given key. Workers maintain an acquired
---   resource. They expect a task as argument and will terminate as soon as
---   their task is over; so in practice, we provide a never-ending task
---   that keeps the worker alive forever.
---   
---   Returns <a>Nothing</a> if the worker fails to acquire the necessary
---   resource or terminate unexpectedly before entering its <tt>main</tt>
---   action.
---   
---   <pre>
---   &gt;&gt;&gt; newWorker ctx k withDBLayer restoreWallet
---   worker&lt;thread#1234&gt;
---   </pre>
-newWorker :: forall key resource ctx. (HasLogger ctx, HasWorkerCtx resource ctx, ToText key) => ctx -> key -> MkWorker key resource ctx -> IO (Maybe (Worker key resource))
-workerThread :: Worker key resource -> ThreadId
-workerId :: Worker key resource -> key
-workerResource :: Worker key resource -> resource
-
--- | A class to link an existing context to a worker context.
-class HasType resource (WorkerCtx ctx) => HasWorkerCtx resource ctx where {
-    type family WorkerCtx ctx :: *;
-}
-hoistResource :: HasWorkerCtx resource ctx => resource -> ctx -> WorkerCtx ctx
-instance GHC.Generics.Generic (Cardano.Wallet.Registry.Worker key resource)
-
-
 -- | An implementation of the production pool database using only pure
 --   functions.
 --   
@@ -5057,6 +4651,442 @@ unsafeMkMnemonic :: forall mw n csz. (ConsistentEntropy n mw csz, EntropySize mw
 --   testing.
 unsafeDeserialiseCbor :: HasCallStack => (forall s. Decoder s a) -> ByteString -> a
 
+
+-- | Utility functions for manipulating time values.
+module Data.Time.Utils
+
+-- | For a given time <tt>t0</tt>, get the closest representable time
+--   <tt>t1</tt> to <tt>t0</tt> for which 't1 &lt; t0'.
+utcTimePred :: UTCTime -> UTCTime
+
+-- | For a given time <tt>t0</tt>, get the closest representable time
+--   <tt>t1</tt> to <tt>t0</tt> for which 't0 &lt; t1'.
+utcTimeSucc :: UTCTime -> UTCTime
+
+module Data.Vector.Shuffle
+
+-- | Shuffles a list of elements.
+--   
+--   <pre>
+--   &gt;&gt;&gt; shuffle (outputs coinSel)
+--   [...]
+--   </pre>
+shuffle :: [a] -> IO [a]
+
+-- | Generate a random generator seed from a text string
+mkSeed :: Text -> StdGen
+
+-- | Like <a>shuffle</a>, but from a given seed. <a>shuffle</a> will use a
+--   randomly generate seed using <a>newStdGen</a> from
+--   <tt>System.Random</tt>.
+--   
+--   <b>Properties:</b>
+--   
+--   <ul>
+--   <li><pre>shuffleWith g es == shuffleWith g es</pre></li>
+--   <li><pre>∃Δ&gt; 1. g ≠g', length es &gt; Δ⇒ shuffleWith g es
+--   ≠shuffleWith g' es</pre></li>
+--   </ul>
+shuffleWith :: RandomGen g => g -> [a] -> IO [a]
+
+
+-- | Provides wallet layer functions that are used by API layer. Uses both
+--   <a>Cardano.Wallet.DB</a> and <a>Cardano.Wallet.Network</a> to realize
+--   its role as being intermediary between the three.
+--   
+--   Functions of the wallet layer are often parameterized with variables
+--   following the convention below:
+--   
+--   <ul>
+--   <li><tt>s</tt>: A <b>s</b>tate used to keep track of known addresses.
+--   Typically, possible values for this parameter are described in
+--   <a>AddressDiscovery</a> sub-modules. For instance <tt>SeqState</tt> or
+--   <tt>Rnd State</tt>.</li>
+--   <li><tt>t</tt>: A <b>t</b>arget backend which captures details
+--   specific to a particular chain producer (binary formats, fee policy,
+--   networking layer).</li>
+--   <li><tt>k</tt>: A <b>k</b>ey derivation scheme intrisically connected
+--   to the underlying discovery state <tt>s</tt>. This describes how the
+--   hierarchical structure of a wallet is defined as well as the
+--   relationship between secret keys and public addresses.</li>
+--   </ul>
+module Cardano.Wallet
+data WalletLayer s t (k :: Depth -> * -> *)
+WalletLayer :: Trace IO Text -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBLayer IO s k -> WalletLayer s t
+type HasDBLayer s k = HasType (DBLayer IO s k)
+dbLayer :: forall s k ctx. HasDBLayer s k ctx => Lens' ctx (DBLayer IO s k)
+type HasLogger = HasType (Trace IO Text)
+logger :: forall ctx. HasLogger ctx => Lens' ctx (Trace IO Text)
+
+-- | This module is only interested in one block-, and tx-type. This
+--   constraint hides that choice, for some ease of use.
+type HasNetworkLayer t = HasType (NetworkLayer IO t Block)
+networkLayer :: forall t ctx. HasNetworkLayer t ctx => Lens' ctx (NetworkLayer IO t Block)
+type HasTransactionLayer t k = HasType (TransactionLayer t k)
+transactionLayer :: forall t k ctx. HasTransactionLayer t k ctx => Lens' ctx (TransactionLayer t k)
+type HasGenesisData = HasType (Block, BlockchainParameters, SyncTolerance)
+genesisData :: forall ctx. HasGenesisData ctx => Lens' ctx (Block, BlockchainParameters, SyncTolerance)
+
+-- | Initialise and store a new wallet, returning its ID.
+createWallet :: forall ctx s k. (HasGenesisData ctx, HasDBLayer s k ctx, Show s, NFData s, IsOurs s Address, IsOurs s ChimericAccount) => ctx -> WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
+
+-- | Attach a given private key to a wallet. The private key is necessary
+--   for some operations like signing transactions, or generating new
+--   accounts.
+attachPrivateKey :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> (k  'RootK XPrv, Passphrase "encryption") -> ExceptT ErrNoSuchWallet IO ()
+
+-- | List the wallet's UTxO statistics.
+listUtxoStatistics :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT ErrListUTxOStatistics IO UTxOStatistics
+
+-- | Retrieve the wallet state for the wallet with the given ID.
+readWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO (Wallet s, WalletMetadata, Set Tx)
+
+-- | Remove an existing wallet. Note that there's no particular work to be
+--   done regarding the restoration worker as it will simply terminate on
+--   the next tick when noticing that the corresponding wallet is gone.
+deleteWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
+
+-- | Restore a wallet from its current tip up to the network tip.
+--   
+--   This function returns immediately, starting a worker thread in the
+--   background that will fetch and apply remaining blocks until the
+--   network tip is reached or until failure.
+restoreWallet :: forall ctx s t k. (HasLogger ctx, HasNetworkLayer t ctx, HasDBLayer s k ctx, HasGenesisData ctx) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
+
+-- | Update a wallet's metadata with the given update function.
+updateWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> (WalletMetadata -> WalletMetadata) -> ExceptT ErrNoSuchWallet IO ()
+
+-- | Change a wallet's passphrase to the given passphrase.
+updateWalletPassphrase :: forall ctx s k. (HasDBLayer s k ctx, WalletKey k) => ctx -> WalletId -> (Passphrase "encryption-old", Passphrase "encryption-new") -> ExceptT ErrUpdatePassphrase IO ()
+walletSyncProgress :: forall ctx s. HasGenesisData ctx => ctx -> Wallet s -> IO SyncProgress
+
+-- | Forbidden operation was executed on an already existing wallet
+newtype ErrWalletAlreadyExists
+ErrWalletAlreadyExists :: WalletId -> ErrWalletAlreadyExists
+
+-- | Can't perform given operation because there's no wallet
+newtype ErrNoSuchWallet
+ErrNoSuchWallet :: WalletId -> ErrNoSuchWallet
+
+-- | Errors that can occur when listing UTxO statistics.
+newtype ErrListUTxOStatistics
+ErrListUTxOStatisticsNoSuchWallet :: ErrNoSuchWallet -> ErrListUTxOStatistics
+
+-- | Errors that can occur when trying to change a wallet's passphrase.
+data ErrUpdatePassphrase
+ErrUpdatePassphraseNoSuchWallet :: ErrNoSuchWallet -> ErrUpdatePassphrase
+ErrUpdatePassphraseWithRootKey :: ErrWithRootKey -> ErrUpdatePassphrase
+
+-- | List all addresses of a wallet with their metadata. Addresses are
+--   ordered from the most-recently-discovered to the oldest known.
+listAddresses :: forall ctx s k n. (HasDBLayer s k ctx, IsOurs s Address, CompareDiscovery s, KnownAddresses s, MkKeyFingerprint k Address, DelegationAddress n k, s ~ SeqState n k) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
+
+-- | Prepare a transaction and automatically select inputs from the wallet
+--   to cover the requested outputs. Note that this only runs coin
+--   selection for the given outputs. In order to construct (and sign) an
+--   actual transaction, use <a>signPayment</a>.
+selectCoinsForPayment :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s k ctx, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrSelectForPayment e) IO CoinSelection
+
+-- | Estimate a transaction fee by automatically selecting inputs from the
+--   wallet to cover the requested outputs.
+estimatePaymentFee :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimatePaymentFee e) IO Fee
+
+-- | Produce witnesses and construct a transaction from a given selection.
+--   Requires the encryption passphrase in order to decrypt the root
+--   private key. Note that this doesn't broadcast the transaction to the
+--   network. In order to do so, use <a>submitTx</a>.
+signPayment :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignPayment IO (Tx, TxMeta, UTCTime, SealedTx)
+
+-- | Errors that can occur when creating an unsigned transaction.
+data ErrSelectForPayment e
+ErrSelectForPaymentNoSuchWallet :: ErrNoSuchWallet -> ErrSelectForPayment e
+ErrSelectForPaymentCoinSelection :: ErrCoinSelection e -> ErrSelectForPayment e
+ErrSelectForPaymentFee :: ErrAdjustForFee -> ErrSelectForPayment e
+
+-- | Errors that can occur when estimating transaction fees.
+data ErrEstimatePaymentFee e
+ErrEstimatePaymentFeeNoSuchWallet :: ErrNoSuchWallet -> ErrEstimatePaymentFee e
+ErrEstimatePaymentFeeCoinSelection :: ErrCoinSelection e -> ErrEstimatePaymentFee e
+
+-- | Errors that can occur when signing a transaction.
+data ErrSignPayment
+ErrSignPaymentMkTx :: ErrMkTx -> ErrSignPayment
+ErrSignPaymentNoSuchWallet :: ErrNoSuchWallet -> ErrSignPayment
+ErrSignPaymentWithRootKey :: ErrWithRootKey -> ErrSignPayment
+data ErrCoinSelection e
+
+-- | UTxO exhausted during input selection We record the balance of the
+--   UTxO as well as the size of the payment we tried to make.
+ErrNotEnoughMoney :: Word64 -> Word64 -> ErrCoinSelection e
+
+-- | UTxO is not enough fragmented for the number of transaction outputs We
+--   record the number of UTxO entries as well as the number of the outputs
+--   of the transaction.
+ErrUtxoNotEnoughFragmented :: Word64 -> Word64 -> ErrCoinSelection e
+
+-- | When trying to construct a transaction, the max number of allowed
+--   inputs was reached.
+ErrMaximumInputsReached :: Word64 -> ErrCoinSelection e
+
+-- | When trying to construct a transaction, the available inputs are
+--   depleted even when UTxO is properly fragmented and with enough funds
+--   to cover payment
+ErrInputsDepleted :: ErrCoinSelection e
+
+-- | Somewhat, we ended up generating an invalid coin selection because of
+--   inputs passed down to the coin selection function, or because a target
+--   backend has extra-limitations not covered by our coin selection
+--   algorithm.
+ErrInvalidSelection :: e -> ErrCoinSelection e
+newtype ErrAdjustForFee
+
+-- | UTxO exhausted during fee covering We record what amount missed to
+--   cover the fee
+ErrCannotCoverFee :: Word64 -> ErrAdjustForFee
+
+-- | A type family for validations that are specific to a particular
+--   backend type. This demands an instantiation of the family for a
+--   particular backend:
+--   
+--   type instance (ErrValidateSelection MyBackend) = MyCustomError
+type family ErrValidateSelection t
+
+-- | Constructs a set of coin selections that select all funds from the
+--   given source wallet, returning them as change.
+--   
+--   If the coin selections returned by this function are used to create
+--   transactions from the given wallet to a target wallet, executing those
+--   transactions will have the effect of migrating all funds from the
+--   given source wallet to the specified target wallet.
+selectCoinsForMigration :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [CoinSelection]
+
+-- | Transform the given set of migration coin selections (for a source
+--   wallet) into a set of coin selections that will migrate funds to the
+--   specified target wallet.
+--   
+--   Each change entry in the specified set of coin selections is replaced
+--   with a corresponding output entry in the returned set, where the
+--   output entry has a address corresponding to the target wallet.
+--   
+--   All addresses generated by this function are also registered as
+--   pending change addresses for the target wallet.
+assignMigrationTargetAddresses :: forall ctx s k. (HasDBLayer s k ctx, GenChange s, IsOurs s Address, NFData s, Show s) => ctx -> WalletId -> ArgGenChange s -> [CoinSelection] -> ExceptT ErrNoSuchWallet IO [CoinSelection]
+
+-- | Helper function to factor necessary logic for joining a stake pool.
+joinStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger ctx, HasNetworkLayer t ctx, HasTransactionLayer t k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> (PoolId, [PoolId]) -> ArgGenChange s -> Passphrase "encryption" -> ExceptT ErrJoinStakePool IO (Tx, TxMeta, UTCTime)
+
+-- | Helper function to factor necessary logic for quitting a stake pool.
+quitStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger ctx, HasNetworkLayer t ctx, HasTransactionLayer t k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> PoolId -> ArgGenChange s -> Passphrase "encryption" -> ExceptT ErrQuitStakePool IO (Tx, TxMeta, UTCTime)
+
+-- | Select necessary coins to cover for a single delegation request
+--   (including one certificate).
+selectCoinsForDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrSelectForDelegation IO CoinSelection
+signDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> PoolId -> DelegationAction -> ExceptT ErrSignDelegation IO (Tx, TxMeta, UTCTime, SealedTx)
+data ErrJoinStakePool
+ErrJoinStakePoolNoSuchWallet :: ErrNoSuchWallet -> ErrJoinStakePool
+ErrJoinStakePoolAlreadyDelegating :: PoolId -> ErrJoinStakePool
+ErrJoinStakePoolNoSuchPool :: PoolId -> ErrJoinStakePool
+ErrJoinStakePoolSelectCoin :: ErrSelectForDelegation -> ErrJoinStakePool
+ErrJoinStakePoolSignDelegation :: ErrSignDelegation -> ErrJoinStakePool
+ErrJoinStakePoolSubmitTx :: ErrSubmitTx -> ErrJoinStakePool
+data ErrQuitStakePool
+ErrQuitStakePoolNoSuchWallet :: ErrNoSuchWallet -> ErrQuitStakePool
+ErrQuitStakePoolNotDelegatingTo :: PoolId -> ErrQuitStakePool
+ErrQuitStakePoolSelectCoin :: ErrSelectForDelegation -> ErrQuitStakePool
+ErrQuitStakePoolSignDelegation :: ErrSignDelegation -> ErrQuitStakePool
+ErrQuitStakePoolSubmitTx :: ErrSubmitTx -> ErrQuitStakePool
+
+-- | Errors that can occur when creating unsigned delegation certificate
+--   transaction.
+data ErrSelectForDelegation
+ErrSelectForDelegationNoSuchWallet :: ErrNoSuchWallet -> ErrSelectForDelegation
+ErrSelectForDelegationFee :: ErrAdjustForFee -> ErrSelectForDelegation
+
+-- | Errors that can occur when signing a delegation certificate.
+data ErrSignDelegation
+ErrSignDelegationNoSuchWallet :: ErrNoSuchWallet -> ErrSignDelegation
+ErrSignDelegationWithRootKey :: ErrWithRootKey -> ErrSignDelegation
+ErrSignDelegationMkTx :: ErrMkTx -> ErrSignDelegation
+
+-- | Forget pending transaction.
+forgetPendingTx :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx IO ()
+
+-- | List all transactions and metadata from history for a given wallet.
+listTransactions :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> Maybe UTCTime -> Maybe UTCTime -> SortOrder -> ExceptT ErrListTransactions IO [TransactionInfo]
+
+-- | Broadcast an externally-signed transaction to the network.
+submitExternalTx :: forall ctx t k. (HasNetworkLayer t ctx, HasTransactionLayer t k ctx) => ctx -> ByteString -> ExceptT ErrSubmitExternalTx IO Tx
+
+-- | Broadcast a (signed) transaction to the network.
+submitTx :: forall ctx s t k. (HasNetworkLayer t ctx, HasDBLayer s k ctx) => ctx -> WalletId -> (Tx, TxMeta, SealedTx) -> ExceptT ErrSubmitTx IO ()
+
+-- | Possible signing error
+newtype ErrMkTx
+
+-- | We tried to sign a transaction with inputs that are unknown to us?
+ErrKeyNotFoundForAddress :: Address -> ErrMkTx
+
+-- | Errors that can occur when submitting a signed transaction to the
+--   network.
+data ErrSubmitTx
+ErrSubmitTxNetwork :: ErrPostTx -> ErrSubmitTx
+ErrSubmitTxNoSuchWallet :: ErrNoSuchWallet -> ErrSubmitTx
+
+-- | Errors that can occur when submitting an externally-signed transaction
+--   to the network.
+data ErrSubmitExternalTx
+ErrSubmitExternalTxNetwork :: ErrPostTx -> ErrSubmitExternalTx
+ErrSubmitExternalTxDecode :: ErrDecodeSignedTx -> ErrSubmitExternalTx
+
+-- | Can't perform removing pending transaction
+data ErrRemovePendingTx
+ErrRemovePendingTxNoSuchWallet :: ErrNoSuchWallet -> ErrRemovePendingTx
+ErrRemovePendingTxNoSuchTransaction :: Hash "Tx" -> ErrRemovePendingTx
+ErrRemovePendingTxTransactionNoMorePending :: Hash "Tx" -> ErrRemovePendingTx
+
+-- | Error while trying to send a transaction
+data ErrPostTx
+ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
+ErrPostTxBadRequest :: Text -> ErrPostTx
+ErrPostTxProtocolFailure :: Text -> ErrPostTx
+
+-- | Error while trying to decode externally signed transaction
+data ErrDecodeSignedTx
+ErrDecodeSignedTxWrongPayload :: Text -> ErrDecodeSignedTx
+ErrDecodeSignedTxNotSupported :: ErrDecodeSignedTx
+
+-- | Errors that can occur when trying to list transactions.
+data ErrListTransactions
+ErrListTransactionsNoSuchWallet :: ErrNoSuchWallet -> ErrListTransactions
+ErrListTransactionsStartTimeLaterThanEndTime :: ErrStartTimeLaterThanEndTime -> ErrListTransactions
+
+-- | Network is unavailable
+data ErrNetworkUnavailable
+
+-- | Cannot connect to network backend.
+ErrNetworkUnreachable :: Text -> ErrNetworkUnavailable
+
+-- | Network backend reports that the requested network is invalid.
+ErrNetworkInvalid :: Text -> ErrNetworkUnavailable
+
+-- | Indicates that the specified start time is later than the specified
+--   end time.
+data ErrStartTimeLaterThanEndTime
+ErrStartTimeLaterThanEndTime :: UTCTime -> UTCTime -> ErrStartTimeLaterThanEndTime
+[$sel:errStartTime:ErrStartTimeLaterThanEndTime] :: ErrStartTimeLaterThanEndTime -> UTCTime
+[$sel:errEndTime:ErrStartTimeLaterThanEndTime] :: ErrStartTimeLaterThanEndTime -> UTCTime
+
+-- | Execute an action which requires holding a root XPrv.
+withRootKey :: forall ctx s k e a. HasDBLayer s k ctx => ctx -> WalletId -> Passphrase "encryption" -> (ErrWithRootKey -> e) -> (k  'RootK XPrv -> ExceptT e IO a) -> ExceptT e IO a
+
+-- | Errors that can occur when trying to perform an operation on a wallet
+--   that requires a private key, but where none is attached to the wallet.
+data ErrWithRootKey
+ErrWithRootKeyNoRootKey :: WalletId -> ErrWithRootKey
+ErrWithRootKeyWrongPassphrase :: WalletId -> ErrWrongPassphrase -> ErrWithRootKey
+
+-- | Indicate a failure when checking for a given <a>Passphrase</a> match
+data ErrWrongPassphrase
+ErrWrongPassphrase :: ErrWrongPassphrase
+instance GHC.Show.Show Cardano.Wallet.ErrQuitStakePool
+instance GHC.Classes.Eq Cardano.Wallet.ErrQuitStakePool
+instance GHC.Generics.Generic Cardano.Wallet.ErrQuitStakePool
+instance GHC.Show.Show Cardano.Wallet.ErrJoinStakePool
+instance GHC.Classes.Eq Cardano.Wallet.ErrJoinStakePool
+instance GHC.Generics.Generic Cardano.Wallet.ErrJoinStakePool
+instance GHC.Classes.Eq Cardano.Wallet.ErrSignDelegation
+instance GHC.Show.Show Cardano.Wallet.ErrSignDelegation
+instance GHC.Classes.Eq Cardano.Wallet.ErrSelectForDelegation
+instance GHC.Show.Show Cardano.Wallet.ErrSelectForDelegation
+instance GHC.Classes.Eq Cardano.Wallet.ErrListTransactions
+instance GHC.Show.Show Cardano.Wallet.ErrListTransactions
+instance GHC.Classes.Eq Cardano.Wallet.ErrStartTimeLaterThanEndTime
+instance GHC.Show.Show Cardano.Wallet.ErrStartTimeLaterThanEndTime
+instance GHC.Classes.Eq Cardano.Wallet.ErrSignPayment
+instance GHC.Show.Show Cardano.Wallet.ErrSignPayment
+instance GHC.Classes.Eq Cardano.Wallet.ErrUpdatePassphrase
+instance GHC.Show.Show Cardano.Wallet.ErrUpdatePassphrase
+instance GHC.Classes.Eq Cardano.Wallet.ErrWithRootKey
+instance GHC.Show.Show Cardano.Wallet.ErrWithRootKey
+instance GHC.Classes.Eq Cardano.Wallet.ErrSubmitExternalTx
+instance GHC.Show.Show Cardano.Wallet.ErrSubmitExternalTx
+instance GHC.Classes.Eq Cardano.Wallet.ErrSubmitTx
+instance GHC.Show.Show Cardano.Wallet.ErrSubmitTx
+instance GHC.Classes.Eq Cardano.Wallet.ErrListUTxOStatistics
+instance GHC.Show.Show Cardano.Wallet.ErrListUTxOStatistics
+instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrEstimatePaymentFee e)
+instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrEstimatePaymentFee e)
+instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrSelectForPayment e)
+instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrSelectForPayment e)
+instance GHC.Generics.Generic (Cardano.Wallet.WalletLayer s t k)
+
+module Cardano.Wallet.Registry
+
+-- | A registry to keep track of worker threads and acquired resources.
+data WorkerRegistry key resource
+
+-- | Construct a new empty registry
+empty :: Ord key => IO (WorkerRegistry key resource)
+
+-- | Register a new worker
+insert :: Ord key => WorkerRegistry key resource -> Worker key resource -> IO ()
+
+-- | Get all registered keys in the registry
+keys :: WorkerRegistry key resource -> IO [key]
+
+-- | Lookup the registry for a given worker
+lookup :: (MonadIO m, Ord key) => WorkerRegistry key resource -> key -> m (Maybe (Worker key resource))
+
+-- | Remove a worker from the registry (and cancel any running task)
+remove :: Ord key => WorkerRegistry key resource -> key -> IO ()
+
+-- | A worker which holds and manipulate a paticular acquired resource.
+--   That resource can be, for example, a handle to a database connection.
+data Worker key resource
+
+-- | See <a>newWorker</a>
+data MkWorker key resource ctx
+MkWorker :: (WorkerCtx ctx -> key -> IO ()) -> (WorkerCtx ctx -> key -> IO ()) -> (Trace IO Text -> Either SomeException () -> IO ()) -> ((resource -> IO ()) -> IO ()) -> MkWorker key resource ctx
+
+-- | A task to execute before the main worker's task. When creating a
+--   worker, this task is guaranteed to have terminated once
+--   <a>newWorker</a> returns.
+[workerBefore] :: MkWorker key resource ctx -> WorkerCtx ctx -> key -> IO ()
+
+-- | A task for the worker, possibly infinite
+[workerMain] :: MkWorker key resource ctx -> WorkerCtx ctx -> key -> IO ()
+
+-- | Action to run when the worker exits
+[workerAfter] :: MkWorker key resource ctx -> Trace IO Text -> Either SomeException () -> IO ()
+
+-- | A bracket-style factory to acquire a resource
+[workerAcquire] :: MkWorker key resource ctx -> (resource -> IO ()) -> IO ()
+
+-- | Create a new worker for a given key. Workers maintain an acquired
+--   resource. They expect a task as argument and will terminate as soon as
+--   their task is over; so in practice, we provide a never-ending task
+--   that keeps the worker alive forever.
+--   
+--   Returns <a>Nothing</a> if the worker fails to acquire the necessary
+--   resource or terminate unexpectedly before entering its <tt>main</tt>
+--   action.
+--   
+--   <pre>
+--   &gt;&gt;&gt; newWorker ctx k withDBLayer restoreWallet
+--   worker&lt;thread#1234&gt;
+--   </pre>
+newWorker :: forall key resource ctx. (HasLogger ctx, HasWorkerCtx resource ctx, ToText key) => ctx -> key -> MkWorker key resource ctx -> IO (Maybe (Worker key resource))
+workerThread :: Worker key resource -> ThreadId
+workerId :: Worker key resource -> key
+workerResource :: Worker key resource -> resource
+
+-- | A class to link an existing context to a worker context.
+class HasType resource (WorkerCtx ctx) => HasWorkerCtx resource ctx where {
+    type family WorkerCtx ctx :: *;
+}
+hoistResource :: HasWorkerCtx resource ctx => resource -> ctx -> WorkerCtx ctx
+instance GHC.Generics.Generic (Cardano.Wallet.Registry.Worker key resource)
+
 module Cardano.Wallet.Api
 type Api t = CoreApi t :<|> CompatibilityApi t :<|> StakePoolApi t
 type CoreApi t = Addresses t :<|> Wallets :<|> Transactions t :<|> Network
@@ -5077,18 +5107,6 @@ data Any
 instance GHC.Generics.Generic (Cardano.Wallet.Api.ApiLayer s t k)
 instance Cardano.Wallet.Registry.HasWorkerCtx (Cardano.Wallet.DB.DBLayer GHC.Types.IO s k) (Cardano.Wallet.Api.ApiLayer s t k)
 instance Servant.API.ContentTypes.Accept Cardano.Wallet.Api.Any
-
-
--- | Utility functions for manipulating time values.
-module Data.Time.Utils
-
--- | For a given time <tt>t0</tt>, get the closest representable time
---   <tt>t1</tt> to <tt>t0</tt> for which 't1 &lt; t0'.
-utcTimePred :: UTCTime -> UTCTime
-
--- | For a given time <tt>t0</tt>, get the closest representable time
---   <tt>t1</tt> to <tt>t0</tt> for which 't0 &lt; t1'.
-utcTimeSucc :: UTCTime -> UTCTime
 
 module Network.Wai.Middleware.Logging
 
