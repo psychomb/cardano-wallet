@@ -763,6 +763,12 @@ WalletBalance :: !Quantity "lovelace" Natural -> !Quantity "lovelace" Natural ->
 newtype PoolId
 PoolId :: ByteString -> PoolId
 [$sel:getPoolId:PoolId] :: PoolId -> ByteString
+
+-- | A stake pool owner, which is a public key encoded in bech32 with
+--   prefix ed25519_pk.
+newtype PoolOwner
+PoolOwner :: ByteString -> PoolOwner
+[$sel:getPoolOwner:PoolOwner] :: PoolOwner -> ByteString
 data StakeDistribution
 StakeDistribution :: Quantity "lovelace" Word64 -> [(PoolId, Quantity "lovelace" Word64)] -> Quantity "lovelace" Word64 -> StakeDistribution
 [$sel:dangling:StakeDistribution] :: StakeDistribution -> Quantity "lovelace" Word64
@@ -1029,6 +1035,10 @@ instance GHC.Show.Show Cardano.Wallet.Primitive.Types.TxStatus
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.StakeDistribution
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.StakeDistribution
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.StakeDistribution
+instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.PoolOwner
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.PoolOwner
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.PoolOwner
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.PoolOwner
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.WalletMetadata
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.WalletMetadata
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.WalletMetadata
@@ -1064,6 +1074,7 @@ instance GHC.Show.Show Cardano.Wallet.Primitive.Types.WalletName
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.WalletName
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.WalletName
 instance GHC.Base.Functor Cardano.Wallet.Primitive.Types.WalletDelegation
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Primitive.Types.PoolOwner
 instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.Types.ShowFmt a)
 instance Formatting.Buildable.Buildable a => GHC.Show.Show (Cardano.Wallet.Primitive.Types.ShowFmt a)
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.Block
@@ -1127,6 +1138,11 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.TxStatus
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.TxStatus
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.TxStatus
 instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.TxStatus
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.PoolOwner
+instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.PoolOwner
+instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.PoolOwner
+instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.PoolOwner
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Primitive.Types.PoolOwner
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.WalletMetadata
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.WalletMetadata
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.PoolId
@@ -2060,14 +2076,28 @@ instance Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (Cardano.Wa
 --   from an external registry.
 module Cardano.Pool.Metadata
 
--- | Information about a stake pool. This information is not used directly
---   by cardano-wallet. It is sourced from the stake pool registry and
---   passed straight through to API consumers.
+-- | Information about a stake pool, published by a stake pool owner in the
+--   stake pool registry.
+--   
+--   The wallet searches for registrations involving the owner, to find
+--   metadata for a given PoolID.
+--   
+--   The metadata information is not used directly by cardano-wallet, but
+--   rather passed straight through to API consumers.
 data StakePoolMetadata
-StakePoolMetadata :: StakePoolTicker -> Text -> Text -> StakePoolMetadata
+StakePoolMetadata :: PoolOwner -> StakePoolTicker -> Text -> Maybe Text -> Text -> Text -> StakePoolMetadata
 
--- | Short human-readable ID for the stake pool.
+-- | Bech32-encoded ed25519 public key.
+[owner] :: StakePoolMetadata -> PoolOwner
+
+-- | Very short human-readable ID for the stake pool.
 [ticker] :: StakePoolMetadata -> StakePoolTicker
+
+-- | Name of the stake pool.
+[name] :: StakePoolMetadata -> Text
+
+-- | Short description of the stake pool.
+[description] :: StakePoolMetadata -> Maybe Text
 
 -- | Absolute URL for the stake pool's homepage link.
 [homepage] :: StakePoolMetadata -> Text
@@ -2095,7 +2125,7 @@ data StakePoolTicker
 --   <li>The name of the top-level directory can be anything.</li>
 --   <li>Other files in the archive are ignored by
 --   <a>getStakePoolMetadata</a>.</li>
---   <li>The JSON file names are <a>PoolId</a>s.</li>
+--   <li>The JSON file names are <a>PoolOwner</a>s.</li>
 --   <li>The required JSON structure is given by the
 --   <a>Data.Aeson.FromJSON</a> instance of <a>StakePoolMetadata</a>.</li>
 --   </ul>
@@ -2104,9 +2134,9 @@ data StakePoolTicker
 --   <a>cardanoFoundationRegistryZip</a>.
 --   
 --   The returned list will have the same length as the given list of
---   <a>PoolId</a>. If an metadata entry does not exist or could not be
+--   <a>PoolOwner</a>. If an metadata entry does not exist or could not be
 --   parsed, it will be <a>Nothing</a>.
-getStakePoolMetadata :: Trace IO RegistryLog -> String -> [PoolId] -> IO (Either FetchError [Maybe StakePoolMetadata])
+getStakePoolMetadata :: Trace IO RegistryLog -> String -> [PoolOwner] -> IO (Either FetchError [Maybe StakePoolMetadata])
 
 -- | The stake pool registry zipfile download URL for CF.
 cardanoFoundationRegistryZip :: String
