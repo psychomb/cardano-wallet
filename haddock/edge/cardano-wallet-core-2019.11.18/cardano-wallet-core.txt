@@ -1869,6 +1869,10 @@ compareDiscovery :: CompareDiscovery s => s -> Address -> Address -> Ordering
 --   wallet to be using change addresses prematurely.
 class KnownAddresses s
 knownAddresses :: KnownAddresses s => s -> [Address]
+class HasRewardAccount s where {
+    type family RewardAccountKey s :: Depth -> * -> *;
+}
+rewardAccount :: HasRewardAccount s => s -> RewardAccountKey s  'AddressK XPub
 
 
 -- | An implementation of address discovery for the sequential address
@@ -2013,6 +2017,7 @@ instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.W
 instance (Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k, Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k Cardano.Wallet.Primitive.Types.Address, Cardano.Wallet.Primitive.AddressDerivation.AddressIndexDerivationType k Data.Type.Equality.~ 'Cardano.Wallet.Primitive.AddressDerivation.Soft) => Cardano.Wallet.Primitive.AddressDiscovery.IsOwned (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k) k
 instance (Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k (k 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub), Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint k Cardano.Wallet.Primitive.Types.Address, Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation k) => Cardano.Wallet.Primitive.AddressDiscovery.CompareDiscovery (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance Cardano.Wallet.Primitive.AddressDerivation.DelegationAddress n k => Cardano.Wallet.Primitive.AddressDiscovery.KnownAddresses (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
+instance Cardano.Wallet.Primitive.AddressDiscovery.HasRewardAccount (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.SeqState n k)
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.AddressDiscovery.Sequential.PendingIxs
 instance Control.DeepSeq.NFData (key 'Cardano.Wallet.Primitive.AddressDerivation.AccountK Cardano.Crypto.Wallet.XPub) => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPool chain key)
 instance (Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (key 'Cardano.Wallet.Primitive.AddressDerivation.AccountK), Data.Typeable.Internal.Typeable chain) => Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.AddressDiscovery.Sequential.AddressPool chain key)
@@ -2757,7 +2762,7 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Network.BlockHeaders.BlockHeaders
 
 module Cardano.Wallet.Network
 data NetworkLayer m target block
-NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (Cursor target -> m (Maybe BlockHeader)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> (SealedTx -> ExceptT ErrPostTx m ()) -> (Block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> NetworkLayer m target block
+NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (Cursor target -> m (Maybe BlockHeader)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> (SealedTx -> ExceptT ErrPostTx m ()) -> (Block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> (ChimericAccount -> ExceptT ErrGetAccountBalance m (Quantity "lovelace" Word64)) -> NetworkLayer m target block
 
 -- | Starting from the given <a>Cursor</a>, fetches a contiguous sequence
 --   of blocks from the node, if they are available. An updated cursor will
@@ -2799,6 +2804,7 @@ NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target
 --   block only being needed in the Wallet (currently).
 [staticBlockchainParameters] :: NetworkLayer m target block -> (Block, BlockchainParameters)
 [stakeDistribution] :: NetworkLayer m target block -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64))
+[getAccountBalance] :: NetworkLayer m target block -> ChimericAccount -> ExceptT ErrGetAccountBalance m (Quantity "lovelace" Word64)
 
 -- | The result of <a>nextBlocks</a>, which is instructions for what the
 --   chain consumer should do next.
@@ -2871,6 +2877,9 @@ data ErrPostTx
 ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
 ErrPostTxBadRequest :: Text -> ErrPostTx
 ErrPostTxProtocolFailure :: Text -> ErrPostTx
+data ErrGetAccountBalance
+ErrGetAccountBalanceNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetAccountBalance
+ErrGetAccountBalanceAccountNotFound :: ChimericAccount -> ErrGetAccountBalance
 
 -- | A default <tt>RetryPolicy</tt> with a delay that starts short, and
 --   that retries for no longer than a minute.
@@ -2881,6 +2890,9 @@ defaultRetryPolicy :: Monad m => RetryPolicyM m
 waitForNetwork :: ExceptT ErrNetworkUnavailable IO () -> RetryPolicyM IO -> IO ()
 instance GHC.Show.Show err => GHC.Show.Show (Cardano.Wallet.Network.FollowAction err)
 instance GHC.Classes.Eq err => GHC.Classes.Eq (Cardano.Wallet.Network.FollowAction err)
+instance GHC.Show.Show Cardano.Wallet.Network.ErrGetAccountBalance
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrGetAccountBalance
+instance GHC.Generics.Generic Cardano.Wallet.Network.ErrGetAccountBalance
 instance GHC.Classes.Eq Cardano.Wallet.Network.ErrPostTx
 instance GHC.Show.Show Cardano.Wallet.Network.ErrPostTx
 instance GHC.Generics.Generic Cardano.Wallet.Network.ErrPostTx
@@ -4413,13 +4425,17 @@ newtype Iso8601Time
 Iso8601Time :: UTCTime -> Iso8601Time
 [$sel:getIso8601Time:Iso8601Time] :: Iso8601Time -> UTCTime
 data ApiByronWallet
-ApiByronWallet :: !ApiT WalletId -> !ApiT WalletBalance -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> !ApiBlockReference -> ApiByronWallet
+ApiByronWallet :: !ApiT WalletId -> !ApiByronWalletBalance -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> !ApiBlockReference -> ApiByronWallet
 [$sel:id:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletId
-[$sel:balance:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletBalance
+[$sel:balance:ApiByronWallet] :: ApiByronWallet -> !ApiByronWalletBalance
 [$sel:name:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletName
 [$sel:passphrase:ApiByronWallet] :: ApiByronWallet -> !Maybe (ApiT WalletPassphraseInfo)
 [$sel:state:ApiByronWallet] :: ApiByronWallet -> !ApiT SyncProgress
 [$sel:tip:ApiByronWallet] :: ApiByronWallet -> !ApiBlockReference
+data ApiByronWalletBalance
+ApiByronWalletBalance :: !Quantity "lovelace" Natural -> !Quantity "lovelace" Natural -> ApiByronWalletBalance
+[$sel:available:ApiByronWalletBalance] :: ApiByronWalletBalance -> !Quantity "lovelace" Natural
+[$sel:total:ApiByronWalletBalance] :: ApiByronWalletBalance -> !Quantity "lovelace" Natural
 newtype ApiByronWalletMigrationInfo
 ApiByronWalletMigrationInfo :: Quantity "lovelace" Natural -> ApiByronWalletMigrationInfo
 [$sel:migrationCost:ApiByronWalletMigrationInfo] :: ApiByronWalletMigrationInfo -> Quantity "lovelace" Natural
@@ -4473,6 +4489,12 @@ ApiT :: a -> ApiT a
 newtype ApiMnemonicT (sizes :: [Nat]) (purpose :: Symbol)
 ApiMnemonicT :: (Passphrase purpose, [Text]) -> ApiMnemonicT
 getApiMnemonicT :: ApiMnemonicT sizes purpose -> Passphrase purpose
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiByronWallet
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiByronWallet
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiByronWallet
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiByronWalletBalance
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiByronWalletBalance
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiByronWalletBalance
 instance GHC.Show.Show Cardano.Wallet.Api.Types.WalletPostData
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.WalletPostData
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.WalletPostData
@@ -4530,9 +4552,6 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiTimeReference
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiNetworkInformation
-instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiByronWallet
-instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiByronWallet
-instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiByronWallet
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiBlockReference
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiBlockReference
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiBlockReference
@@ -4580,6 +4599,10 @@ instance Cardano.Wallet.Api.Types.EncodeAddress n => Data.Aeson.Types.ToJSON.ToJ
 instance Cardano.Wallet.Api.Types.EncodeAddress n => Data.Text.Class.ToText (Cardano.Wallet.Api.Types.AddressAmount n)
 instance Cardano.Wallet.Api.Types.EncodeAddress 'Cardano.Wallet.Primitive.AddressDerivation.Mainnet
 instance Cardano.Wallet.Api.Types.EncodeAddress 'Cardano.Wallet.Primitive.AddressDerivation.Testnet
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiByronWallet
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiByronWallet
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiByronWalletBalance
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiByronWalletBalance
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.WalletPostData
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.WalletPostData
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ByronWalletPostData
@@ -4608,8 +4631,6 @@ instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiTimeRefe
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiTimeReference
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiByronWallet
-instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiByronWallet
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiBlockReference
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiBlockReference
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkTip
@@ -4803,6 +4824,13 @@ updateWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> (Wallet
 updateWalletPassphrase :: forall ctx s k. (HasDBLayer s k ctx, WalletKey k) => ctx -> WalletId -> (Passphrase "encryption-old", Passphrase "encryption-new") -> ExceptT ErrUpdatePassphrase IO ()
 walletSyncProgress :: forall ctx s. HasGenesisData ctx => ctx -> Wallet s -> IO SyncProgress
 
+-- | Fetch the reward balance of a given wallet.
+--   
+--   Rather than force all callers of <a>readWallet</a> to wait for
+--   fetching the account balance (via the <a>NetworkLayer</a>), we expose
+--   this function for it.
+fetchRewardBalance :: forall ctx s k t. (HasDBLayer s k ctx, HasNetworkLayer t ctx, HasRewardAccount s, k ~ RewardAccountKey s, WalletKey k) => ctx -> WalletId -> ExceptT ErrFetchRewards IO (Quantity "lovelace" Word64)
+
 -- | Forbidden operation was executed on an already existing wallet
 newtype ErrWalletAlreadyExists
 ErrWalletAlreadyExists :: WalletId -> ErrWalletAlreadyExists
@@ -4820,9 +4848,14 @@ data ErrUpdatePassphrase
 ErrUpdatePassphraseNoSuchWallet :: ErrNoSuchWallet -> ErrUpdatePassphrase
 ErrUpdatePassphraseWithRootKey :: ErrWithRootKey -> ErrUpdatePassphrase
 
+-- | Errors that can occur when fetching the reward balance of a wallet
+data ErrFetchRewards
+ErrFetchRewardsNetworkUnreachable :: ErrNetworkUnavailable -> ErrFetchRewards
+ErrFetchRewardsNoSuchWallet :: ErrNoSuchWallet -> ErrFetchRewards
+
 -- | List all addresses of a wallet with their metadata. Addresses are
 --   ordered from the most-recently-discovered to the oldest known.
-listAddresses :: forall ctx s k n. (HasDBLayer s k ctx, IsOurs s Address, CompareDiscovery s, KnownAddresses s, MkKeyFingerprint k Address, DelegationAddress n k, s ~ SeqState n k) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
+listAddresses :: forall ctx s k n. (HasDBLayer s k ctx, IsOurs s Address, CompareDiscovery s, KnownAddresses s, MkKeyFingerprint k Address, DelegationAddress n k, HasRewardAccount s, k ~ RewardAccountKey s) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
 
 -- | Prepare a transaction and automatically select inputs from the wallet
 --   to cover the requested outputs. Note that this only runs coin
@@ -5267,6 +5300,7 @@ instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Pool.Metrics.ErrMetricsIn
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSelectForDelegation
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSignDelegation
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrJoinStakePool
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrFetchRewards
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrQuitStakePool
 instance Cardano.Wallet.Api.Server.LiftHandler (Network.Wai.Internal.Request, Servant.Server.Internal.ServantErr.ServantErr)
 

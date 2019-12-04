@@ -221,7 +221,9 @@ HttpException :: HttpExceptionContent -> RequestException
 addressPoolGap :: HasType (ApiT AddressPoolGap) s => Lens' s Int
 amount :: HasType (Quantity "lovelace" Natural) s => Lens' s Natural
 apparentPerformance :: HasType Double s => Lens' s Double
+byronBalanceAvailable :: HasType ApiByronWalletBalance s => Lens' s Natural
 balanceAvailable :: HasType (ApiT WalletBalance) s => Lens' s Natural
+byronBalanceTotal :: HasType ApiByronWalletBalance s => Lens' s Natural
 balanceTotal :: HasType (ApiT WalletBalance) s => Lens' s Natural
 balanceReward :: HasType (ApiT WalletBalance) s => Lens' s Natural
 blocks :: HasField' "producedBlocks" s (Quantity "block" Natural) => Lens' s Natural
