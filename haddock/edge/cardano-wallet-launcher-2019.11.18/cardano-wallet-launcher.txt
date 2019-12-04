@@ -93,12 +93,15 @@ MsgLauncherCancel :: LauncherLog
 MsgLauncherFinish :: ProcessHasExited -> LauncherLog
 MsgLauncherAction :: LauncherLog
 MsgLauncherCleanup :: LauncherLog
-transformLauncherTrace :: Trace IO Text -> Trace IO LauncherLog
+transformTextTrace :: ToText a => Trace IO Text -> Trace IO a
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Launcher.LauncherLog
 instance GHC.Generics.Generic Cardano.Launcher.LauncherLog
 instance GHC.Classes.Eq Cardano.Launcher.ProcessHasExited
 instance GHC.Show.Show Cardano.Launcher.ProcessHasExited
 instance GHC.Generics.Generic Cardano.Launcher.Command
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Launcher.LauncherLog
+instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Launcher.LauncherLog
+instance Data.Text.Class.ToText Cardano.Launcher.LauncherLog
 instance GHC.Exception.Type.Exception Cardano.Launcher.ProcessHasExited
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Launcher.ProcessHasExited
 instance Formatting.Buildable.Buildable Cardano.Launcher.Command

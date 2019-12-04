@@ -9,6 +9,52 @@
 @version 2019.11.18
 
 
+-- | Provides a mechanism for Daedalus to discover what port the
+--   cardano-wallet server is listening on.
+--   
+--   See
+--   <a>https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options</a>
+--   for more information about the message protocol.
+--   
+--   There are two separate message formats and IO mechanisms, depending on
+--   whether the OS is Windows or not. On Windows, a duplex named pipe is
+--   used for communication with the parent process. If modifying this
+--   code, do not add concurrent sending and receiving of messages. It will
+--   get stuck, because asynchronous reading and writing to named pipes is
+--   not possible.
+module Cardano.Wallet.DaedalusIPC
+
+-- | Start up the Daedalus IPC process. It's called <a>daedalusIPC</a>, but
+--   this could be any nodejs program that needs to start cardano-wallet.
+--   All it does is reply with a port number when asked, using a very
+--   nodejs-specific IPC method.
+--   
+--   If the IPC channel was successfully set up, this function won't return
+--   until the parent process exits. Otherwise, it will return immediately.
+--   Before returning, it will log an message about why it has exited.
+daedalusIPC :: Trace IO Text -> Int -> IO ()
+instance GHC.Classes.Eq Cardano.Wallet.DaedalusIPC.NodeChannelError
+instance GHC.Show.Show Cardano.Wallet.DaedalusIPC.NodeChannelError
+instance GHC.Classes.Eq Cardano.Wallet.DaedalusIPC.MsgOut
+instance GHC.Show.Show Cardano.Wallet.DaedalusIPC.MsgOut
+instance GHC.Classes.Eq Cardano.Wallet.DaedalusIPC.MsgIn
+instance GHC.Show.Show Cardano.Wallet.DaedalusIPC.MsgIn
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.DaedalusIPC.MsgOut
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.DaedalusIPC.MsgIn
+
+
+-- | This module contains utility functions for logging and mapping trace
+--   data.
+module Cardano.Wallet.Logging
+
+-- | Converts a <a>Text</a> trace into any other type of trace that has a
+--   <a>ToText</a> instance.
+transformTextTrace :: ToText a => Trace IO Text -> Trace IO a
+
+-- | Traces some data.
+logTrace :: (MonadIO m, DefinePrivacyAnnotation a, DefineSeverity a) => Trace m a -> a -> m ()
+
+
 -- | An implementation of the DBLayer which uses Persistent and SQLite.
 module Cardano.DB.Sqlite
 
@@ -54,7 +100,6 @@ handleConstraint :: MonadCatch m => e -> m a -> m (Either e a)
 -- | Opens the SQLite database connection, sets up query logging and
 --   timing, runs schema migrations if necessary.
 startSqliteBackend :: Configuration -> Migration -> Trace IO DBLog -> Maybe FilePath -> IO SqliteContext
-transformTrace :: Trace IO Text -> Trace IO DBLog
 
 -- | Run a raw query from the outside using an instantiate DB layer. This
 --   is completely unsafe because it breaks the abstraction boundary and
@@ -64,40 +109,9 @@ instance Data.Aeson.Types.ToJSON.ToJSON Cardano.DB.Sqlite.DBLog
 instance GHC.Classes.Eq Cardano.DB.Sqlite.DBLog
 instance GHC.Show.Show Cardano.DB.Sqlite.DBLog
 instance GHC.Generics.Generic Cardano.DB.Sqlite.DBLog
-
-
--- | Provides a mechanism for Daedalus to discover what port the
---   cardano-wallet server is listening on.
---   
---   See
---   <a>https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options</a>
---   for more information about the message protocol.
---   
---   There are two separate message formats and IO mechanisms, depending on
---   whether the OS is Windows or not. On Windows, a duplex named pipe is
---   used for communication with the parent process. If modifying this
---   code, do not add concurrent sending and receiving of messages. It will
---   get stuck, because asynchronous reading and writing to named pipes is
---   not possible.
-module Cardano.Wallet.DaedalusIPC
-
--- | Start up the Daedalus IPC process. It's called <a>daedalusIPC</a>, but
---   this could be any nodejs program that needs to start cardano-wallet.
---   All it does is reply with a port number when asked, using a very
---   nodejs-specific IPC method.
---   
---   If the IPC channel was successfully set up, this function won't return
---   until the parent process exits. Otherwise, it will return immediately.
---   Before returning, it will log an message about why it has exited.
-daedalusIPC :: Trace IO Text -> Int -> IO ()
-instance GHC.Classes.Eq Cardano.Wallet.DaedalusIPC.NodeChannelError
-instance GHC.Show.Show Cardano.Wallet.DaedalusIPC.NodeChannelError
-instance GHC.Classes.Eq Cardano.Wallet.DaedalusIPC.MsgOut
-instance GHC.Show.Show Cardano.Wallet.DaedalusIPC.MsgOut
-instance GHC.Classes.Eq Cardano.Wallet.DaedalusIPC.MsgIn
-instance GHC.Show.Show Cardano.Wallet.DaedalusIPC.MsgIn
-instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.DaedalusIPC.MsgOut
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.DaedalusIPC.MsgIn
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.DB.Sqlite.DBLog
+instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.DB.Sqlite.DBLog
+instance Data.Text.Class.ToText Cardano.DB.Sqlite.DBLog
 
 
 -- | Provides functions for checking if TCP ports can be connected to, or
@@ -2155,9 +2169,6 @@ FetchErrorFile :: String -> FetchError
 --   file, due to the given cause.
 FetchErrorZipParsingFailed :: FilePath -> String -> FetchError
 
--- | Converts a text tracer into a stake pool registry tracer.
-transformTrace :: Trace IO Text -> Trace IO RegistryLog
-
 -- | The log messages for <a>getStakePoolMetadata</a>.
 data RegistryLog
 RegistryLog :: String -> FilePath -> RegistryLogMsg -> RegistryLog
@@ -2192,6 +2203,8 @@ instance GHC.Classes.Eq Cardano.Pool.Metadata.StakePoolTicker
 instance GHC.Show.Show Cardano.Pool.Metadata.StakePoolTicker
 instance GHC.Generics.Generic Cardano.Pool.Metadata.StakePoolTicker
 instance Data.Text.Class.ToText Cardano.Pool.Metadata.RegistryLog
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Pool.Metadata.RegistryLogMsg
+instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Pool.Metadata.RegistryLogMsg
 instance Data.Text.Class.ToText Cardano.Pool.Metadata.RegistryLogMsg
 instance Data.Text.Class.ToText Cardano.Pool.Metadata.FetchError
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Pool.Metadata.StakePoolMetadata
@@ -5115,7 +5128,14 @@ class HasType resource (WorkerCtx ctx) => HasWorkerCtx resource ctx where {
     type family WorkerCtx ctx :: *;
 }
 hoistResource :: HasWorkerCtx resource ctx => resource -> ctx -> WorkerCtx ctx
+
+-- | A worker log event includes the key (i.e. wallet ID) as context.
+data WithWorkerKey key
+WithWorkerKey :: key -> Text -> WithWorkerKey key
+instance GHC.Show.Show key => GHC.Show.Show (Cardano.Wallet.Registry.WithWorkerKey key)
+instance GHC.Classes.Eq key => GHC.Classes.Eq (Cardano.Wallet.Registry.WithWorkerKey key)
 instance GHC.Generics.Generic (Cardano.Wallet.Registry.Worker key resource)
+instance Data.Text.Class.ToText key => Data.Text.Class.ToText (Cardano.Wallet.Registry.WithWorkerKey key)
 
 module Cardano.Wallet.Api
 type Api t = CoreApi t :<|> CompatibilityApi t :<|> StakePoolApi t
