@@ -75,7 +75,17 @@ data UniformTime
 
 -- | Generate <a>UTCTime</a> values over a uniform range of dates and a
 --   mixture of time precisions.
+--   
+--   Dates will be generated in a range that's bounded by
+--   <a>defaultLowerBound</a> and <a>defaultUpperBound</a>.
 genUniformTime :: Gen UTCTime
+
+-- | Generate <a>UTCTime</a> values over a uniform range of dates and a
+--   mixture of time precisions.
+--   
+--   Dates will be generated in a range that's bounded by the given minimum
+--   and maximum Julian day arguments.
+genUniformTimeWithinRange :: Day -> Day -> Gen UTCTime
 getUniformTime :: UniformTime -> UTCTime
 instance GHC.Show.Show Test.Utils.Time.UniformTime
 instance GHC.Classes.Ord Test.Utils.Time.UniformTime

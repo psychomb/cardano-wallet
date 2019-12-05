@@ -627,6 +627,31 @@ EpochNo :: Word31 -> EpochNo
 --   value is too large.
 unsafeEpochNo :: HasCallStack => Word32 -> EpochNo
 
+-- | Calculate the time at which an epoch begins.
+epochStartTime :: SlotParameters -> EpochNo -> UTCTime
+
+-- | Return the epoch immediately before the given epoch, or <a>Nothing</a>
+--   if there is no representable epoch before the given epoch.
+epochPred :: EpochNo -> Maybe EpochNo
+
+-- | Return the epoch immediately after the given epoch, or <a>Nothing</a>
+--   if there is no representable epoch after the given epoch.
+epochSucc :: EpochNo -> Maybe EpochNo
+
+-- | For the given time <tt>t</tt>, calculate the number of the earliest
+--   epoch with start time <tt>s</tt> such that 't ≤ s'.
+--   
+--   Returns <a>Nothing</a> if the calculation would result in an epoch
+--   number that is not representable.
+epochCeiling :: SlotParameters -> UTCTime -> Maybe EpochNo
+
+-- | For the given time <tt>t</tt>, calculate the number of the latest
+--   epoch with start time <tt>s</tt> such that 's ≤ t'.
+--   
+--   Returns <a>Nothing</a> if the calculation would result in an epoch
+--   number that is not representable.
+epochFloor :: SlotParameters -> UTCTime -> Maybe EpochNo
+
 -- | The essential parameters necessary for performing slot arithmetic.
 data SlotParameters
 SlotParameters :: EpochLength -> SlotLength -> StartTime -> SlotParameters
