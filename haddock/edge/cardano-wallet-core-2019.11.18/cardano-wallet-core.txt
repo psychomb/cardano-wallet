@@ -798,7 +798,8 @@ WalletBalance :: !Quantity "lovelace" Natural -> !Quantity "lovelace" Natural ->
 [$sel:total:WalletBalance] :: WalletBalance -> !Quantity "lovelace" Natural
 [$sel:reward:WalletBalance] :: WalletBalance -> !Quantity "lovelace" Natural
 
--- | Represents a stake pool.
+-- | Identifies a stake pool. For Jörmungandr a <a>PoolId</a> is the
+--   blake2b-256 hash of the stake pool registration certificate.
 newtype PoolId
 PoolId :: ByteString -> PoolId
 [$sel:getPoolId:PoolId] :: PoolId -> ByteString
@@ -4653,6 +4654,10 @@ module Cardano.Wallet.Unsafe
 -- | Decode an hex-encoded <a>ByteString</a> into raw bytes, or fail.
 unsafeFromHex :: HasCallStack => ByteString -> ByteString
 
+-- | Load a hex string from file. Any non-hexadecimal characters are
+--   ignored.
+unsafeFromHexFile :: HasCallStack => FilePath -> IO ByteString
+
 -- | Decode a bech32-encoded <a>Text</a> into an <a>Address</a>, or fail.
 unsafeDecodeAddress :: forall n. (HasCallStack, DecodeAddress n) => Text -> Address
 
@@ -4676,6 +4681,15 @@ unsafeMkMnemonic :: forall mw n csz. (ConsistentEntropy n mw csz, EntropySize mw
 -- | CBOR deserialise without error handling - handy for prototypes or
 --   testing.
 unsafeDeserialiseCbor :: HasCallStack => (forall s. Decoder s a) -> ByteString -> a
+
+-- | Load the data part of a bech32-encoded string from file. These files
+--   often come from <tt>jcli</tt>. Only the first line of the file is
+--   read.
+unsafeBech32DecodeFile :: HasCallStack => FilePath -> IO ByteString
+
+-- | Get the data part of a bech32-encoded string, ignoring the
+--   human-readable part.
+unsafeBech32Decode :: HasCallStack => Text -> ByteString
 
 
 -- | Utility functions for manipulating time values.

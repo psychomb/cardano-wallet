@@ -109,6 +109,9 @@ Transaction :: Tx -> Fragment
 
 -- | A signed transaction with stake pool delegation
 StakeDelegation :: (StakeDelegationType, ChimericAccount, Tx) -> Fragment
+
+-- | A signed transaction with a stake pool registration.
+PoolRegistration :: (PoolId, [PoolOwner], Tx) -> Fragment
 UnimplementedFragment :: Word8 -> Fragment
 data FragmentSpec
 FragmentInitial :: FragmentSpec
