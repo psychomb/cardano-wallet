@@ -4366,8 +4366,9 @@ NoSuchPool :: ApiErrorCode
 PoolAlreadyJoined :: ApiErrorCode
 NotDelegatingTo :: ApiErrorCode
 data ApiNetworkInformation
-ApiNetworkInformation :: !ApiT SyncProgress -> !ApiBlockReference -> !ApiNetworkTip -> ApiNetworkInformation
+ApiNetworkInformation :: !ApiT SyncProgress -> !ApiEpochInfo -> !ApiBlockReference -> !ApiNetworkTip -> ApiNetworkInformation
 [$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
+[$sel:nextEpoch:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiEpochInfo
 [$sel:nodeTip:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiBlockReference
 [$sel:networkTip:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiNetworkTip
 data ApiBlockReference
@@ -4468,6 +4469,9 @@ instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpo
 instance GHC.Show.Show (Cardano.Wallet.Api.Types.ApiAddress n)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiAddress n)
 instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiAddress n)
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiNetworkInformation
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiNetworkInformation
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiEpochInfo
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiEpochInfo
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiEpochInfo
@@ -4510,9 +4514,6 @@ instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.AddressAmount n)
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiTimeReference
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiTimeReference
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiTimeReference
-instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiNetworkInformation
-instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiNetworkInformation
-instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiBlockReference
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiBlockReference
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiBlockReference
@@ -4570,6 +4571,8 @@ instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ByronWallet
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ByronWalletPostData
 instance Cardano.Wallet.Primitive.AddressDerivation.FromMnemonic sizes purpose => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiEpochInfo
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiEpochInfo
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWallet
@@ -4590,8 +4593,6 @@ instance Web.Internal.HttpApiData.FromHttpApiData Cardano.Wallet.Api.Types.ApiTx
 instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Api.Types.ApiTxId
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiTimeReference
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiTimeReference
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
-instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiBlockReference
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiBlockReference
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkTip
@@ -5337,6 +5338,7 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Server.Listen
 instance GHC.Show.Show Cardano.Wallet.Api.Server.Listen
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrMigrateWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrCreateWallet
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrNextEpoch
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrNoSuchWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrWalletAlreadyExists
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrWithRootKey

@@ -232,6 +232,7 @@ direction :: HasType (ApiT Direction) s => Lens' s Direction
 feeEstimator :: Lens' (Context t) (TxDescription -> (Natural, Natural))
 inputs :: HasType [ApiTxInput t] s => Lens' s [ApiTxInput t]
 metrics :: HasType ApiStakePoolMetrics s => Lens' s ApiStakePoolMetrics
+nextEpoch :: HasType ApiEpochInfo s => Lens' s ApiEpochInfo
 outputs :: forall s t a. (a ~ AddressAmount t, HasType (NonEmpty a) s) => Lens' s [a]
 passphraseLastUpdate :: forall s i. (i ~ WalletPassphraseInfo, HasType (Maybe (ApiT i)) s) => Lens' s (Maybe Text)
 stake :: HasField' "controlledStake" s (Quantity "lovelace" Natural) => Lens' s Natural
