@@ -5274,7 +5274,7 @@ module Network.Wai.Middleware.Logging
 --   
 --   The logger logs requests' and responses' bodies along with a few other
 --   useful piece of information.
-withApiLogger :: Trace IO Text -> ApiLoggerSettings -> Middleware
+withApiLogger :: Trace IO ApiLog -> ApiLoggerSettings -> Middleware
 
 -- | Create a new opaque <a>ApiLoggerSettings</a>
 newApiLoggerSettings :: IO ApiLoggerSettings
@@ -5285,6 +5285,40 @@ data ApiLoggerSettings
 -- | Define a set of top-level object keys that should be obfuscated for a
 --   given request in a JSON format.
 obfuscateKeys :: (Request -> [Text]) -> ApiLoggerSettings -> ApiLoggerSettings
+
+-- | Trace events related to the handling of a single request.
+data HandlerLog
+LogRequestStart :: HandlerLog
+LogRequest :: Request -> HandlerLog
+LogRequestBody :: [Text] -> ByteString -> HandlerLog
+LogResponse :: NominalDiffTime -> Maybe Status -> HandlerLog
+LogResponseBody :: ByteString -> HandlerLog
+LogRequestFinish :: HandlerLog
+
+-- | API handler trace events are associated with a unique request ID.
+data ApiLog
+ApiLog :: RequestId -> HandlerLog -> ApiLog
+
+-- | Unique integer associated with the request, for the purpose of
+--   tracing.
+[requestId] :: ApiLog -> RequestId
+
+-- | Event trace for the handler.
+[logMsg] :: ApiLog -> HandlerLog
+
+-- | Just a wrapper for readability
+newtype RequestId
+RequestId :: Integer -> RequestId
+instance GHC.Show.Show Network.Wai.Middleware.Logging.ApiLog
+instance GHC.Show.Show Network.Wai.Middleware.Logging.HandlerLog
+instance GHC.Classes.Eq Network.Wai.Middleware.Logging.RequestId
+instance GHC.Show.Show Network.Wai.Middleware.Logging.RequestId
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Network.Wai.Middleware.Logging.ApiLog
+instance Cardano.BM.Data.Tracer.DefineSeverity Network.Wai.Middleware.Logging.ApiLog
+instance Data.Text.Class.ToText Network.Wai.Middleware.Logging.ApiLog
+instance Data.Text.Class.ToText Network.Wai.Middleware.Logging.HandlerLog
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Network.Wai.Middleware.Logging.HandlerLog
+instance Cardano.BM.Data.Tracer.DefineSeverity Network.Wai.Middleware.Logging.HandlerLog
 
 
 -- | Middleware between Wai <a>-</a> Servant to accommodate raw error
@@ -5333,7 +5367,7 @@ data HostPreference
 
 -- | Start the application server, using the given settings and a bound
 --   socket.
-start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DecodeAddress n, EncodeAddress n, DelegationAddress n ShelleyKey, PaymentAddress n ByronKey) => Settings -> Trace IO Text -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
+start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DecodeAddress n, EncodeAddress n, DelegationAddress n ShelleyKey, PaymentAddress n ByronKey) => Settings -> Trace IO ApiLog -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
 
 -- | Create a new instance of the wallet layer.
 newApiLayer :: forall ctx s t k. ctx ~ ApiLayer s t k => Trace IO Text -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> [WalletId] -> IO ctx
