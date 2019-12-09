@@ -88,9 +88,14 @@ Context :: IO () -> (Text, Manager) -> Port "node" -> Port "wallet" -> Faucet ->
 
 -- | Describe a transaction in terms of its inputs and outputs
 data TxDescription
-TxDescription :: Int -> Int -> TxDescription
+DelegDescription :: Int -> Int -> Int -> TxDescription
 [nInputs] :: TxDescription -> Int
 [nOutputs] :: TxDescription -> Int
+[nCertificates] :: TxDescription -> Int
+PaymentDescription :: Int -> Int -> Int -> TxDescription
+[nInputs] :: TxDescription -> Int
+[nOutputs] :: TxDescription -> Int
+[nChanges] :: TxDescription -> Int
 instance GHC.Show.Show Test.Integration.Framework.Request.Headers
 instance GHC.Show.Show Test.Integration.Framework.Request.Payload
 instance GHC.Show.Show Test.Integration.Framework.Request.RequestException
@@ -130,9 +135,14 @@ commandName :: KnownCommand t => String
 
 -- | Describe a transaction in terms of its inputs and outputs
 data TxDescription
-TxDescription :: Int -> Int -> TxDescription
+DelegDescription :: Int -> Int -> Int -> TxDescription
 [nInputs] :: TxDescription -> Int
 [nOutputs] :: TxDescription -> Int
+[nCertificates] :: TxDescription -> Int
+PaymentDescription :: Int -> Int -> Int -> TxDescription
+[nInputs] :: TxDescription -> Int
+[nOutputs] :: TxDescription -> Int
+[nChanges] :: TxDescription -> Int
 
 -- | Makes a request to the API and decodes the response.
 request :: forall a m s. (FromJSON a, MonadIO m, MonadCatch m, HasType (Text, Manager) s) => s -> (Method, Text) -> Headers -> Payload -> m (Status, Either RequestException a)
@@ -392,7 +402,6 @@ updateNamePayload :: Text -> Payload
 updatePassPayload :: Text -> Text -> Payload
 getHeaderCases :: forall a. Show a => Status -> [(String, Headers, [(Status, Either RequestException a) -> IO ()])]
 postHeaderCases :: Show a => [(String, Headers, [(Status, Either RequestException a) -> IO ()])]
-stakeDelegationFee :: Natural
 errMsgWalletIdEncoding :: String
 errMsg400StartTimeLaterThanEndTime :: String -> String -> String
 errMsg403Fee :: String
