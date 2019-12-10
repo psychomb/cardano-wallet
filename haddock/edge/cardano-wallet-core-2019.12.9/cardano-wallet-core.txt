@@ -544,6 +544,12 @@ CertDelegateFull :: ChimericAccount -> PoolId -> DelegationCertificate
 dlgCertAccount :: DelegationCertificate -> ChimericAccount
 dlgCertPoolId :: DelegationCertificate -> Maybe PoolId
 
+-- | Pool ownership data from the stake pool registration certificate.
+data PoolRegistrationCertificate
+PoolRegistrationCertificate :: !PoolId -> ![PoolOwner] -> PoolRegistrationCertificate
+[$sel:poolId:PoolRegistrationCertificate] :: PoolRegistrationCertificate -> !PoolId
+[$sel:poolOwners:PoolRegistrationCertificate] :: PoolRegistrationCertificate -> ![PoolOwner]
+
 -- | Coins are stored as Lovelace (reminder: 1 Lovelace = 1e-6 ADA)
 newtype Coin
 Coin :: Word64 -> Coin
@@ -966,6 +972,10 @@ instance GHC.Classes.Ord (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Show.Show (Cardano.Wallet.Primitive.Types.Hash tag)
+instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.PoolRegistrationCertificate
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.PoolRegistrationCertificate
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.PoolRegistrationCertificate
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.PoolRegistrationCertificate
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.DelegationCertificate
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.DelegationCertificate
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.DelegationCertificate
@@ -1137,6 +1147,8 @@ instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Account"
 instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Genesis")
 instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Block")
 instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "BlockHeader")
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.PoolRegistrationCertificate
+instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.PoolRegistrationCertificate
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.DelegationCertificate
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.ChimericAccount
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.StartTime
@@ -5214,10 +5226,17 @@ instance Servant.API.ContentTypes.Accept Cardano.Wallet.Api.Any
 --   <a>Cardano.Wallet.Api.Server</a> - which presents the results in an
 --   endpoint
 module Cardano.Pool.Metrics
+
+-- | Information from a block relevant to monitoring stake pools.
 data Block
-Block :: BlockHeader -> PoolId -> Block
+Block :: BlockHeader -> PoolId -> ![PoolRegistrationCertificate] -> Block
 [$sel:header:Block] :: Block -> BlockHeader
+
+-- | The stake pool that minted this block.
 [$sel:producer:Block] :: Block -> PoolId
+
+-- | Any stake pools that were registered in this block.
+[$sel:poolRegistrations:Block] :: Block -> ![PoolRegistrationCertificate]
 data StakePool
 StakePool :: PoolId -> Quantity "lovelace" Word64 -> Quantity "block" Word64 -> Double -> StakePool
 [$sel:poolId:StakePool] :: StakePool -> PoolId

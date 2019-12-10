@@ -176,6 +176,10 @@ convertBlock :: Block -> Block
 -- | Convert the Jörmungandr binary format header into a simpler Wallet
 --   header.
 convertBlockHeader :: BlockHeader -> BlockHeader
+
+-- | Extracts ownership information from all stake pool registration
+--   certificates in the Jörmungandr block.
+poolRegistrationsFromBlock :: Block -> [PoolRegistrationCertificate]
 putAddress :: Address -> Put
 getAddress :: Get Address
 whileM :: Monad m => m Bool -> m a -> m [a]
