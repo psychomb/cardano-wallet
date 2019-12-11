@@ -4296,6 +4296,19 @@ data ApiEpochInfo
 ApiEpochInfo :: !ApiT EpochNo -> !UTCTime -> ApiEpochInfo
 [$sel:epochNumber:ApiEpochInfo] :: ApiEpochInfo -> !ApiT EpochNo
 [$sel:epochStartTime:ApiEpochInfo] :: ApiEpochInfo -> !UTCTime
+newtype ApiSelectCoinsData (n :: NetworkDiscriminant)
+ApiSelectCoinsData :: NonEmpty (AddressAmount n) -> ApiSelectCoinsData
+[$sel:payments:ApiSelectCoinsData] :: ApiSelectCoinsData -> NonEmpty (AddressAmount n)
+data ApiCoinSelection (n :: NetworkDiscriminant)
+ApiCoinSelection :: !NonEmpty (ApiCoinSelectionInput n) -> !NonEmpty (AddressAmount n) -> ApiCoinSelection
+[$sel:inputs:ApiCoinSelection] :: ApiCoinSelection -> !NonEmpty (ApiCoinSelectionInput n)
+[$sel:outputs:ApiCoinSelection] :: ApiCoinSelection -> !NonEmpty (AddressAmount n)
+data ApiCoinSelectionInput (n :: NetworkDiscriminant)
+ApiCoinSelectionInput :: !ApiT (Hash "Tx") -> !Word32 -> !(ApiT Address, Proxy n) -> !Quantity "lovelace" Natural -> ApiCoinSelectionInput
+[$sel:id:ApiCoinSelectionInput] :: ApiCoinSelectionInput -> !ApiT (Hash "Tx")
+[$sel:index:ApiCoinSelectionInput] :: ApiCoinSelectionInput -> !Word32
+[$sel:address:ApiCoinSelectionInput] :: ApiCoinSelectionInput -> !(ApiT Address, Proxy n)
+[$sel:amount:ApiCoinSelectionInput] :: ApiCoinSelectionInput -> !Quantity "lovelace" Natural
 data ApiStakePool
 ApiStakePool :: !ApiT PoolId -> !ApiStakePoolMetrics -> !Double -> !Maybe StakePoolMetadata -> ApiStakePool
 [$sel:id:ApiStakePool] :: ApiStakePool -> !ApiT PoolId
@@ -4526,6 +4539,12 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiEpochInfo
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiEpochInfo
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiEpochInfo
+instance GHC.Show.Show (Cardano.Wallet.Api.Types.ApiCoinSelection n)
+instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiCoinSelection n)
+instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiCoinSelection n)
+instance GHC.Show.Show (Cardano.Wallet.Api.Types.ApiCoinSelectionInput n)
+instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiCoinSelectionInput n)
+instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiCoinSelectionInput n)
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiWallet
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiWallet
@@ -4556,6 +4575,9 @@ instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiTransaction n)
 instance GHC.Show.Show (Cardano.Wallet.Api.Types.ApiTxInput n)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiTxInput n)
 instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiTxInput n)
+instance GHC.Show.Show (Cardano.Wallet.Api.Types.ApiSelectCoinsData n)
+instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiSelectCoinsData n)
+instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiSelectCoinsData n)
 instance GHC.Show.Show (Cardano.Wallet.Api.Types.PostTransactionFeeData n)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.PostTransactionFeeData n)
 instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.PostTransactionFeeData n)
@@ -4593,6 +4615,9 @@ instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiStakePoolMetrics
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiStakePoolMetrics
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiStakePoolMetrics
 instance Cardano.Wallet.Api.Types.DecodeAddress n => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiAddress n)
+instance Cardano.Wallet.Api.Types.DecodeAddress n => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiSelectCoinsData n)
+instance Cardano.Wallet.Api.Types.DecodeAddress n => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiCoinSelection n)
+instance Cardano.Wallet.Api.Types.DecodeAddress n => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiCoinSelectionInput n)
 instance Cardano.Wallet.Api.Types.DecodeAddress n => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.Address, Data.Proxy.Proxy n)
 instance Cardano.Wallet.Api.Types.DecodeAddress t => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.PostTransactionData t)
 instance Cardano.Wallet.Api.Types.DecodeAddress t => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.PostTransactionFeeData t)
@@ -4603,6 +4628,9 @@ instance Cardano.Wallet.Api.Types.DecodeAddress n => Data.Text.Class.FromText (C
 instance Cardano.Wallet.Api.Types.DecodeAddress 'Cardano.Wallet.Primitive.AddressDerivation.Mainnet
 instance Cardano.Wallet.Api.Types.DecodeAddress 'Cardano.Wallet.Primitive.AddressDerivation.Testnet
 instance Cardano.Wallet.Api.Types.EncodeAddress n => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiAddress n)
+instance Cardano.Wallet.Api.Types.EncodeAddress n => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiSelectCoinsData n)
+instance Cardano.Wallet.Api.Types.EncodeAddress n => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiCoinSelection n)
+instance Cardano.Wallet.Api.Types.EncodeAddress n => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiCoinSelectionInput n)
 instance Cardano.Wallet.Api.Types.EncodeAddress n => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiT Cardano.Wallet.Primitive.Types.Address, Data.Proxy.Proxy n)
 instance Cardano.Wallet.Api.Types.EncodeAddress t => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.PostTransactionData t)
 instance Cardano.Wallet.Api.Types.EncodeAddress t => Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.PostTransactionFeeData t)
@@ -5198,8 +5226,9 @@ instance Data.Text.Class.ToText key => Data.Text.Class.ToText (Cardano.Wallet.Re
 
 module Cardano.Wallet.Api
 type Api t = CoreApi t :<|> CompatibilityApi t :<|> StakePoolApi t
-type CoreApi t = Addresses t :<|> Wallets :<|> Transactions t :<|> Network
+type CoreApi t = Addresses t :<|> Wallets :<|> CoinSelections t :<|> Transactions t :<|> Network
 type Addresses t = ListAddresses t
+type CoinSelections n = SelectCoins n
 type Wallets = DeleteWallet :<|> GetWallet :<|> ListWallets :<|> PostWallet :<|> PutWallet :<|> PutWalletPassphrase :<|> GetUTxOsStatistics
 type Transactions n = CreateTransaction n :<|> ListTransactions n :<|> PostTransactionFee n :<|> PostExternalTransaction :<|> DeleteTransaction
 type StakePoolApi t = ListStakePools :<|> JoinStakePool t :<|> QuitStakePool t :<|> DelegationFee

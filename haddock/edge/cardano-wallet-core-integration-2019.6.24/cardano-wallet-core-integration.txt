@@ -275,6 +275,7 @@ json :: QuasiQuoter
 joinStakePool :: forall t w. HasType (ApiT WalletId) w => Context t -> ApiT PoolId -> (w, Text) -> IO (Status, Either RequestException (ApiTransaction  'Testnet))
 delegationFee :: forall t w. HasType (ApiT WalletId) w => Context t -> w -> IO (Status, Either RequestException ApiFee)
 quitStakePool :: forall t w. HasType (ApiT WalletId) w => Context t -> ApiT PoolId -> (w, Text) -> IO (Status, Either RequestException (ApiTransaction  'Testnet))
+selectCoins :: forall t w. HasType (ApiT WalletId) w => Context t -> w -> NonEmpty (AddressAmount  'Testnet) -> IO (Status, Either RequestException (ApiCoinSelection  'Testnet))
 listAddresses :: Context t -> ApiWallet -> IO [ApiAddress  'Testnet]
 listTransactions :: Context t -> ApiWallet -> Maybe UTCTime -> Maybe UTCTime -> Maybe SortOrder -> IO [ApiTransaction  'Testnet]
 listAllTransactions :: Context t -> ApiWallet -> IO [ApiTransaction  'Testnet]
@@ -336,6 +337,7 @@ listStakePoolsEp :: (Method, Text)
 joinStakePoolEp :: forall w. HasType (ApiT WalletId) w => ApiT PoolId -> w -> (Method, Text)
 delegationFeeEp :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
 quitStakePoolEp :: forall w. HasType (ApiT WalletId) w => ApiT PoolId -> w -> (Method, Text)
+selectCoinsEp :: HasType (ApiT WalletId) w => w -> (Method, Text)
 stakePoolEp :: forall w. HasType (ApiT WalletId) w => Method -> ApiT PoolId -> w -> (Method, Text)
 postTxEp :: ApiWallet -> (Method, Text)
 postExternalTxEp :: (Method, Text)
