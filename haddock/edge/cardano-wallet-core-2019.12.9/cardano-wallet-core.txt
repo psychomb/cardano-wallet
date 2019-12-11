@@ -5370,6 +5370,8 @@ obfuscateKeys :: (Request -> [Text]) -> ApiLoggerSettings -> ApiLoggerSettings
 data HandlerLog
 LogRequestStart :: HandlerLog
 LogRequest :: Request -> HandlerLog
+
+-- | Request content, with list of sensitive json keys.
 LogRequestBody :: [Text] -> ByteString -> HandlerLog
 LogResponse :: NominalDiffTime -> Maybe Status -> HandlerLog
 LogResponseBody :: ByteString -> HandlerLog
