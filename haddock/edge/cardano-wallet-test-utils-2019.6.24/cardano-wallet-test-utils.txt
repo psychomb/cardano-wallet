@@ -93,6 +93,19 @@ instance GHC.Classes.Eq Test.Utils.Time.UniformTime
 instance Test.QuickCheck.Arbitrary.Arbitrary Test.Utils.Time.UniformTime
 
 
+-- | Provides functions for setting up and capturing logging so that
+--   expectations about logging can be asserted in test scenarios.
+module Test.Utils.Trace
+
+-- | Run an action with a logging <a>Trace</a> object, and a function to
+--   get all messages that have been traced.
+withLogging :: ((Trace IO msg, IO [msg]) -> IO a) -> IO a
+
+-- | Run an action with a <a>Trace</a>, returning captured log messages
+--   along with the result of the action.
+captureLogging :: (Trace IO msg -> IO a) -> IO ([msg], a)
+
+
 -- | Utility function for making test suites pass on Windows.
 module Test.Utils.Windows
 skipOnWindows :: HasCallStack => String -> Expectation

@@ -2801,7 +2801,7 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Network.BlockHeaders.BlockHeaders
 
 module Cardano.Wallet.Network
 data NetworkLayer m target block
-NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (Cursor target -> m (Maybe BlockHeader)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> (SealedTx -> ExceptT ErrPostTx m ()) -> (Block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> (ChimericAccount -> ExceptT ErrGetAccountBalance m (Quantity "lovelace" Word64)) -> NetworkLayer m target block
+NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (Cursor target -> m (Maybe BlockHeader)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> (SealedTx -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> (ChimericAccount -> ExceptT ErrGetAccountBalance m (Quantity "lovelace" Word64)) -> NetworkLayer m target block
 
 -- | Starting from the given <a>Cursor</a>, fetches a contiguous sequence
 --   of blocks from the node, if they are available. An updated cursor will
@@ -2835,13 +2835,7 @@ NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target
 [postTx] :: NetworkLayer m target block -> SealedTx -> ExceptT ErrPostTx m ()
 
 -- | Get the genesis block and blockchain parameters.
---   
---   Note: The genesis block is a Wallet <tt>Block</tt>-type and not the
---   <tt>block</tt> type-parameter used in <tt>nextBlocks</tt>. This is due
---   to: 1. <a>Cardano.Pool.Metrics</a> wanting to use a
---   <tt>block</tt>-type specific to non-genesis blocks. 2. The genesis
---   block only being needed in the Wallet (currently).
-[staticBlockchainParameters] :: NetworkLayer m target block -> (Block, BlockchainParameters)
+[staticBlockchainParameters] :: NetworkLayer m target block -> (block, BlockchainParameters)
 [stakeDistribution] :: NetworkLayer m target block -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64))
 [getAccountBalance] :: NetworkLayer m target block -> ChimericAccount -> ExceptT ErrGetAccountBalance m (Quantity "lovelace" Word64)
 
@@ -5279,7 +5273,7 @@ StakePool :: PoolId -> Quantity "lovelace" Word64 -> Quantity "block" Word64 -> 
 newtype StakePoolLayer m
 StakePoolLayer :: ExceptT ErrListStakePools m [StakePool] -> StakePoolLayer m
 [$sel:listStakePools:StakePoolLayer] :: StakePoolLayer m -> ExceptT ErrListStakePools m [StakePool]
-newStakePoolLayer :: DBLayer IO -> NetworkLayer IO t block -> Trace IO Text -> StakePoolLayer IO
+newStakePoolLayer :: DBLayer IO -> NetworkLayer IO t Block -> Trace IO Text -> StakePoolLayer IO
 data ErrListStakePools
 ErrMetricsIsUnsynced :: Quantity "percent" Percentage -> ErrListStakePools
 ErrListStakePoolsMetricsInconsistency :: ErrMetricsInconsistency -> ErrListStakePools
