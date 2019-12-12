@@ -2170,9 +2170,28 @@ sameStakePoolMetadata :: StakePoolMetadata -> StakePoolMetadata -> Bool
 -- | Very short name for a stake pool.
 data StakePoolTicker
 
--- | Name of the environment variable to set for tweaking the registry URL.
---   Mostly use for testing.
-envVarMetadataRegistry :: String
+-- | Configuration parameters used by <a>getStakePoolMetadata</a>.
+data MetadataConfig
+MetadataConfig :: FilePath -> NominalDiffTime -> String -> MetadataConfig
+
+-- | Filename of zip archive.
+[cacheArchive] :: MetadataConfig -> FilePath
+
+-- | A constant for the maximum age of cached registry file before it's
+--   considered to be stale.
+[cacheTTL] :: MetadataConfig -> NominalDiffTime
+
+-- | URL to use to download registry
+[registryURL] :: MetadataConfig -> String
+
+-- | Returns the configuration for fetching metadata.
+--   
+--   <a>registryURL</a> will be the Cardano Foundation stake pool registry
+--   zipfile URL, or the <tt>CARDANO_WALLET_STAKE_POOL_REGISTRY_URL</tt>
+--   environment variable if it is set.
+--   
+--   The default <a>cacheTTL</a> is one hour.
+getMetadataConfig :: FilePath -> IO MetadataConfig
 
 -- | Associate a list of stake pool IDs with their metadata (if present),
 --   which is downloaded from the given URL.
@@ -2202,12 +2221,11 @@ envVarMetadataRegistry :: String
 --   The returned list will have the same length as the given list of
 --   <a>PoolOwner</a>. If an metadata entry does not exist or could not be
 --   parsed, it will be <a>Nothing</a>.
-getStakePoolMetadata :: Trace IO RegistryLog -> String -> [PoolOwner] -> IO (Either FetchError [Maybe StakePoolMetadata])
+getStakePoolMetadata :: Trace IO RegistryLog -> MetadataConfig -> [PoolOwner] -> IO (Either FetchError [Maybe StakePoolMetadata])
 
--- | Returns the Cardano Foundation stake pool registry zipfile URL, or the
---   <tt>CARDANO_WALLET_STAKE_POOL_REGISTRY_URL</tt> environment variable
---   if it is set.
-getRegistryZipUrl :: IO String
+-- | Name of the environment variable to set for tweaking the registry URL.
+--   Mostly use for testing.
+envVarMetadataRegistry :: String
 
 -- | The stake pool registry zipfile download URL for CF.
 cardanoFoundationRegistryZip :: String
@@ -2240,6 +2258,7 @@ MsgDownloadComplete :: Integer -> RegistryLogMsg
 MsgDownloadError :: FetchError -> RegistryLogMsg
 MsgExtractFile :: FilePath -> RegistryLogMsg
 MsgExtractFileResult :: Maybe (Either String StakePoolMetadata) -> RegistryLogMsg
+MsgUsingCached :: FilePath -> UTCTime -> RegistryLogMsg
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Pool.Metadata.RegistryLog
 instance GHC.Classes.Eq Cardano.Pool.Metadata.RegistryLog
 instance GHC.Show.Show Cardano.Pool.Metadata.RegistryLog
@@ -2252,6 +2271,8 @@ instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Pool.Metadata.FetchError
 instance GHC.Generics.Generic Cardano.Pool.Metadata.FetchError
 instance GHC.Classes.Eq Cardano.Pool.Metadata.FetchError
 instance GHC.Show.Show Cardano.Pool.Metadata.FetchError
+instance GHC.Classes.Eq Cardano.Pool.Metadata.MetadataConfig
+instance GHC.Show.Show Cardano.Pool.Metadata.MetadataConfig
 instance GHC.Generics.Generic Cardano.Pool.Metadata.StakePoolMetadata
 instance GHC.Show.Show Cardano.Pool.Metadata.StakePoolMetadata
 instance GHC.Classes.Eq Cardano.Pool.Metadata.StakePoolMetadata
@@ -5288,7 +5309,7 @@ StakePool :: PoolId -> Quantity "lovelace" Word64 -> Quantity "block" Word64 -> 
 newtype StakePoolLayer m
 StakePoolLayer :: ExceptT ErrListStakePools m [(StakePool, Maybe StakePoolMetadata)] -> StakePoolLayer m
 [$sel:listStakePools:StakePoolLayer] :: StakePoolLayer m -> ExceptT ErrListStakePools m [(StakePool, Maybe StakePoolMetadata)]
-newStakePoolLayer :: DBLayer IO -> NetworkLayer IO t Block -> Trace IO StakePoolLayerMsg -> StakePoolLayer IO
+newStakePoolLayer :: Trace IO StakePoolLayerMsg -> DBLayer IO -> NetworkLayer IO t Block -> FilePath -> StakePoolLayer IO
 data ErrListStakePools
 ErrMetricsIsUnsynced :: Quantity "percent" Percentage -> ErrListStakePools
 ErrListStakePoolsMetricsInconsistency :: ErrMetricsInconsistency -> ErrListStakePools
