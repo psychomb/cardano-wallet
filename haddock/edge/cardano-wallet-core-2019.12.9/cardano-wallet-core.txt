@@ -5396,14 +5396,16 @@ MsgMetadataUnavailable :: StakePoolLayerMsg
 MsgMetadataUsing :: PoolId -> PoolOwner -> StakePoolMetadata -> StakePoolLayerMsg
 MsgMetadataMissing :: PoolId -> StakePoolLayerMsg
 MsgMetadataMultiple :: PoolId -> [(PoolOwner, StakePoolMetadata)] -> StakePoolLayerMsg
-MsgComputedProgress :: Maybe BlockHeader -> BlockHeader -> StakePoolLayerMsg
+MsgComputedProgress :: BlockHeader -> BlockHeader -> StakePoolLayerMsg
 instance GHC.Classes.Eq Cardano.Pool.Metrics.StakePoolLayerMsg
 instance GHC.Show.Show Cardano.Pool.Metrics.StakePoolLayerMsg
+instance GHC.Show.Show Cardano.Pool.Metrics.ErrListStakePools
 instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance GHC.Show.Show Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMonitorStakePools
 instance GHC.Show.Show Cardano.Pool.Metrics.ErrMonitorStakePools
 instance GHC.Generics.Generic Cardano.Pool.Metrics.StakePool
+instance GHC.Show.Show Cardano.Pool.Metrics.StakePool
 instance GHC.Generics.Generic Cardano.Pool.Metrics.Block
 instance GHC.Show.Show Cardano.Pool.Metrics.Block
 instance GHC.Classes.Eq Cardano.Pool.Metrics.Block
