@@ -66,6 +66,15 @@ isPortOpen :: SockAddr -> IO Bool
 simpleSockAddr :: (Word8, Word8, Word8, Word8) -> PortNumber -> SockAddr
 
 
+-- | Provides a simple static files web server to be used as a fixture in
+--   tests which need a HTTP server.
+module Test.Utils.StaticServer
+
+-- | Run a localhost HTTP file server on any free port, while executing the
+--   given action.
+withStaticServer :: FilePath -> (String -> IO a) -> IO a
+
+
 -- | Provides utility functions relating to testing with times and dates.
 module Test.Utils.Time
 

@@ -2163,8 +2163,16 @@ StakePoolMetadata :: PoolOwner -> StakePoolTicker -> Text -> Maybe Text -> Text 
 -- | Bech32-encoded address.
 [pledgeAddress] :: StakePoolMetadata -> Text
 
+-- | Returns <a>True</a> iff metadata is exactly equal, modulo
+--   <a>PoolOwner</a>.
+sameStakePoolMetadata :: StakePoolMetadata -> StakePoolMetadata -> Bool
+
 -- | Very short name for a stake pool.
 data StakePoolTicker
+
+-- | Name of the environment variable to set for tweaking the registry URL.
+--   Mostly use for testing.
+envVarMetadataRegistry :: String
 
 -- | Associate a list of stake pool IDs with their metadata (if present),
 --   which is downloaded from the given URL.
@@ -2195,6 +2203,11 @@ data StakePoolTicker
 --   <a>PoolOwner</a>. If an metadata entry does not exist or could not be
 --   parsed, it will be <a>Nothing</a>.
 getStakePoolMetadata :: Trace IO RegistryLog -> String -> [PoolOwner] -> IO (Either FetchError [Maybe StakePoolMetadata])
+
+-- | Returns the Cardano Foundation stake pool registry zipfile URL, or the
+--   <tt>CARDANO_WALLET_STAKE_POOL_REGISTRY_URL</tt> environment variable
+--   if it is set.
+getRegistryZipUrl :: IO String
 
 -- | The stake pool registry zipfile download URL for CF.
 cardanoFoundationRegistryZip :: String
@@ -2246,6 +2259,8 @@ instance Data.Text.Class.ToText Cardano.Pool.Metadata.StakePoolTicker
 instance GHC.Classes.Eq Cardano.Pool.Metadata.StakePoolTicker
 instance GHC.Show.Show Cardano.Pool.Metadata.StakePoolTicker
 instance GHC.Generics.Generic Cardano.Pool.Metadata.StakePoolTicker
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Pool.Metadata.RegistryLog
+instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Pool.Metadata.RegistryLog
 instance Data.Text.Class.ToText Cardano.Pool.Metadata.RegistryLog
 instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Pool.Metadata.RegistryLogMsg
 instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Pool.Metadata.RegistryLogMsg
@@ -5271,9 +5286,9 @@ StakePool :: PoolId -> Quantity "lovelace" Word64 -> Quantity "block" Word64 -> 
 --   <i>one</i> value that can easily be passed to the API-server, where it
 --   can be used in a simple way.
 newtype StakePoolLayer m
-StakePoolLayer :: ExceptT ErrListStakePools m [StakePool] -> StakePoolLayer m
-[$sel:listStakePools:StakePoolLayer] :: StakePoolLayer m -> ExceptT ErrListStakePools m [StakePool]
-newStakePoolLayer :: DBLayer IO -> NetworkLayer IO t Block -> Trace IO Text -> StakePoolLayer IO
+StakePoolLayer :: ExceptT ErrListStakePools m [(StakePool, Maybe StakePoolMetadata)] -> StakePoolLayer m
+[$sel:listStakePools:StakePoolLayer] :: StakePoolLayer m -> ExceptT ErrListStakePools m [(StakePool, Maybe StakePoolMetadata)]
+newStakePoolLayer :: DBLayer IO -> NetworkLayer IO t Block -> Trace IO StakePoolLayerMsg -> StakePoolLayer IO
 data ErrListStakePools
 ErrMetricsIsUnsynced :: Quantity "percent" Percentage -> ErrListStakePools
 ErrListStakePoolsMetricsInconsistency :: ErrMetricsInconsistency -> ErrListStakePools
@@ -5339,6 +5354,30 @@ combineMetrics :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantit
 --   practice, be greater than 1 if a stake pool produces more than it is
 --   expected.
 calculatePerformance :: Int -> Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Word64) -> Map PoolId Double
+
+-- | Given a mapping from <a>PoolId</a> -&gt; <a>PoolOwner</a> and a
+--   mapping between <a>PoolOwner</a> <a>-</a> <a>StakePoolMetadata</a>,
+--   return a matching <tt>StakePoolMeta</tt> entry for every
+--   <a>PoolId</a>.
+--   
+--   If there is no metadata for a pool, it returns Nothing for that
+--   <a>PoolId</a>. If there is different metadata submitted by multiple
+--   owners of a pool, it returns Nothing. If there is one unique metadata
+--   for a pool, it returns <a>Just</a> the metadata for that
+--   <a>PoolId</a>.
+--   
+--   It also provides a log message for each association.
+associateMetadata :: [(PoolId, [PoolOwner])] -> [(PoolOwner, Maybe StakePoolMetadata)] -> [(StakePoolLayerMsg, Maybe StakePoolMetadata)]
+data StakePoolLayerMsg
+MsgRegistry :: RegistryLog -> StakePoolLayerMsg
+MsgListStakePoolsBegin :: StakePoolLayerMsg
+MsgMetadataUnavailable :: StakePoolLayerMsg
+MsgMetadataUsing :: PoolId -> PoolOwner -> StakePoolMetadata -> StakePoolLayerMsg
+MsgMetadataMissing :: PoolId -> StakePoolLayerMsg
+MsgMetadataMultiple :: PoolId -> [(PoolOwner, StakePoolMetadata)] -> StakePoolLayerMsg
+MsgComputedProgress :: Maybe BlockHeader -> BlockHeader -> StakePoolLayerMsg
+instance GHC.Classes.Eq Cardano.Pool.Metrics.StakePoolLayerMsg
+instance GHC.Show.Show Cardano.Pool.Metrics.StakePoolLayerMsg
 instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance GHC.Show.Show Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMonitorStakePools
@@ -5347,6 +5386,9 @@ instance GHC.Generics.Generic Cardano.Pool.Metrics.StakePool
 instance GHC.Generics.Generic Cardano.Pool.Metrics.Block
 instance GHC.Show.Show Cardano.Pool.Metrics.Block
 instance GHC.Classes.Eq Cardano.Pool.Metrics.Block
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Pool.Metrics.StakePoolLayerMsg
+instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Pool.Metrics.StakePoolLayerMsg
+instance Data.Text.Class.ToText Cardano.Pool.Metrics.StakePoolLayerMsg
 
 module Network.Wai.Middleware.Logging
 

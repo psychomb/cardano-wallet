@@ -637,6 +637,7 @@ toSPBlock :: Block -> Block
 -- | The type of trace events produced by the Jörmungandr API server.
 data ServerLog
 LogApiServerMsg :: ApiLog -> ServerLog
+LogStakePoolLayerMsg :: StakePoolLayerMsg -> ServerLog
 LogText :: Text -> ServerLog
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.ServerLog
 instance Data.Text.Class.ToText Cardano.Wallet.Jormungandr.ServerLog
