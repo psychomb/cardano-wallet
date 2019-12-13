@@ -2185,10 +2185,13 @@ data StakePoolTicker
 
 -- | Configuration parameters used by <a>getStakePoolMetadata</a>.
 data MetadataConfig
-MetadataConfig :: FilePath -> NominalDiffTime -> String -> MetadataConfig
+MetadataConfig :: FilePath -> String -> NominalDiffTime -> String -> MetadataConfig
 
--- | Filename of zip archive.
-[cacheArchive] :: MetadataConfig -> FilePath
+-- | Directory where the cache is stored
+[cacheDirectory] :: MetadataConfig -> FilePath
+
+-- | Name of zip archive.
+[cacheName] :: MetadataConfig -> String
 
 -- | A constant for the maximum age of cached registry file before it's
 --   considered to be stale.
@@ -2196,6 +2199,9 @@ MetadataConfig :: FilePath -> NominalDiffTime -> String -> MetadataConfig
 
 -- | URL to use to download registry
 [registryURL] :: MetadataConfig -> String
+
+-- | Filepath to the zip archive
+cacheArchive :: MetadataConfig -> FilePath
 
 -- | Returns the configuration for fetching metadata.
 --   
