@@ -111,7 +111,7 @@ Transaction :: Tx -> Fragment
 StakeDelegation :: (StakeDelegationType, ChimericAccount, Tx) -> Fragment
 
 -- | A signed transaction with a stake pool registration.
-PoolRegistration :: (PoolId, [PoolOwner], Tx) -> Fragment
+PoolRegistration :: (PoolId, [PoolOwner], TaxParameters, Tx) -> Fragment
 UnimplementedFragment :: Word8 -> Fragment
 data FragmentSpec
 FragmentInitial :: FragmentSpec
@@ -129,6 +129,23 @@ PerCertificateFee :: Word64 -> Word64 -> Word64 -> PerCertificateFee
 [feePoolRegistration] :: PerCertificateFee -> Word64
 [feeStakeDelegation] :: PerCertificateFee -> Word64
 [feeOwnerStakeDelegation] :: PerCertificateFee -> Word64
+data TaxParameters
+TaxParameters :: Word64 -> Word64 -> Word64 -> Maybe Word64 -> TaxParameters
+
+-- | fixed cut the stake pool will take from the total reward due to the
+--   stake pool
+[taxFixed] :: TaxParameters -> Word64
+
+-- | With <a>taxRatioDenominator</a> forms a ratio "n/d" which is the
+--   percentage of the remaining value that will be taken from the total
+--   due.
+[taxRatioNumerator] :: TaxParameters -> Word64
+
+-- | See <a>taxRatioNumerator</a>
+[taxRatioDenominator] :: TaxParameters -> Word64
+
+-- | A value that can be set to limit the pool's Tax.
+[taxLimit] :: TaxParameters -> Maybe Word64
 getBlock :: Get Block
 getBlockHeader :: Get BlockHeader
 
@@ -229,6 +246,9 @@ instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.LeaderId
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.Milli
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.Milli
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.Milli
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.TaxParameters
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.TaxParameters
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.TaxParameters
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Binary.StakeDelegationType
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Binary.StakeDelegationType
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Binary.StakeDelegationType
@@ -244,6 +264,7 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.PerCertificate
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.ConsensusVersion
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.LeaderId
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.Milli
+instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.TaxParameters
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.StakeDelegationType
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Binary.BlockHeader
 

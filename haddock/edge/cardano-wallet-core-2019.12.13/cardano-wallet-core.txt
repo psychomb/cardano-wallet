@@ -340,6 +340,7 @@ instance GHC.Enum.Bounded Data.Quantity.Percentage
 instance GHC.Enum.Enum Data.Quantity.Percentage
 instance Data.Text.Class.ToText Data.Quantity.Percentage
 instance Data.Text.Class.FromText Data.Quantity.Percentage
+instance GHC.Base.Functor (Data.Quantity.Quantity any)
 instance Control.DeepSeq.NFData a => Control.DeepSeq.NFData (Data.Quantity.Quantity unit a)
 instance (GHC.TypeLits.KnownSymbol unit, Data.Aeson.Types.ToJSON.ToJSON a) => Data.Aeson.Types.ToJSON.ToJSON (Data.Quantity.Quantity unit a)
 instance (GHC.TypeLits.KnownSymbol unit, Data.Aeson.Types.FromJSON.FromJSON a) => Data.Aeson.Types.FromJSON.FromJSON (Data.Quantity.Quantity unit a)
@@ -554,9 +555,11 @@ dlgCertPoolId :: DelegationCertificate -> Maybe PoolId
 
 -- | Pool ownership data from the stake pool registration certificate.
 data PoolRegistrationCertificate
-PoolRegistrationCertificate :: !PoolId -> ![PoolOwner] -> PoolRegistrationCertificate
+PoolRegistrationCertificate :: !PoolId -> ![PoolOwner] -> Percentage -> Quantity "lovelace" Word64 -> PoolRegistrationCertificate
 [$sel:poolId:PoolRegistrationCertificate] :: PoolRegistrationCertificate -> !PoolId
 [$sel:poolOwners:PoolRegistrationCertificate] :: PoolRegistrationCertificate -> ![PoolOwner]
+[$sel:poolMargin:PoolRegistrationCertificate] :: PoolRegistrationCertificate -> Percentage
+[$sel:poolCost:PoolRegistrationCertificate] :: PoolRegistrationCertificate -> Quantity "lovelace" Word64
 
 -- | Coins are stored as Lovelace (reminder: 1 Lovelace = 1e-6 ADA)
 newtype Coin
@@ -3108,6 +3111,8 @@ instance GHC.Read.Read Cardano.Wallet.Primitive.Types.PoolId
 instance Web.PathPieces.PathPiece Cardano.Wallet.Primitive.Types.PoolId
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Primitive.Types.PoolId
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Primitive.Types.PoolId
+instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Primitive.Types.PoolId
+instance Web.Internal.HttpApiData.FromHttpApiData Cardano.Wallet.Primitive.Types.PoolId
 instance Database.Persist.Class.PersistField.PersistField Cardano.Wallet.Primitive.Types.PoolOwner
 instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Wallet.Primitive.Types.PoolOwner
 instance GHC.Read.Read Cardano.Wallet.Primitive.Types.PoolOwner
@@ -3529,7 +3534,17 @@ PoolOwner :: !PoolId -> !PoolOwner -> PoolOwner
 [poolOwnerPoolId] :: PoolOwner -> !PoolId
 [poolOwnerOwner] :: PoolOwner -> !PoolOwner
 type PoolOwnerId = Key PoolOwner
+data PoolRegistration
+PoolRegistration :: !PoolId -> !Word64 -> !Word8 -> !Word64 -> PoolRegistration
+[poolRegistrationPoolId] :: PoolRegistration -> !PoolId
+[poolRegistrationEpoch] :: PoolRegistration -> !Word64
+[poolRegistrationMargin] :: PoolRegistration -> !Word8
+[poolRegistrationCost] :: PoolRegistration -> !Word64
+type PoolRegistrationId = Key PoolRegistration
 migrateAll :: Migration
+fk_registration_pool_id :: PoolOwner -> Key PoolRegistration
+instance GHC.Generics.Generic Cardano.Pool.DB.Sqlite.TH.PoolRegistration
+instance GHC.Show.Show Cardano.Pool.DB.Sqlite.TH.PoolRegistration
 instance GHC.Generics.Generic Cardano.Pool.DB.Sqlite.TH.PoolOwner
 instance GHC.Show.Show Cardano.Pool.DB.Sqlite.TH.PoolOwner
 instance GHC.Generics.Generic Cardano.Pool.DB.Sqlite.TH.StakeDistribution
@@ -3570,6 +3585,23 @@ instance GHC.Classes.Ord (Database.Persist.Class.PersistEntity.Key Cardano.Pool.
 instance GHC.Classes.Eq (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolOwner)
 instance GHC.Read.Read (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolOwner)
 instance GHC.Show.Show (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolOwner)
+instance Data.Aeson.Types.FromJSON.FromJSON (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolRegistration)
+instance Data.Aeson.Types.ToJSON.ToJSON (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolRegistration)
+instance Database.Persist.Sql.Class.PersistFieldSql (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolRegistration)
+instance Database.Persist.Class.PersistField.PersistField (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolRegistration)
+instance Web.Internal.HttpApiData.FromHttpApiData (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolRegistration)
+instance Web.Internal.HttpApiData.ToHttpApiData (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolRegistration)
+instance Web.PathPieces.PathPiece (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolRegistration)
+instance GHC.Classes.Ord (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolRegistration)
+instance GHC.Classes.Eq (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolRegistration)
+instance GHC.Read.Read (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolRegistration)
+instance GHC.Show.Show (Database.Persist.Class.PersistEntity.Key Cardano.Pool.DB.Sqlite.TH.PoolRegistration)
+instance Database.Persist.Class.PersistEntity.PersistEntity Cardano.Pool.DB.Sqlite.TH.PoolRegistration
+instance Database.Persist.Class.PersistField.PersistField Cardano.Pool.DB.Sqlite.TH.PoolRegistration
+instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Pool.DB.Sqlite.TH.PoolRegistration
+instance (TypeError ...) => Database.Persist.Class.PersistUnique.OnlyOneUniqueKey Cardano.Pool.DB.Sqlite.TH.PoolRegistration
+instance (TypeError ...) => Database.Persist.Class.PersistUnique.AtLeastOneUniqueKey Cardano.Pool.DB.Sqlite.TH.PoolRegistration
+instance (Database.Persist.Class.PersistQuery backend, Database.Persist.Class.PersistEntity.PersistEntityBackend Cardano.Pool.DB.Sqlite.TH.PoolRegistration Data.Type.Equality.~ Database.Persist.Class.PersistStore.BaseBackend backend) => Database.Persist.Class.DeleteCascade.DeleteCascade Cardano.Pool.DB.Sqlite.TH.PoolRegistration backend
 instance Database.Persist.Class.PersistEntity.PersistEntity Cardano.Pool.DB.Sqlite.TH.PoolOwner
 instance Database.Persist.Class.PersistField.PersistField Cardano.Pool.DB.Sqlite.TH.PoolOwner
 instance Database.Persist.Sql.Class.PersistFieldSql Cardano.Pool.DB.Sqlite.TH.PoolOwner
@@ -3869,7 +3901,7 @@ instance GHC.Exception.Type.Exception Cardano.Wallet.DB.MVar.MVarDBError
 --   MVar database backend.
 module Cardano.Pool.DB.Model
 data PoolDatabase
-PoolDatabase :: !Map PoolId [BlockHeader] -> !Map EpochNo [(PoolId, Quantity "lovelace" Word64)] -> !Set (PoolId, PoolOwner) -> !SystemSeed -> PoolDatabase
+PoolDatabase :: !Map PoolId [BlockHeader] -> !Map EpochNo [(PoolId, Quantity "lovelace" Word64)] -> !Map PoolId [PoolOwner] -> !Map (EpochNo, PoolId) (Percentage, Quantity "lovelace" Word64) -> !SystemSeed -> PoolDatabase
 
 -- | Information of what blocks were produced by which stake pools
 [$sel:pools:PoolDatabase] :: PoolDatabase -> !Map PoolId [BlockHeader]
@@ -3878,7 +3910,10 @@ PoolDatabase :: !Map PoolId [BlockHeader] -> !Map EpochNo [(PoolId, Quantity "lo
 [$sel:distributions:PoolDatabase] :: PoolDatabase -> !Map EpochNo [(PoolId, Quantity "lovelace" Word64)]
 
 -- | Mapping between pool ids and owners
-[$sel:owners:PoolDatabase] :: PoolDatabase -> !Set (PoolId, PoolOwner)
+[$sel:owners:PoolDatabase] :: PoolDatabase -> !Map PoolId [PoolOwner]
+
+-- | On-chain metadata associated with pools
+[$sel:metadata:PoolDatabase] :: PoolDatabase -> !Map (EpochNo, PoolId) (Percentage, Quantity "lovelace" Word64)
 
 -- | Store an arbitrary random generator seed
 [$sel:seed:PoolDatabase] :: PoolDatabase -> !SystemSeed
@@ -3893,8 +3928,9 @@ mPutPoolProduction :: BlockHeader -> PoolId -> ModelPoolOp ()
 mReadPoolProduction :: EpochNo -> ModelPoolOp (Map PoolId [BlockHeader])
 mPutStakeDistribution :: EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> ModelPoolOp ()
 mReadStakeDistribution :: EpochNo -> ModelPoolOp [(PoolId, Quantity "lovelace" Word64)]
-mPutStakePoolOwner :: PoolId -> PoolOwner -> ModelPoolOp ()
-mReadStakePoolOwners :: PoolId -> ModelPoolOp [PoolOwner]
+mPutPoolRegistration :: EpochNo -> PoolRegistrationCertificate -> ModelPoolOp ()
+mReadPoolRegistration :: PoolId -> ModelPoolOp (Maybe PoolRegistrationCertificate)
+mListRegisteredPools :: PoolDatabase -> ([PoolId], PoolDatabase)
 mReadSystemSeed :: PoolDatabase -> IO (StdGen, PoolDatabase)
 mRollbackTo :: SlotId -> ModelPoolOp ()
 mReadCursor :: Int -> ModelPoolOp [BlockHeader]
@@ -3923,7 +3959,7 @@ module Cardano.Pool.DB
 --   This gives you the power to also run <i>multiple</i> operations
 --   atomically.
 data DBLayer m
-DBLayer :: (BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists stm ()) -> (EpochNo -> stm (Map PoolId [BlockHeader])) -> (EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> stm ()) -> (EpochNo -> stm [(PoolId, Quantity "lovelace" Word64)]) -> (Int -> stm [BlockHeader]) -> (PoolId -> PoolOwner -> stm ()) -> (PoolId -> stm [PoolOwner]) -> stm StdGen -> (SlotId -> stm ()) -> stm () -> (forall a. stm a -> m a) -> DBLayer m
+DBLayer :: (BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists stm ()) -> (EpochNo -> stm (Map PoolId [BlockHeader])) -> (EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> stm ()) -> (EpochNo -> stm [(PoolId, Quantity "lovelace" Word64)]) -> (Int -> stm [BlockHeader]) -> (EpochNo -> PoolRegistrationCertificate -> stm ()) -> (PoolId -> stm (Maybe PoolRegistrationCertificate)) -> stm [PoolId] -> stm StdGen -> (SlotId -> stm ()) -> stm () -> (forall a. stm a -> m a) -> DBLayer m
 
 -- | Write for a given slot id the id of stake pool that produced a a
 --   corresponding block
@@ -3947,12 +3983,19 @@ DBLayer :: (BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists stm ()) -> (E
 --   synced.
 [readPoolProductionCursor] :: DBLayer m -> Int -> stm [BlockHeader]
 
--- | Add a mapping between stake pools and owners. If the mapping already
---   exists, this will be a no-op.
-[putStakePoolOwner] :: DBLayer m -> PoolId -> PoolOwner -> stm ()
+-- | Add a mapping between stake pools and their corresponding certificate.
+--   If the mapping already exists, data are replaced with the latest
+--   version.
+[putPoolRegistration] :: DBLayer m -> EpochNo -> PoolRegistrationCertificate -> stm ()
 
--- | List the owners of a given stake pool.
-[readStakePoolOwners] :: DBLayer m -> PoolId -> stm [PoolOwner]
+-- | Find a registration certificate associated to a given pool
+[readPoolRegistration] :: DBLayer m -> PoolId -> stm (Maybe PoolRegistrationCertificate)
+
+-- | List the list of known pools, based on their registration certificate.
+--   This list doesn't necessarily match the keys of the map we would get
+--   from <a>readPoolProduction</a> because not all registered pools have
+--   necessarily produced any block yet!
+[listRegisteredPools] :: DBLayer m -> stm [PoolId]
 
 -- | Read the seed assigned to this particular database. The seed is
 --   created with the database and is "unique" for each database. This
@@ -4350,11 +4393,13 @@ ApiCoinSelectionInput :: !ApiT (Hash "Tx") -> !Word32 -> !(ApiT Address, Proxy n
 [$sel:address:ApiCoinSelectionInput] :: ApiCoinSelectionInput -> !(ApiT Address, Proxy n)
 [$sel:amount:ApiCoinSelectionInput] :: ApiCoinSelectionInput -> !Quantity "lovelace" Natural
 data ApiStakePool
-ApiStakePool :: !ApiT PoolId -> !ApiStakePoolMetrics -> !Double -> !Maybe StakePoolMetadata -> ApiStakePool
+ApiStakePool :: !ApiT PoolId -> !ApiStakePoolMetrics -> !Double -> !Maybe StakePoolMetadata -> !Quantity "lovelace" Natural -> !Quantity "percent" Percentage -> ApiStakePool
 [$sel:id:ApiStakePool] :: ApiStakePool -> !ApiT PoolId
 [$sel:metrics:ApiStakePool] :: ApiStakePool -> !ApiStakePoolMetrics
 [$sel:apparentPerformance:ApiStakePool] :: ApiStakePool -> !Double
 [$sel:metadata:ApiStakePool] :: ApiStakePool -> !Maybe StakePoolMetadata
+[$sel:cost:ApiStakePool] :: ApiStakePool -> !Quantity "lovelace" Natural
+[$sel:margin:ApiStakePool] :: ApiStakePool -> !Quantity "percent" Percentage
 data ApiStakePoolMetrics
 ApiStakePoolMetrics :: !Quantity "lovelace" Natural -> !Quantity "block" Natural -> ApiStakePoolMetrics
 [$sel:controlledStake:ApiStakePoolMetrics] :: ApiStakePoolMetrics -> !Quantity "lovelace" Natural
@@ -5317,18 +5362,25 @@ Block :: BlockHeader -> PoolId -> ![PoolRegistrationCertificate] -> Block
 -- | Any stake pools that were registered in this block.
 [$sel:poolRegistrations:Block] :: Block -> ![PoolRegistrationCertificate]
 data StakePool
-StakePool :: PoolId -> Quantity "lovelace" Word64 -> Quantity "block" Word64 -> Double -> StakePool
+StakePool :: PoolId -> Quantity "lovelace" Word64 -> Quantity "block" Word64 -> Double -> Quantity "lovelace" Word64 -> Percentage -> StakePool
 [$sel:poolId:StakePool] :: StakePool -> PoolId
 [$sel:stake:StakePool] :: StakePool -> Quantity "lovelace" Word64
 [$sel:production:StakePool] :: StakePool -> Quantity "block" Word64
 [$sel:apparentPerformance:StakePool] :: StakePool -> Double
+[$sel:cost:StakePool] :: StakePool -> Quantity "lovelace" Word64
+[$sel:margin:StakePool] :: StakePool -> Percentage
 
 -- | <tt>StakePoolLayer</tt> is a thin layer ontop of the DB. It is
 --   <i>one</i> value that can easily be passed to the API-server, where it
 --   can be used in a simple way.
-newtype StakePoolLayer m
-StakePoolLayer :: ExceptT ErrListStakePools m [(StakePool, Maybe StakePoolMetadata)] -> StakePoolLayer m
+data StakePoolLayer m
+StakePoolLayer :: ExceptT ErrListStakePools m [(StakePool, Maybe StakePoolMetadata)] -> m [PoolId] -> StakePoolLayer m
 [$sel:listStakePools:StakePoolLayer] :: StakePoolLayer m -> ExceptT ErrListStakePools m [(StakePool, Maybe StakePoolMetadata)]
+
+-- | Get a list of known pools that doesn't require fetching things from
+--   Jörmungandr or any registry. This list comes from the registration
+--   certificates that have been seen on chain.
+[$sel:knownStakePools:StakePoolLayer] :: StakePoolLayer m -> m [PoolId]
 newStakePoolLayer :: Trace IO StakePoolLayerMsg -> DBLayer IO -> NetworkLayer IO t Block -> FilePath -> StakePoolLayer IO
 data ErrListStakePools
 ErrMetricsIsUnsynced :: Quantity "percent" Percentage -> ErrListStakePools
