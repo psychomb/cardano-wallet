@@ -176,6 +176,10 @@ convertBlock :: Block -> Block
 -- | Convert the Jörmungandr binary format header into a simpler Wallet
 --   header.
 convertBlockHeader :: BlockHeader -> BlockHeader
+
+-- | Extracts ownership information from all stake pool registration
+--   certificates in the Jörmungandr block.
+poolRegistrationsFromBlock :: Block -> [PoolRegistrationCertificate]
 putAddress :: Address -> Put
 getAddress :: Get Address
 whileM :: Monad m => m Bool -> m a -> m [a]
@@ -570,7 +574,7 @@ ErrUnexpectedNetworkFailure :: Link -> ServantError -> ErrUnexpectedNetworkFailu
 --   
 --   This version provides the full, raw blocks from
 --   <a>Cardano.Wallet.Jormungandr.Binary</a>.
-mkRawNetworkLayer :: forall m t block. (MonadBaseControl IO m, t ~ Jormungandr, block ~ Block) => (Block, BlockchainParameters) -> Word -> MVar BlockHeaders -> JormungandrClient m -> NetworkLayer m t block
+mkRawNetworkLayer :: forall m t block. (MonadBaseControl IO m, t ~ Jormungandr, block ~ Block) => (block, BlockchainParameters) -> Word -> MVar BlockHeaders -> JormungandrClient m -> NetworkLayer m t block
 data BaseUrl
 BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
 [baseUrlScheme] :: BaseUrl -> Scheme
@@ -633,6 +637,7 @@ toSPBlock :: Block -> Block
 -- | The type of trace events produced by the Jörmungandr API server.
 data ServerLog
 LogApiServerMsg :: ApiLog -> ServerLog
+LogStakePoolLayerMsg :: StakePoolLayerMsg -> ServerLog
 LogText :: Text -> ServerLog
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.ServerLog
 instance Data.Text.Class.ToText Cardano.Wallet.Jormungandr.ServerLog
