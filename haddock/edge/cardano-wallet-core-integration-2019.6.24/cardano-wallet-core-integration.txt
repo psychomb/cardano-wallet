@@ -243,6 +243,8 @@ byronBalanceTotal :: HasType ApiByronWalletBalance s => Lens' s Natural
 balanceTotal :: HasType (ApiT WalletBalance) s => Lens' s Natural
 balanceReward :: HasType (ApiT WalletBalance) s => Lens' s Natural
 blocks :: HasField' "producedBlocks" s (Quantity "block" Natural) => Lens' s Natural
+coinSelectionInputs :: forall s n a. (s ~ ApiCoinSelection n, a ~ ApiCoinSelectionInput n, HasType (NonEmpty a) s) => Lens' s [a]
+coinSelectionOutputs :: forall s n a. (s ~ ApiCoinSelection n, a ~ AddressAmount n, HasType (NonEmpty a) s) => Lens' s [a]
 delegation :: forall s d. (d ~ WalletDelegation (ApiT PoolId), HasType (ApiT d) s) => Lens' s (WalletDelegation (ApiT PoolId))
 direction :: HasType (ApiT Direction) s => Lens' s Direction
 feeEstimator :: Lens' (Context t) (TxDescription -> (Natural, Natural))

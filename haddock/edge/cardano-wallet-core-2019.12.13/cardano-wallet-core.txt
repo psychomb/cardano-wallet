@@ -460,6 +460,14 @@ TransactionInfo :: !Hash "Tx" -> ![(TxIn, Maybe TxOut)] -> ![TxOut] -> !TxMeta -
 --   <tt>a</tt>, <tt>b</tt> and <tt>c</tt> are constant coefficients.
 data FeePolicy
 LinearFee :: Quantity "lovelace" Double -> Quantity "lovelace/byte" Double -> Quantity "lovelace/certificate" Double -> FeePolicy
+
+-- | An unsigned transaction.
+--   
+--   See <a>Tx</a> for a signed transaction.
+data UnsignedTx
+UnsignedTx :: NonEmpty (TxIn, TxOut) -> NonEmpty TxOut -> UnsignedTx
+[$sel:unsignedInputs:UnsignedTx] :: UnsignedTx -> NonEmpty (TxIn, TxOut)
+[$sel:unsignedOutputs:UnsignedTx] :: UnsignedTx -> NonEmpty TxOut
 txIns :: Set Tx -> Set TxIn
 
 -- | True if the given tuple refers to a pending transaction
@@ -954,6 +962,8 @@ instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.Tx
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.Tx
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.Tx
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.Tx
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.UnsignedTx
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.UnsignedTx
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.TransactionInfo
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.TransactionInfo
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.TransactionInfo
@@ -4941,6 +4951,9 @@ ErrFetchRewardsNoSuchWallet :: ErrNoSuchWallet -> ErrFetchRewards
 --   ordered from the most-recently-discovered to the oldest known.
 listAddresses :: forall ctx s k n. (HasDBLayer s k ctx, IsOurs s Address, CompareDiscovery s, KnownAddresses s, MkKeyFingerprint k Address, DelegationAddress n k, HasRewardAccount s, k ~ RewardAccountKey s) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
 
+-- | Makes a fully-resolved coin selection for the given set of payments.
+selectCoinsExternal :: forall ctx s t k e. (GenChange s, HasDBLayer s k ctx, HasLogger ctx, HasTransactionLayer t k ctx, IsOwned s k, NFData s, Show s, e ~ ErrValidateSelection t) => ctx -> WalletId -> ArgGenChange s -> NonEmpty TxOut -> ExceptT (ErrSelectCoinsExternal e) IO UnsignedTx
+
 -- | Prepare a transaction and automatically select inputs from the wallet
 --   to cover the requested outputs. Note that this only runs coin
 --   selection for the given outputs. In order to construct (and sign) an
@@ -4956,6 +4969,11 @@ estimatePaymentFee :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasDBLay
 --   private key. Note that this doesn't broadcast the transaction to the
 --   network. In order to do so, use <a>submitTx</a>.
 signPayment :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> ExceptT ErrSignPayment IO (Tx, TxMeta, UTCTime, SealedTx)
+data ErrSelectCoinsExternal e
+ErrSelectCoinsExternalNoSuchWallet :: ErrNoSuchWallet -> ErrSelectCoinsExternal e
+ErrSelectCoinsExternalUnableToMakeSelection :: ErrSelectForPayment e -> ErrSelectCoinsExternal e
+ErrSelectCoinsExternalUnableToAssignInputs :: WalletId -> ErrSelectCoinsExternal e
+ErrSelectCoinsExternalUnableToAssignOutputs :: WalletId -> ErrSelectCoinsExternal e
 
 -- | Errors that can occur when creating an unsigned transaction.
 data ErrSelectForPayment e
@@ -5176,6 +5194,8 @@ instance GHC.Classes.Eq Cardano.Wallet.ErrListUTxOStatistics
 instance GHC.Show.Show Cardano.Wallet.ErrListUTxOStatistics
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrEstimatePaymentFee e)
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrEstimatePaymentFee e)
+instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrSelectCoinsExternal e)
+instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrSelectCoinsExternal e)
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrSelectForPayment e)
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrSelectForPayment e)
 instance GHC.Generics.Generic (Cardano.Wallet.WalletLayer s t k)
@@ -5537,6 +5557,7 @@ instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrNext
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrNoSuchWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrWalletAlreadyExists
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrWithRootKey
+instance Formatting.Buildable.Buildable e => Cardano.Wallet.Api.Server.LiftHandler (Cardano.Wallet.ErrSelectCoinsExternal e)
 instance Formatting.Buildable.Buildable e => Cardano.Wallet.Api.Server.LiftHandler (Cardano.Wallet.Primitive.CoinSelection.ErrCoinSelection e)
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Primitive.Fee.ErrAdjustForFee
 instance Formatting.Buildable.Buildable e => Cardano.Wallet.Api.Server.LiftHandler (Cardano.Wallet.ErrSelectForPayment e)
