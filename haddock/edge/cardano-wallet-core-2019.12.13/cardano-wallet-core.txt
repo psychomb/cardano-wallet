@@ -3536,9 +3536,10 @@ StakeDistribution :: !PoolId -> !Word64 -> !Word64 -> StakeDistribution
 [stakeDistributionStake] :: StakeDistribution -> !Word64
 type StakeDistributionId = Key StakeDistribution
 data PoolOwner
-PoolOwner :: !PoolId -> !PoolOwner -> PoolOwner
+PoolOwner :: !PoolId -> !PoolOwner -> !Word8 -> PoolOwner
 [poolOwnerPoolId] :: PoolOwner -> !PoolId
 [poolOwnerOwner] :: PoolOwner -> !PoolOwner
+[poolOwnerIndex] :: PoolOwner -> !Word8
 type PoolOwnerId = Key PoolOwner
 data PoolRegistration
 PoolRegistration :: !PoolId -> !Word64 -> !Word8 -> !Word64 -> PoolRegistration
