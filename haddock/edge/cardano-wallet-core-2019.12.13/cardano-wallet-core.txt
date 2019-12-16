@@ -5027,6 +5027,10 @@ selectCoinsExternal :: forall ctx s t k e. (GenChange s, HasDBLayer s k ctx, Has
 --   actual transaction, use <a>signPayment</a>.
 selectCoinsForPayment :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s k ctx, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrSelectForPayment e) IO CoinSelection
 
+-- | Estimate a transaction fee by automatically selecting inputs from the
+--   wallet to cover the requested outputs.
+estimatePaymentFee :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrEstimatePaymentFee e) IO Fee
+
 -- | Produce witnesses and construct a transaction from a given selection.
 --   Requires the encryption passphrase in order to decrypt the root
 --   private key. Note that this doesn't broadcast the transaction to the
@@ -5043,6 +5047,11 @@ data ErrSelectForPayment e
 ErrSelectForPaymentNoSuchWallet :: ErrNoSuchWallet -> ErrSelectForPayment e
 ErrSelectForPaymentCoinSelection :: ErrCoinSelection e -> ErrSelectForPayment e
 ErrSelectForPaymentFee :: ErrAdjustForFee -> ErrSelectForPayment e
+
+-- | Errors that can occur when estimating transaction fees.
+data ErrEstimatePaymentFee e
+ErrEstimatePaymentFeeNoSuchWallet :: ErrNoSuchWallet -> ErrEstimatePaymentFee e
+ErrEstimatePaymentFeeCoinSelection :: ErrCoinSelection e -> ErrEstimatePaymentFee e
 
 -- | Errors that can occur when signing a transaction.
 data ErrSignPayment
@@ -5250,6 +5259,8 @@ instance GHC.Classes.Eq Cardano.Wallet.ErrSubmitTx
 instance GHC.Show.Show Cardano.Wallet.ErrSubmitTx
 instance GHC.Classes.Eq Cardano.Wallet.ErrListUTxOStatistics
 instance GHC.Show.Show Cardano.Wallet.ErrListUTxOStatistics
+instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrEstimatePaymentFee e)
+instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrEstimatePaymentFee e)
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrSelectCoinsExternal e)
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrSelectCoinsExternal e)
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrSelectForPayment e)
@@ -5625,6 +5636,7 @@ instance Formatting.Buildable.Buildable e => Cardano.Wallet.Api.Server.LiftHandl
 instance Formatting.Buildable.Buildable e => Cardano.Wallet.Api.Server.LiftHandler (Cardano.Wallet.Primitive.CoinSelection.ErrCoinSelection e)
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Primitive.Fee.ErrAdjustForFee
 instance Formatting.Buildable.Buildable e => Cardano.Wallet.Api.Server.LiftHandler (Cardano.Wallet.ErrSelectForPayment e)
+instance Formatting.Buildable.Buildable e => Cardano.Wallet.Api.Server.LiftHandler (Cardano.Wallet.ErrEstimatePaymentFee e)
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrListUTxOStatistics
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Transaction.ErrMkTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSignPayment
