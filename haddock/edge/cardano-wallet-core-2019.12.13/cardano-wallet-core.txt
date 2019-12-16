@@ -454,14 +454,6 @@ TransactionInfo :: !Hash "Tx" -> ![(TxIn, Maybe TxOut)] -> ![TxOut] -> !TxMeta -
 -- | Creation time of the block including this transaction.
 [$sel:txInfoTime:TransactionInfo] :: TransactionInfo -> UTCTime
 
--- | A linear equation of a free variable <tt>x</tt>. Represents the <tt>x
---   -&gt; a + b*x</tt> function where <tt>x</tt> can be the transaction
---   size in bytes or, a number of inputs + outputs.
---   
---   <tt>a</tt>, <tt>b</tt> and <tt>c</tt> are constant coefficients.
-data FeePolicy
-LinearFee :: Quantity "lovelace" Double -> Quantity "lovelace/byte" Double -> Quantity "lovelace/certificate" Double -> FeePolicy
-
 -- | An unsigned transaction.
 --   
 --   See <a>Tx</a> for a signed transaction.
@@ -619,6 +611,70 @@ computeUtxoStatistics :: BoundType -> UTxO -> UTxOStatistics
 
 -- | Smart-constructor to create bounds using a log-10 scale
 log10 :: BoundType
+data BlockchainParameters
+BlockchainParameters :: Hash "Genesis" -> StartTime -> FeePolicy -> SlotLength -> EpochLength -> Quantity "byte" Word16 -> Quantity "block" Word32 -> ActiveSlotCoefficient -> BlockchainParameters
+
+-- | Hash of the very first block
+[$sel:getGenesisBlockHash:BlockchainParameters] :: BlockchainParameters -> Hash "Genesis"
+
+-- | Start time of the chain.
+[$sel:getGenesisBlockDate:BlockchainParameters] :: BlockchainParameters -> StartTime
+
+-- | Policy regarding transaction fee.
+[$sel:getFeePolicy:BlockchainParameters] :: BlockchainParameters -> FeePolicy
+
+-- | Length, in seconds, of a slot.
+[$sel:getSlotLength:BlockchainParameters] :: BlockchainParameters -> SlotLength
+
+-- | Number of slots in a single epoch.
+[$sel:getEpochLength:BlockchainParameters] :: BlockchainParameters -> EpochLength
+
+-- | Maximum size of a transaction (soft or hard limit).
+[$sel:getTxMaxSize:BlockchainParameters] :: BlockchainParameters -> Quantity "byte" Word16
+
+-- | Length of the suffix of the chain considered unstable
+[$sel:getEpochStability:BlockchainParameters] :: BlockchainParameters -> Quantity "block" Word32
+
+-- | In Genesis/Praos, corresponds to the % of active slots (i.e. slots for
+--   which someone can be elected as leader).
+[$sel:getActiveSlotCoefficient:BlockchainParameters] :: BlockchainParameters -> ActiveSlotCoefficient
+newtype ActiveSlotCoefficient
+ActiveSlotCoefficient :: Double -> ActiveSlotCoefficient
+[$sel:unActiveSlotCoefficient:ActiveSlotCoefficient] :: ActiveSlotCoefficient -> Double
+
+-- | Number of slots in a single epoch
+newtype EpochLength
+EpochLength :: Word32 -> EpochLength
+[$sel:unEpochLength:EpochLength] :: EpochLength -> Word32
+newtype EpochNo
+EpochNo :: Word31 -> EpochNo
+[$sel:unEpochNo:EpochNo] :: EpochNo -> Word31
+
+-- | A linear equation of a free variable <tt>x</tt>. Represents the <tt>x
+--   -&gt; a + b*x</tt> function where <tt>x</tt> can be the transaction
+--   size in bytes or, a number of inputs + outputs.
+--   
+--   <tt>a</tt>, <tt>b</tt> and <tt>c</tt> are constant coefficients.
+data FeePolicy
+LinearFee :: Quantity "lovelace" Double -> Quantity "lovelace/byte" Double -> Quantity "lovelace/certificate" Double -> FeePolicy
+
+-- | A slot identifier is the combination of an epoch and slot.
+data SlotId
+SlotId :: !EpochNo -> !SlotNo -> SlotId
+[$sel:epochNumber:SlotId] :: SlotId -> !EpochNo
+[$sel:slotNumber:SlotId] :: SlotId -> !SlotNo
+
+-- | Duration of a single slot.
+newtype SlotLength
+SlotLength :: NominalDiffTime -> SlotLength
+newtype SlotNo
+SlotNo :: Word32 -> SlotNo
+[$sel:unSlotNo:SlotNo] :: SlotNo -> Word32
+
+-- | Blockchain start time
+newtype StartTime
+StartTime :: UTCTime -> StartTime
+slotParams :: BlockchainParameters -> SlotParameters
 data SyncProgress
 Ready :: SyncProgress
 Syncing :: !Quantity "percent" Percentage -> SyncProgress
@@ -627,18 +683,6 @@ SyncTolerance :: NominalDiffTime -> SyncTolerance
 
 -- | Construct a <a>SyncTolerance</a> from a number of <b>seconds</b>
 mkSyncTolerance :: Int -> SyncTolerance
-
--- | A slot identifier is the combination of an epoch and slot.
-data SlotId
-SlotId :: !EpochNo -> !SlotNo -> SlotId
-[$sel:epochNumber:SlotId] :: SlotId -> !EpochNo
-[$sel:slotNumber:SlotId] :: SlotId -> !SlotNo
-newtype SlotNo
-SlotNo :: Word32 -> SlotNo
-[$sel:unSlotNo:SlotNo] :: SlotNo -> Word32
-newtype EpochNo
-EpochNo :: Word31 -> EpochNo
-[$sel:unEpochNo:EpochNo] :: EpochNo -> Word31
 
 -- | Convert the specified value into an <a>EpochNo</a>, or fail if the
 --   value is too large.
@@ -675,19 +719,6 @@ SlotParameters :: EpochLength -> SlotLength -> StartTime -> SlotParameters
 [$sel:getEpochLength:SlotParameters] :: SlotParameters -> EpochLength
 [$sel:getSlotLength:SlotParameters] :: SlotParameters -> SlotLength
 [$sel:getGenesisBlockDate:SlotParameters] :: SlotParameters -> StartTime
-
--- | Duration of a single slot.
-newtype SlotLength
-SlotLength :: NominalDiffTime -> SlotLength
-
--- | Number of slots in a single epoch
-newtype EpochLength
-EpochLength :: Word32 -> EpochLength
-[$sel:unEpochLength:EpochLength] :: EpochLength -> Word32
-
--- | Blockchain start time
-newtype StartTime
-StartTime :: UTCTime -> StartTime
 
 -- | Estimate restoration progress based on:
 --   
@@ -980,6 +1011,9 @@ instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.TxIn
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.TxIn
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.TxIn
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.TxIn
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.BlockchainParameters
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.BlockchainParameters
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.BlockchainParameters
 instance Data.ByteArray.Types.ByteArrayAccess (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Classes.Ord (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.Hash tag)
@@ -1044,6 +1078,12 @@ instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.SlotNo
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.SlotNo
 instance GHC.Read.Read Cardano.Wallet.Primitive.Types.SlotNo
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.SlotNo
+instance GHC.Real.Fractional Cardano.Wallet.Primitive.Types.ActiveSlotCoefficient
+instance GHC.Num.Num Cardano.Wallet.Primitive.Types.ActiveSlotCoefficient
+instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.ActiveSlotCoefficient
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.ActiveSlotCoefficient
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.ActiveSlotCoefficient
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.ActiveSlotCoefficient
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.UTxOStatistics
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.UTxOStatistics
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.UTxOStatistics
@@ -1152,6 +1192,8 @@ instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.UTxO
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.TxIn
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.TxIn
 instance Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.Types.TxIn, Cardano.Wallet.Primitive.Types.TxOut)
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.BlockchainParameters
+instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.BlockchainParameters
 instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.Types.Hash tag)
 instance Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.Types.Hash tag)
 instance Data.Text.Class.ToText (Cardano.Wallet.Primitive.Types.Hash tag)
@@ -1178,6 +1220,7 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.SlotId
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.SlotId
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.EpochNo
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.EpochNo
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.ActiveSlotCoefficient
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.UTxOStatistics
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.HistogramBar
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.TxOut
@@ -2365,37 +2408,6 @@ module Cardano.Wallet.Primitive.Model
 --   Wallet SeqState Bitcoin
 --   </pre>
 data Wallet s
-data BlockchainParameters
-BlockchainParameters :: Hash "Genesis" -> StartTime -> FeePolicy -> SlotLength -> EpochLength -> Quantity "byte" Word16 -> Quantity "block" Word32 -> BlockchainParameters
-
--- | Hash of the very first block
-[$sel:getGenesisBlockHash:BlockchainParameters] :: BlockchainParameters -> Hash "Genesis"
-
--- | Start time of the chain.
-[$sel:getGenesisBlockDate:BlockchainParameters] :: BlockchainParameters -> StartTime
-
--- | Policy regarding transaction fee.
-[$sel:getFeePolicy:BlockchainParameters] :: BlockchainParameters -> FeePolicy
-
--- | Length, in seconds, of a slot.
-[$sel:getSlotLength:BlockchainParameters] :: BlockchainParameters -> SlotLength
-
--- | Number of slots in a single epoch.
-[$sel:getEpochLength:BlockchainParameters] :: BlockchainParameters -> EpochLength
-
--- | Maximum size of a transaction (soft or hard limit).
-[$sel:getTxMaxSize:BlockchainParameters] :: BlockchainParameters -> Quantity "byte" Word16
-
--- | Length of the suffix of the chain considered unstable
-[$sel:getEpochStability:BlockchainParameters] :: BlockchainParameters -> Quantity "block" Word32
-
--- | Create a an empty wallet and apply the given genesis block
---   
---   The wallet tip will be set to the header of the applied genesis block.
-initWallet :: (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s) => Block -> BlockchainParameters -> s -> ([(Tx, TxMeta)], Wallet s)
-
--- | Update the state of an existing Wallet model
-updateState :: (IsOurs s Address, NFData s, Show s) => s -> Wallet s -> Wallet s
 
 -- | Represents the subset of data from a single block that are relevant to
 --   a particular wallet, discovered when applying a block to that wallet.
@@ -2409,6 +2421,14 @@ FilteredBlock :: ![DelegationCertificate] -> ![(Tx, TxMeta)] -> FilteredBlock
 
 -- | The set of transactions that affect the wallet.
 [$sel:transactions:FilteredBlock] :: FilteredBlock -> ![(Tx, TxMeta)]
+
+-- | Create a an empty wallet and apply the given genesis block
+--   
+--   The wallet tip will be set to the header of the applied genesis block.
+initWallet :: (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s) => Block -> BlockchainParameters -> s -> ([(Tx, TxMeta)], Wallet s)
+
+-- | Update the state of an existing Wallet model
+updateState :: (IsOurs s Address, NFData s, Show s) => s -> Wallet s -> Wallet s
 
 -- | Apply a single block to a wallet.
 --   
@@ -2483,19 +2503,13 @@ utxo :: Wallet s -> UTxO
 --   Parameters may change over time via protocol updates, so we keep track
 --   of them as part of the wallet checkpoints.
 blockchainParameters :: Wallet s -> BlockchainParameters
-slotParams :: BlockchainParameters -> SlotParameters
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Model.FilteredBlock
 instance GHC.Show.Show Cardano.Wallet.Primitive.Model.FilteredBlock
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Model.FilteredBlock
-instance GHC.Classes.Eq Cardano.Wallet.Primitive.Model.BlockchainParameters
-instance GHC.Show.Show Cardano.Wallet.Primitive.Model.BlockchainParameters
-instance GHC.Generics.Generic Cardano.Wallet.Primitive.Model.BlockchainParameters
 instance GHC.Show.Show (Cardano.Wallet.Primitive.Model.Wallet s)
 instance GHC.Classes.Eq s => GHC.Classes.Eq (Cardano.Wallet.Primitive.Model.Wallet s)
 instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.Model.Wallet s)
 instance Formatting.Buildable.Buildable s => Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.Model.Wallet s)
-instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Model.BlockchainParameters
-instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Model.BlockchainParameters
 
 
 -- | An implementation of the wallet database using only pure functions.
@@ -3172,7 +3186,7 @@ TxOut :: !TxId -> !Word32 -> !Address -> !Coin -> TxOut
 [txOutputAmount] :: TxOut -> !Coin
 type TxOutId = Key TxOut
 data Checkpoint
-Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !BlockId -> !Word32 -> !BlockId -> !UTCTime -> !FeePolicy -> !Word64 -> !Word32 -> !Word16 -> !Word32 -> Checkpoint
+Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !BlockId -> !Word32 -> !BlockId -> !UTCTime -> !FeePolicy -> !Word64 -> !Word32 -> !Word16 -> !Word32 -> !Double -> Checkpoint
 [checkpointWalletId] :: Checkpoint -> !WalletId
 [checkpointSlot] :: Checkpoint -> !SlotId
 [checkpointHeaderHash] :: Checkpoint -> !BlockId
@@ -3185,6 +3199,7 @@ Checkpoint :: !WalletId -> !SlotId -> !BlockId -> !BlockId -> !Word32 -> !BlockI
 [checkpointEpochLength] :: Checkpoint -> !Word32
 [checkpointTxMaxSize] :: Checkpoint -> !Word16
 [checkpointEpochStability] :: Checkpoint -> !Word32
+[checkpointActiveSlotCoeff] :: Checkpoint -> !Double
 type CheckpointId = Key Checkpoint
 data DelegationCertificate
 DelegationCertificate :: !WalletId -> !SlotId -> !Maybe PoolId -> DelegationCertificate
@@ -5442,10 +5457,11 @@ combineMetrics :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantit
 --   performance is a <a>Double</a> between 0 and 1 as:
 --   
 --   <pre>
---     p = n <i> N * S </i> s
+--     p = n <i> (f * N) * S </i> s
 --   where
 --     n = number of blocks produced in an epoch e
 --     N = number of slots in e
+--     f = active slot coeff, i.e. % of slots for which a leader can be elected.
 --     s = stake owned by the pool in e
 --     S = total stake delegated to pools in e
 --   </pre>
@@ -5453,7 +5469,7 @@ combineMetrics :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantit
 --   Note that, this apparent performance is clamped to [0,1] as it may in
 --   practice, be greater than 1 if a stake pool produces more than it is
 --   expected.
-calculatePerformance :: Int -> Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Word64) -> Map PoolId Double
+calculatePerformance :: ActiveSlotCoefficient -> Int -> Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Word64) -> Map PoolId Double
 
 -- | Given a mapping from <a>PoolId</a> -&gt; <a>PoolOwner</a> and a
 --   mapping between <a>PoolOwner</a> <a>-</a> <a>StakePoolMetadata</a>,
