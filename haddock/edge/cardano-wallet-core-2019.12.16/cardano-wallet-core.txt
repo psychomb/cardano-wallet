@@ -73,6 +73,12 @@ SqliteContext :: SqlBackend -> (forall a. SqlPersistT IO a -> IO a) -> Maybe Fil
 
 -- | A <a>Trace</a> for logging
 [$sel:trace:SqliteContext] :: SqliteContext -> Trace IO DBLog
+data DBLog
+MsgMigrations :: Int -> DBLog
+MsgQuery :: Text -> Severity -> DBLog
+MsgConnStr :: Text -> DBLog
+MsgClosing :: Maybe FilePath -> DBLog
+MsgDatabaseReset :: DBLog
 
 -- | Size of chunks when inserting, updating or deleting many rows at once.
 --   We only act on <a>chunkSize</a> values at a time. See also
@@ -3557,9 +3563,9 @@ PoolOwner :: !PoolId -> !PoolOwner -> !Word8 -> PoolOwner
 [poolOwnerIndex] :: PoolOwner -> !Word8
 type PoolOwnerId = Key PoolOwner
 data PoolRegistration
-PoolRegistration :: !PoolId -> !Word64 -> !Word8 -> !Word64 -> PoolRegistration
+PoolRegistration :: !PoolId -> !SlotId -> !Word8 -> !Word64 -> PoolRegistration
 [poolRegistrationPoolId] :: PoolRegistration -> !PoolId
-[poolRegistrationEpoch] :: PoolRegistration -> !Word64
+[poolRegistrationSlot] :: PoolRegistration -> !SlotId
 [poolRegistrationMargin] :: PoolRegistration -> !Word8
 [poolRegistrationCost] :: PoolRegistration -> !Word64
 type PoolRegistrationId = Key PoolRegistration
@@ -3923,7 +3929,7 @@ instance GHC.Exception.Type.Exception Cardano.Wallet.DB.MVar.MVarDBError
 --   MVar database backend.
 module Cardano.Pool.DB.Model
 data PoolDatabase
-PoolDatabase :: !Map PoolId [BlockHeader] -> !Map EpochNo [(PoolId, Quantity "lovelace" Word64)] -> !Map PoolId [PoolOwner] -> !Map (EpochNo, PoolId) (Percentage, Quantity "lovelace" Word64) -> !SystemSeed -> PoolDatabase
+PoolDatabase :: !Map PoolId [BlockHeader] -> !Map EpochNo [(PoolId, Quantity "lovelace" Word64)] -> !Map PoolId [PoolOwner] -> !Map (SlotId, PoolId) (Percentage, Quantity "lovelace" Word64) -> !SystemSeed -> PoolDatabase
 
 -- | Information of what blocks were produced by which stake pools
 [$sel:pools:PoolDatabase] :: PoolDatabase -> !Map PoolId [BlockHeader]
@@ -3935,7 +3941,7 @@ PoolDatabase :: !Map PoolId [BlockHeader] -> !Map EpochNo [(PoolId, Quantity "lo
 [$sel:owners:PoolDatabase] :: PoolDatabase -> !Map PoolId [PoolOwner]
 
 -- | On-chain metadata associated with pools
-[$sel:metadata:PoolDatabase] :: PoolDatabase -> !Map (EpochNo, PoolId) (Percentage, Quantity "lovelace" Word64)
+[$sel:metadata:PoolDatabase] :: PoolDatabase -> !Map (SlotId, PoolId) (Percentage, Quantity "lovelace" Word64)
 
 -- | Store an arbitrary random generator seed
 [$sel:seed:PoolDatabase] :: PoolDatabase -> !SystemSeed
@@ -3950,7 +3956,7 @@ mPutPoolProduction :: BlockHeader -> PoolId -> ModelPoolOp ()
 mReadPoolProduction :: EpochNo -> ModelPoolOp (Map PoolId [BlockHeader])
 mPutStakeDistribution :: EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> ModelPoolOp ()
 mReadStakeDistribution :: EpochNo -> ModelPoolOp [(PoolId, Quantity "lovelace" Word64)]
-mPutPoolRegistration :: EpochNo -> PoolRegistrationCertificate -> ModelPoolOp ()
+mPutPoolRegistration :: SlotId -> PoolRegistrationCertificate -> ModelPoolOp ()
 mReadPoolRegistration :: PoolId -> ModelPoolOp (Maybe PoolRegistrationCertificate)
 mListRegisteredPools :: PoolDatabase -> ([PoolId], PoolDatabase)
 mReadSystemSeed :: PoolDatabase -> IO (StdGen, PoolDatabase)
@@ -3980,8 +3986,12 @@ module Cardano.Pool.DB
 --   
 --   This gives you the power to also run <i>multiple</i> operations
 --   atomically.
+--   
+--   FIXME: Allowing <a>MonadIO</a> to enable logging also within db
+--   transactions. Ideally, we should lower than constraint to only allow
+--   logging effects and not any dragons in IO.
 data DBLayer m
-DBLayer :: (BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists stm ()) -> (EpochNo -> stm (Map PoolId [BlockHeader])) -> (EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> stm ()) -> (EpochNo -> stm [(PoolId, Quantity "lovelace" Word64)]) -> (Int -> stm [BlockHeader]) -> (EpochNo -> PoolRegistrationCertificate -> stm ()) -> (PoolId -> stm (Maybe PoolRegistrationCertificate)) -> stm [PoolId] -> stm StdGen -> (SlotId -> stm ()) -> stm () -> (forall a. stm a -> m a) -> DBLayer m
+DBLayer :: (BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists stm ()) -> (EpochNo -> stm (Map PoolId [BlockHeader])) -> (EpochNo -> [(PoolId, Quantity "lovelace" Word64)] -> stm ()) -> (EpochNo -> stm [(PoolId, Quantity "lovelace" Word64)]) -> (Int -> stm [BlockHeader]) -> (SlotId -> PoolRegistrationCertificate -> stm ()) -> (PoolId -> stm (Maybe PoolRegistrationCertificate)) -> stm [PoolId] -> stm StdGen -> (SlotId -> stm ()) -> stm () -> (forall a. stm a -> m a) -> DBLayer m
 
 -- | Write for a given slot id the id of stake pool that produced a a
 --   corresponding block
@@ -4008,7 +4018,7 @@ DBLayer :: (BlockHeader -> PoolId -> ExceptT ErrPointAlreadyExists stm ()) -> (E
 -- | Add a mapping between stake pools and their corresponding certificate.
 --   If the mapping already exists, data are replaced with the latest
 --   version.
-[putPoolRegistration] :: DBLayer m -> EpochNo -> PoolRegistrationCertificate -> stm ()
+[putPoolRegistration] :: DBLayer m -> SlotId -> PoolRegistrationCertificate -> stm ()
 
 -- | Find a registration certificate associated to a given pool
 [readPoolRegistration] :: DBLayer m -> PoolId -> stm (Maybe PoolRegistrationCertificate)
