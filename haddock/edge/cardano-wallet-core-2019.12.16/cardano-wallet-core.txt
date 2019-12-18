@@ -5331,14 +5331,17 @@ instance GHC.Generics.Generic (Cardano.Wallet.Registry.Worker key resource)
 instance Data.Text.Class.ToText key => Data.Text.Class.ToText (Cardano.Wallet.Registry.WithWorkerKey key)
 
 module Cardano.Wallet.Api
-type Api t = CoreApi t :<|> CompatibilityApi t :<|> StakePoolApi t
-type CoreApi t = Addresses t :<|> Wallets :<|> CoinSelections t :<|> Transactions t :<|> Network
-type Addresses t = ListAddresses t
-type CoinSelections n = SelectCoins n
+type Api n = Wallets :<|> Addresses n :<|> CoinSelections n :<|> Transactions n :<|> StakePools n :<|> ByronWallets :<|> ByronTransactions n :<|> ByronMigrations n :<|> Network :<|> Proxy_
 type Wallets = DeleteWallet :<|> GetWallet :<|> ListWallets :<|> PostWallet :<|> PutWallet :<|> PutWalletPassphrase :<|> GetUTxOsStatistics
-type Transactions n = CreateTransaction n :<|> ListTransactions n :<|> PostTransactionFee n :<|> PostExternalTransaction :<|> DeleteTransaction
-type StakePoolApi t = ListStakePools :<|> JoinStakePool t :<|> QuitStakePool t :<|> DelegationFee
-type CompatibilityApi n = DeleteByronWallet :<|> GetByronWallet :<|> GetByronWalletMigrationInfo :<|> ListByronWallets :<|> ListByronTransactions n :<|> MigrateByronWallet n :<|> PostByronWallet :<|> DeleteByronTransaction
+type Addresses n = ListAddresses n
+type CoinSelections n = SelectCoins n
+type Transactions n = CreateTransaction n :<|> ListTransactions n :<|> PostTransactionFee n :<|> DeleteTransaction
+type StakePools n = ListStakePools :<|> JoinStakePool n :<|> QuitStakePool n :<|> DelegationFee
+type ByronWallets = PostByronWallet :<|> DeleteByronWallet :<|> GetByronWallet :<|> ListByronWallets
+type ByronTransactions n = ListByronTransactions n :<|> DeleteByronTransaction
+type ByronMigrations n = GetByronWalletMigrationInfo :<|> MigrateByronWallet n
+type Network = "network" :> "information" :> Get '[JSON] ApiNetworkInformation
+type Proxy_ = PostExternalTransaction
 data ApiLayer s t (k :: Depth -> * -> *)
 ApiLayer :: Trace IO Text -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> WorkerRegistry WalletId (DBLayer IO s k) -> ApiLayer s t
 type HasWorkerRegistry s k ctx = (HasType (WorkerRegistry WalletId (DBLayer IO s k)) ctx, HasWorkerCtx (DBLayer IO s k) ctx)
@@ -5598,7 +5601,7 @@ data HostPreference
 
 -- | Start the application server, using the given settings and a bound
 --   socket.
-start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DecodeAddress n, EncodeAddress n, DelegationAddress n ShelleyKey, PaymentAddress n ByronKey) => Settings -> Trace IO ApiLog -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
+start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DecodeAddress n, EncodeAddress n, DelegationAddress n ShelleyKey) => Settings -> Trace IO ApiLog -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
 
 -- | Create a new instance of the wallet layer.
 newApiLayer :: forall ctx s t k. ctx ~ ApiLayer s t k => Trace IO Text -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> [WalletId] -> IO ctx
