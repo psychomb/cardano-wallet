@@ -705,20 +705,6 @@ epochPred :: EpochNo -> Maybe EpochNo
 --   if there is no representable epoch after the given epoch.
 epochSucc :: EpochNo -> Maybe EpochNo
 
--- | For the given time <tt>t</tt>, calculate the number of the earliest
---   epoch with start time <tt>s</tt> such that 't ≤ s'.
---   
---   Returns <a>Nothing</a> if the calculation would result in an epoch
---   number that is not representable.
-epochCeiling :: SlotParameters -> UTCTime -> Maybe EpochNo
-
--- | For the given time <tt>t</tt>, calculate the number of the latest
---   epoch with start time <tt>s</tt> such that 's ≤ t'.
---   
---   Returns <a>Nothing</a> if the calculation would result in an epoch
---   number that is not representable.
-epochFloor :: SlotParameters -> UTCTime -> Maybe EpochNo
-
 -- | The essential parameters necessary for performing slot arithmetic.
 data SlotParameters
 SlotParameters :: EpochLength -> SlotLength -> StartTime -> SlotParameters
@@ -5630,7 +5616,6 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Server.Listen
 instance GHC.Show.Show Cardano.Wallet.Api.Server.Listen
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrMigrateWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrCreateWallet
-instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrNextEpoch
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrNoSuchWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrWalletAlreadyExists
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrWithRootKey
