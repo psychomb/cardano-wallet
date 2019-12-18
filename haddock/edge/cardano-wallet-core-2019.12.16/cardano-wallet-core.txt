@@ -707,10 +707,11 @@ epochSucc :: EpochNo -> Maybe EpochNo
 
 -- | The essential parameters necessary for performing slot arithmetic.
 data SlotParameters
-SlotParameters :: EpochLength -> SlotLength -> StartTime -> SlotParameters
+SlotParameters :: EpochLength -> SlotLength -> StartTime -> ActiveSlotCoefficient -> SlotParameters
 [$sel:getEpochLength:SlotParameters] :: SlotParameters -> EpochLength
 [$sel:getSlotLength:SlotParameters] :: SlotParameters -> SlotLength
 [$sel:getGenesisBlockDate:SlotParameters] :: SlotParameters -> StartTime
+[$sel:getActiveSlotCoefficient:SlotParameters] :: SlotParameters -> ActiveSlotCoefficient
 
 -- | Estimate restoration progress based on:
 --   
