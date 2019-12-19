@@ -4987,7 +4987,7 @@ walletSyncProgress :: forall ctx s. HasGenesisData ctx => ctx -> Wallet s -> IO 
 --   Rather than force all callers of <a>readWallet</a> to wait for
 --   fetching the account balance (via the <a>NetworkLayer</a>), we expose
 --   this function for it.
-fetchRewardBalance :: forall ctx s k t. (HasDBLayer s k ctx, HasNetworkLayer t ctx, HasRewardAccount s, k ~ RewardAccountKey s, WalletKey k) => ctx -> WalletId -> ExceptT ErrFetchRewards IO (Quantity "lovelace" Word64)
+fetchRewardBalance :: forall ctx s t k. (HasDBLayer s k ctx, HasNetworkLayer t ctx, HasRewardAccount s, k ~ RewardAccountKey s, WalletKey k) => ctx -> WalletId -> ExceptT ErrFetchRewards IO (Quantity "lovelace" Word64)
 
 -- | Forbidden operation was executed on an already existing wallet
 newtype ErrWalletAlreadyExists
