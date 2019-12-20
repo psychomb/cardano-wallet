@@ -945,6 +945,9 @@ rangeUpperBound :: Range a -> RangeBound a
 -- | Magic constant associated to a given network
 newtype ProtocolMagic
 ProtocolMagic :: Int32 -> ProtocolMagic
+
+-- | Hard-coded protocol magic for the Byron TestNet
+testnetMagic :: ProtocolMagic
 newtype Hash (tag :: Symbol)
 Hash :: ByteString -> Hash
 [$sel:getHash:Hash] :: Hash -> ByteString
@@ -2120,8 +2123,8 @@ instance GHC.Enum.Enum Cardano.Wallet.Primitive.AddressDiscovery.Sequential.Addr
 --   Shelley really means Jörmungandr here.
 module Cardano.Wallet.Primitive.AddressDerivation.Shelley
 
--- | A cryptographic key for sequential-scheme address derivation, with
---   phantom-types to disambiguate key types.
+-- | A cryptographic key for Shelley address derivation, with phantom-types
+--   to disambiguate derivation paths
 --   
 --   <pre>
 --   let rootPrivateKey = ShelleyKey 'RootK XPrv
@@ -4340,6 +4343,50 @@ instance Cardano.Wallet.DB.Sqlite.PersistState (Cardano.Wallet.Primitive.Address
 instance GHC.Exception.Type.Exception Cardano.Wallet.DB.Sqlite.ErrRollbackTo
 
 
+-- | Implementation of address derivation for <tt>Icarus</tt> keys. This
+--   uses the Byron derivation for addresses, but on top of the derivation
+--   scheme V2.
+module Cardano.Wallet.Primitive.AddressDerivation.Icarus
+
+-- | A cryptographic key for sequential-scheme address derivation, with
+--   phantom-types to disambiguate key types.
+--   
+--   <pre>
+--   let rootPrivateKey = IcarusKey 'RootK XPrv
+--   let accountPubKey = IcarusKey 'AccountK XPub
+--   let addressPubKey = IcarusKey 'AddressK XPub
+--   </pre>
+newtype IcarusKey (depth :: Depth) key
+IcarusKey :: key -> IcarusKey key
+[getKey] :: IcarusKey key -> key
+
+-- | Generate a root key from a corresponding seed. The seed should be at
+--   least 16 bytes.
+generateKeyFromSeed :: Passphrase "seed" -> Passphrase "encryption" -> IcarusKey  'RootK XPrv
+
+-- | Generate a new key from seed. Note that the <tt>depth</tt> is left
+--   open so that the caller gets to decide what type of key this is. This
+--   is mostly for testing, in practice, seeds are used to represent root
+--   keys, and one should use <a>generateKeyFromSeed</a>.
+unsafeGenerateKeyFromSeed :: Passphrase "seed" -> Passphrase "encryption" -> IcarusKey depth XPrv
+
+-- | The minimum seed length for <a>generateKeyFromSeed</a> and
+--   <a>unsafeGenerateKeyFromSeed</a>.
+minSeedLengthBytes :: Int
+instance GHC.Classes.Eq key => GHC.Classes.Eq (Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey depth key)
+instance GHC.Show.Show key => GHC.Show.Show (Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey depth key)
+instance GHC.Generics.Generic (Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey depth key)
+instance Control.DeepSeq.NFData key => Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey depth key)
+instance Cardano.Wallet.Primitive.AddressDerivation.HardDerivation Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey
+instance Cardano.Wallet.Primitive.AddressDerivation.SoftDerivation Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey
+instance Cardano.Wallet.Primitive.AddressDerivation.WalletKey Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey
+instance Cardano.Wallet.Primitive.AddressDerivation.PaymentAddress 'Cardano.Wallet.Primitive.AddressDerivation.Mainnet Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey
+instance Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey Cardano.Wallet.Primitive.Types.Address
+instance Cardano.Wallet.Primitive.AddressDerivation.MkKeyFingerprint Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey (Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey 'Cardano.Wallet.Primitive.AddressDerivation.AddressK Cardano.Crypto.Wallet.XPub)
+instance Cardano.Wallet.Primitive.AddressDerivation.PersistPrivateKey (Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey 'Cardano.Wallet.Primitive.AddressDerivation.RootK)
+instance Cardano.Wallet.Primitive.AddressDerivation.PersistPublicKey (Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey depth)
+
+
 -- | Utility functions for converting time values to and from text.
 module Data.Time.Text
 
@@ -4570,8 +4617,8 @@ newtype ApiByronWalletMigrationInfo
 ApiByronWalletMigrationInfo :: Quantity "lovelace" Natural -> ApiByronWalletMigrationInfo
 [$sel:migrationCost:ApiByronWalletMigrationInfo] :: ApiByronWalletMigrationInfo -> Quantity "lovelace" Natural
 data ByronWalletPostData
-ByronWalletPostData :: !ApiMnemonicT '[12] "seed" -> !ApiT WalletName -> !ApiT (Passphrase "encryption") -> ByronWalletPostData
-[$sel:mnemonicSentence:ByronWalletPostData] :: ByronWalletPostData -> !ApiMnemonicT '[12] "seed"
+ByronWalletPostData :: !ApiMnemonicT '[12, 15] "seed" -> !ApiT WalletName -> !ApiT (Passphrase "encryption") -> ByronWalletPostData
+[$sel:mnemonicSentence:ByronWalletPostData] :: ByronWalletPostData -> !ApiMnemonicT '[12, 15] "seed"
 [$sel:name:ByronWalletPostData] :: ByronWalletPostData -> !ApiT WalletName
 [$sel:passphrase:ByronWalletPostData] :: ByronWalletPostData -> !ApiT (Passphrase "encryption")
 
@@ -5091,7 +5138,7 @@ type family ErrValidateSelection t
 --   transactions from the given wallet to a target wallet, executing those
 --   transactions will have the effect of migrating all funds from the
 --   given source wallet to the specified target wallet.
-selectCoinsForMigration :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [CoinSelection]
+selectCoinsForMigration :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrSelectForMigration IO [CoinSelection]
 
 -- | Transform the given set of migration coin selections (for a source
 --   wallet) into a set of coin selections that will migrate funds to the
@@ -5103,7 +5150,12 @@ selectCoinsForMigration :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDB
 --   
 --   All addresses generated by this function are also registered as
 --   pending change addresses for the target wallet.
-assignMigrationTargetAddresses :: forall ctx s k. (HasDBLayer s k ctx, GenChange s, IsOurs s Address, NFData s, Show s) => ctx -> WalletId -> ArgGenChange s -> [CoinSelection] -> ExceptT ErrNoSuchWallet IO [CoinSelection]
+assignMigrationTargetAddresses :: forall ctx s k. (HasDBLayer s k ctx, GenChange s, IsOurs s Address, NFData s, Show s) => ctx -> WalletId -> ArgGenChange s -> [CoinSelection] -> ExceptT ErrNoSuchWallet IO [UnsignedTx]
+data ErrSelectForMigration
+ErrSelectForMigrationNoSuchWallet :: ErrNoSuchWallet -> ErrSelectForMigration
+
+-- | User attempted to migrate an empty wallet
+ErrSelectForMigrationEmptyWallet :: WalletId -> ErrSelectForMigration
 
 -- | Helper function to factor necessary logic for joining a stake pool.
 joinStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger ctx, HasNetworkLayer t ctx, HasTransactionLayer t k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> (PoolId, [PoolId]) -> ArgGenChange s -> Passphrase "encryption" -> ExceptT ErrJoinStakePool IO (Tx, TxMeta, UTCTime)
@@ -5149,6 +5201,10 @@ listTransactions :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> May
 
 -- | Broadcast an externally-signed transaction to the network.
 submitExternalTx :: forall ctx t k. (HasNetworkLayer t ctx, HasTransactionLayer t k ctx) => ctx -> ByteString -> ExceptT ErrSubmitExternalTx IO Tx
+
+-- | Very much like <a>signPayment</a>, but doesn't not generate change
+--   addresses.
+signTx :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k) => ctx -> WalletId -> Passphrase "encryption" -> UnsignedTx -> ExceptT ErrSignPayment IO (Tx, TxMeta, UTCTime, SealedTx)
 
 -- | Broadcast a (signed) transaction to the network.
 submitTx :: forall ctx s t k. (HasNetworkLayer t ctx, HasDBLayer s k ctx) => ctx -> WalletId -> (Tx, TxMeta, SealedTx) -> ExceptT ErrSubmitTx IO ()
@@ -5221,6 +5277,8 @@ ErrWithRootKeyWrongPassphrase :: WalletId -> ErrWrongPassphrase -> ErrWithRootKe
 -- | Indicate a failure when checking for a given <a>Passphrase</a> match
 data ErrWrongPassphrase
 ErrWrongPassphrase :: ErrWrongPassphrase
+instance GHC.Show.Show Cardano.Wallet.ErrSelectForMigration
+instance GHC.Classes.Eq Cardano.Wallet.ErrSelectForMigration
 instance GHC.Show.Show Cardano.Wallet.ErrQuitStakePool
 instance GHC.Classes.Eq Cardano.Wallet.ErrQuitStakePool
 instance GHC.Generics.Generic Cardano.Wallet.ErrQuitStakePool
@@ -5598,7 +5656,7 @@ data HostPreference
 
 -- | Start the application server, using the given settings and a bound
 --   socket.
-start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DecodeAddress n, EncodeAddress n, DelegationAddress n ShelleyKey) => Settings -> Trace IO ApiLog -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
+start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DecodeAddress n, EncodeAddress n, DelegationAddress n ShelleyKey) => Settings -> Trace IO ApiLog -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState  'Mainnet IcarusKey) t IcarusKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
 
 -- | Create a new instance of the wallet layer.
 newApiLayer :: forall ctx s t k. ctx ~ ApiLayer s t k => Trace IO Text -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> [WalletId] -> IO ctx
@@ -5607,16 +5665,14 @@ newApiLayer :: forall ctx s t k. ctx ~ ApiLayer s t k => Trace IO Text -> (Block
 --   <a>Listen</a> parameter.
 withListeningSocket :: HostPreference -> Listen -> (Either ListenError (Port, Socket) -> IO a) -> IO a
 defaultWorkerAfter :: Trace IO Text -> Either SomeException a -> IO ()
-instance GHC.Show.Show Cardano.Wallet.Api.Server.ErrMigrateWallet
-instance GHC.Classes.Eq Cardano.Wallet.Api.Server.ErrMigrateWallet
 instance GHC.Show.Show Cardano.Wallet.Api.Server.ErrCreateWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Server.ErrCreateWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Server.ListenError
 instance GHC.Show.Show Cardano.Wallet.Api.Server.ListenError
 instance GHC.Classes.Eq Cardano.Wallet.Api.Server.Listen
 instance GHC.Show.Show Cardano.Wallet.Api.Server.Listen
-instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrMigrateWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Server.ErrCreateWallet
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSelectForMigration
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrNoSuchWallet
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.DB.ErrWalletAlreadyExists
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrWithRootKey

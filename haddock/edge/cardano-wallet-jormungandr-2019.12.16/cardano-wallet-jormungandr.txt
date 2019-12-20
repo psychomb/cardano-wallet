@@ -630,6 +630,7 @@ instance GHC.Show.Show Cardano.Wallet.Jormungandr.Transaction.ErrExceededInpsOrO
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Transaction.ErrExceededInpsOrOuts
 instance Formatting.Buildable.Buildable Cardano.Wallet.Jormungandr.Transaction.ErrExceededInpsOrOuts
 instance Cardano.Wallet.Jormungandr.Transaction.TxWitnessTagFor Cardano.Wallet.Primitive.AddressDerivation.Shelley.ShelleyKey
+instance Cardano.Wallet.Jormungandr.Transaction.TxWitnessTagFor Cardano.Wallet.Primitive.AddressDerivation.Icarus.IcarusKey
 instance Cardano.Wallet.Jormungandr.Transaction.TxWitnessTagFor Cardano.Wallet.Primitive.AddressDerivation.Byron.ByronKey
 
 
