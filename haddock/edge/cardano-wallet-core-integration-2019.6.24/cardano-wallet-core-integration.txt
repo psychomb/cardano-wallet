@@ -391,6 +391,7 @@ mnemonics6 :: [Text]
 mnemonics9 :: [Text]
 mnemonics12 :: [Text]
 mnemonics15 :: [Text]
+notInDictMnemonics15 :: [Text]
 mnemonics18 :: [Text]
 mnemonics21 :: [Text]
 mnemonics24 :: [Text]
@@ -442,6 +443,7 @@ errMsg406 :: String
 errMsg415 :: String
 errMsg415OctetStream :: String
 errMsg500 :: String
+errMsgNotInDictionary :: String
 
 module Test.Integration.Scenario.API.Addresses
 spec :: forall t n. n ~  'Testnet => SpecWith (Context t)
