@@ -2565,7 +2565,7 @@ ErrErasePendingTxNoSuchWallet :: wid -> ErrErasePendingTx wid
 ErrErasePendingTxNoTx :: Hash "Tx" -> ErrErasePendingTx wid
 ErrErasePendingTxNoPendingTx :: Hash "Tx" -> ErrErasePendingTx wid
 mCleanDB :: Ord wid => ModelOp wid s xprv ()
-mInitializeWallet :: forall wid s xprv. Ord wid => wid -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ModelOp wid s xprv ()
+mInitializeWallet :: forall wid s xprv. Ord wid => wid -> Wallet s -> WalletMetadata -> TxHistory -> ModelOp wid s xprv ()
 mRemoveWallet :: Ord wid => wid -> ModelOp wid s xprv ()
 mListWallets :: Ord wid => ModelOp wid s xprv [wid]
 mPutCheckpoint :: Ord wid => wid -> Wallet s -> ModelOp wid s xprv ()
