@@ -1983,10 +1983,19 @@ ErrGapOutOfRange :: Integer -> MkAddressPoolGapError
 
 -- | A default <a>AddressPoolGap</a>, as suggested in BIP-0044
 defaultAddressPoolGap :: AddressPoolGap
-getAddressPoolGap :: AddressPoolGap -> Word8
+getAddressPoolGap :: AddressPoolGap -> Word32
 
 -- | Smart constructor for <a>AddressPoolGap</a>
 mkAddressPoolGap :: Integer -> Either MkAddressPoolGapError AddressPoolGap
+
+-- | Constructor which allows by-passing the address pool gap boundary
+--   limitations. A practical use-case for this are sequential wallets for
+--   which we don't have access to the whole history which therefore
+--   require using arbitrary big gaps in order to discover addresses with
+--   indexes separated by possible huge gaps.
+--   
+--   This defies a bit the purpose of this type though.
+mkUnboundedAddressPoolGap :: Word32 -> AddressPoolGap
 
 -- | An <a>AddressPool</a> which keeps track of sequential addresses within
 --   a given Account and change chain. See <a>mkAddressPool</a> to create a
@@ -2045,6 +2054,7 @@ mkAddressPool :: forall c k. (MkKeyFingerprint k (k  'AddressK XPub), MkKeyFinge
 --   also possible that the pool is not amended at all - this happens in
 --   the case that an address is discovered <tt>far</tt> from the edge.
 lookupAddress :: forall c k. (MkKeyFingerprint k (k  'AddressK XPub), MkKeyFingerprint k Address, SoftDerivation k, Typeable c) => Address -> AddressPool c k -> (Maybe (Index  'Soft  'AddressK), AddressPool c k)
+shrinkPool :: forall c key. (Typeable c, MkKeyFingerprint key Address, MkKeyFingerprint key (key  'AddressK XPub), SoftDerivation key) => (KeyFingerprint "payment" key -> Address) -> [Address] -> AddressPoolGap -> AddressPool c key -> AddressPool c key
 
 -- | An ordered set of pending indexes. This keep track of indexes used
 data PendingIxs
@@ -4998,6 +5008,14 @@ genesisData :: forall ctx. HasGenesisData ctx => Lens' ctx (Block, BlockchainPar
 
 -- | Initialise and store a new wallet, returning its ID.
 createWallet :: forall ctx s k. (HasGenesisData ctx, HasDBLayer s k ctx, Show s, NFData s, IsOurs s Address, IsOurs s ChimericAccount) => ctx -> WalletId -> WalletName -> s -> ExceptT ErrWalletAlreadyExists IO WalletId
+
+-- | Initialise and store a new legacy Icarus wallet. These wallets are
+--   intrinsically sequential, but, in the incentivized testnet, we only
+--   have access to the a snapshot of the MainNet.
+--   
+--   To work-around this, we scan the genesis block with an arbitrary big
+--   gap and resort to a default gap afterwards.
+createIcarusWallet :: forall ctx s k n. (HasGenesisData ctx, HasDBLayer s k ctx, PaymentAddress n k, k ~ IcarusKey, s ~ SeqState n k) => ctx -> WalletId -> WalletName -> (k  'RootK XPrv, Passphrase "encryption") -> ExceptT ErrWalletAlreadyExists IO WalletId
 
 -- | Attach a given private key to a wallet. The private key is necessary
 --   for some operations like signing transactions, or generating new
