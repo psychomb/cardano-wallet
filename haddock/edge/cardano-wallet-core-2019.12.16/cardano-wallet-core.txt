@@ -5411,6 +5411,49 @@ instance Cardano.Wallet.Registry.HasWorkerCtx (Cardano.Wallet.DB.DBLayer GHC.Typ
 instance Servant.API.ContentTypes.Accept Cardano.Wallet.Api.Any
 
 
+-- | This module provides a Servant client for the cardano-wallet V2 API.
+--   
+--   The functions in this module can be run with
+--   "Servant.Client.runClientM".
+module Cardano.Wallet.Api.Client
+
+-- | This data type encapsulates the client functions for all endpoints of
+--   the cardano-wallet V2 API.
+data WalletClient t
+WalletClient :: (ApiT WalletId -> Maybe (ApiT AddressState) -> ClientM [ApiAddress t]) -> (ApiT WalletId -> ClientM ()) -> (ApiT WalletId -> ClientM ApiWallet) -> (ApiT WalletId -> ClientM ApiUtxoStatistics) -> ClientM [ApiWallet] -> (WalletPostData -> ClientM ApiWallet) -> (ApiT WalletId -> WalletPutData -> ClientM ApiWallet) -> (ApiT WalletId -> WalletPutPassphraseData -> ClientM NoContent) -> (ApiT WalletId -> Maybe Iso8601Time -> Maybe Iso8601Time -> Maybe (ApiT SortOrder) -> ClientM [ApiTransaction t]) -> (ApiT WalletId -> PostTransactionData t -> ClientM (ApiTransaction t)) -> (ApiT WalletId -> PostTransactionFeeData t -> ClientM ApiFee) -> (PostExternalTransactionData -> ClientM ApiTxId) -> (ApiT WalletId -> ApiTxId -> ClientM NoContent) -> ClientM [ApiStakePool] -> (ApiT PoolId -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)) -> (ApiT PoolId -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)) -> ClientM ApiNetworkInformation -> WalletClient t
+[$sel:listAddresses:WalletClient] :: WalletClient t -> ApiT WalletId -> Maybe (ApiT AddressState) -> ClientM [ApiAddress t]
+[$sel:deleteWallet:WalletClient] :: WalletClient t -> ApiT WalletId -> ClientM ()
+[$sel:getWallet:WalletClient] :: WalletClient t -> ApiT WalletId -> ClientM ApiWallet
+[$sel:getWalletUtxoStatistics:WalletClient] :: WalletClient t -> ApiT WalletId -> ClientM ApiUtxoStatistics
+[$sel:listWallets:WalletClient] :: WalletClient t -> ClientM [ApiWallet]
+[$sel:postWallet:WalletClient] :: WalletClient t -> WalletPostData -> ClientM ApiWallet
+[$sel:putWallet:WalletClient] :: WalletClient t -> ApiT WalletId -> WalletPutData -> ClientM ApiWallet
+[$sel:putWalletPassphrase:WalletClient] :: WalletClient t -> ApiT WalletId -> WalletPutPassphraseData -> ClientM NoContent
+[$sel:listTransactions:WalletClient] :: WalletClient t -> ApiT WalletId -> Maybe Iso8601Time -> Maybe Iso8601Time -> Maybe (ApiT SortOrder) -> ClientM [ApiTransaction t]
+[$sel:postTransaction:WalletClient] :: WalletClient t -> ApiT WalletId -> PostTransactionData t -> ClientM (ApiTransaction t)
+[$sel:postTransactionFee:WalletClient] :: WalletClient t -> ApiT WalletId -> PostTransactionFeeData t -> ClientM ApiFee
+[$sel:postExternalTransaction:WalletClient] :: WalletClient t -> PostExternalTransactionData -> ClientM ApiTxId
+[$sel:deleteTransaction:WalletClient] :: WalletClient t -> ApiT WalletId -> ApiTxId -> ClientM NoContent
+[$sel:listPools:WalletClient] :: WalletClient t -> ClientM [ApiStakePool]
+[$sel:joinStakePool:WalletClient] :: WalletClient t -> ApiT PoolId -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)
+[$sel:quitStakePool:WalletClient] :: WalletClient t -> ApiT PoolId -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)
+[$sel:networkInformation:WalletClient] :: WalletClient t -> ClientM ApiNetworkInformation
+
+-- | Produces a <a>WalletClient</a> for the cardano-wallet V2 API.
+--   
+--   You should apply a
+--   <a>Cardano.Wallet.Primitive.AddressDerivation.NetworkDiscriminant</a>
+--   type parameter to this to get a concrete client.
+walletClient :: forall t. (DecodeAddress t, EncodeAddress t) => WalletClient t
+
+-- | Poll the wallet server until it reports that it has synced with the
+--   network.
+waitForSync :: WalletClient t -> ClientM ()
+
+-- | Poll a wallet by ID until it has restored.
+waitForRestore :: WalletClient t -> ApiT WalletId -> ClientM ApiWallet
+
+
 -- | This module can fold over a blockchain to collect metrics about Stake
 --   pools.
 --   
