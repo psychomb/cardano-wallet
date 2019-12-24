@@ -9,40 +9,6 @@
 @version 2019.12.23
 
 
--- | Provides a mechanism for Daedalus to discover what port the
---   cardano-wallet server is listening on.
---   
---   See
---   <a>https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options</a>
---   for more information about the message protocol.
---   
---   There are two separate message formats and IO mechanisms, depending on
---   whether the OS is Windows or not. On Windows, a duplex named pipe is
---   used for communication with the parent process. If modifying this
---   code, do not add concurrent sending and receiving of messages. It will
---   get stuck, because asynchronous reading and writing to named pipes is
---   not possible.
-module Cardano.Wallet.DaedalusIPC
-
--- | Start up the Daedalus IPC process. It's called <a>daedalusIPC</a>, but
---   this could be any nodejs program that needs to start cardano-wallet.
---   All it does is reply with a port number when asked, using a very
---   nodejs-specific IPC method.
---   
---   If the IPC channel was successfully set up, this function won't return
---   until the parent process exits. Otherwise, it will return immediately.
---   Before returning, it will log an message about why it has exited.
-daedalusIPC :: Trace IO Text -> Int -> IO ()
-instance GHC.Classes.Eq Cardano.Wallet.DaedalusIPC.NodeChannelError
-instance GHC.Show.Show Cardano.Wallet.DaedalusIPC.NodeChannelError
-instance GHC.Classes.Eq Cardano.Wallet.DaedalusIPC.MsgOut
-instance GHC.Show.Show Cardano.Wallet.DaedalusIPC.MsgOut
-instance GHC.Classes.Eq Cardano.Wallet.DaedalusIPC.MsgIn
-instance GHC.Show.Show Cardano.Wallet.DaedalusIPC.MsgIn
-instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.DaedalusIPC.MsgOut
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.DaedalusIPC.MsgIn
-
-
 -- | This module contains utility functions for logging and mapping trace
 --   data.
 module Cardano.Wallet.Logging
@@ -282,6 +248,47 @@ module Cardano.Wallet.Version.TH
 -- | Git revision found by running <tt>git rev-parse</tt>. If <tt>git</tt>
 --   could not be executed, then this will be an empty string.
 gitRevFromGit :: Q Exp
+
+
+-- | Extra helpers for safe decoding of binary data.
+module Data.Binary.Get.Safe
+
+-- | A safe version of <tt>runGet</tt> which doesn't throw on error.
+eitherRunGet :: Get a -> ByteString -> Either String a
+
+
+-- | Provides a mechanism for Daedalus to discover what port the
+--   cardano-wallet server is listening on.
+--   
+--   See
+--   <a>https://nodejs.org/api/child_process.html#child_process_child_process_spawn_command_args_options</a>
+--   for more information about the message protocol.
+--   
+--   There are two separate message formats and IO mechanisms, depending on
+--   whether the OS is Windows or not. On Windows, a duplex named pipe is
+--   used for communication with the parent process. If modifying this
+--   code, do not add concurrent sending and receiving of messages. It will
+--   get stuck, because asynchronous reading and writing to named pipes is
+--   not possible.
+module Cardano.Wallet.DaedalusIPC
+
+-- | Start up the Daedalus IPC process. It's called <a>daedalusIPC</a>, but
+--   this could be any nodejs program that needs to start cardano-wallet.
+--   All it does is reply with a port number when asked, using a very
+--   nodejs-specific IPC method.
+--   
+--   If the IPC channel was successfully set up, this function won't return
+--   until the parent process exits. Otherwise, it will return immediately.
+--   Before returning, it will log an message about why it has exited.
+daedalusIPC :: Trace IO Text -> Int -> IO ()
+instance GHC.Classes.Eq Cardano.Wallet.DaedalusIPC.NodeChannelError
+instance GHC.Show.Show Cardano.Wallet.DaedalusIPC.NodeChannelError
+instance GHC.Classes.Eq Cardano.Wallet.DaedalusIPC.MsgOut
+instance GHC.Show.Show Cardano.Wallet.DaedalusIPC.MsgOut
+instance GHC.Classes.Eq Cardano.Wallet.DaedalusIPC.MsgIn
+instance GHC.Show.Show Cardano.Wallet.DaedalusIPC.MsgIn
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.DaedalusIPC.MsgOut
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.DaedalusIPC.MsgIn
 
 module Data.Function.Utils
 

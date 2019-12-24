@@ -212,6 +212,9 @@ data Get a
 --   call <a>error</a>.
 runGet :: () => Get a -> ByteString -> a
 
+-- | A safe version of <tt>runGet</tt> which doesn't throw on error.
+eitherRunGet :: () => Get a -> ByteString -> Either String a
+
 -- | Run a <a>Get</a> monad and return <a>Left</a> on failure and
 --   <a>Right</a> on success. In both cases any unconsumed input and the
 --   number of bytes consumed is returned. In the case of failure, a
