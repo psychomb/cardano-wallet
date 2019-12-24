@@ -73,8 +73,13 @@ SqliteContext :: SqlBackend -> (forall a. SqlPersistT IO a -> IO a) -> Maybe Fil
 
 -- | A <a>Trace</a> for logging
 [$sel:trace:SqliteContext] :: SqliteContext -> Trace IO DBLog
+
+-- | Error type for when migrations go wrong after opening a database.
+newtype MigrationError
+MigrationError :: Text -> MigrationError
+[$sel:getMigrationErrorMessage:MigrationError] :: MigrationError -> Text
 data DBLog
-MsgMigrations :: Int -> DBLog
+MsgMigrations :: Either MigrationError Int -> DBLog
 MsgQuery :: Text -> Severity -> DBLog
 MsgConnStr :: Text -> DBLog
 MsgClosing :: Maybe FilePath -> DBLog
@@ -96,7 +101,9 @@ chunkSize :: Int
 --   there can be multiple variables per row updated.
 dbChunked :: ([a] -> SqlPersistT IO b) -> [a] -> SqlPersistT IO ()
 
--- | Finalize database statements and close the database connection.
+-- | Finalize database statements and close the database connection. If the
+--   database connection is still in use, it will retry for up to a minute,
+--   to let other threads finish up.
 destroyDBLayer :: SqliteContext -> IO ()
 
 -- | Run an action, and convert any Sqlite constraints exception into the
@@ -105,7 +112,7 @@ handleConstraint :: MonadCatch m => e -> m a -> m (Either e a)
 
 -- | Opens the SQLite database connection, sets up query logging and
 --   timing, runs schema migrations if necessary.
-startSqliteBackend :: Configuration -> Migration -> Trace IO DBLog -> Maybe FilePath -> IO SqliteContext
+startSqliteBackend :: Configuration -> Migration -> Trace IO DBLog -> Maybe FilePath -> IO (Either MigrationError SqliteContext)
 
 -- | Run a raw query from the outside using an instantiate DB layer. This
 --   is completely unsafe because it breaks the abstraction boundary and
@@ -115,9 +122,14 @@ instance Data.Aeson.Types.ToJSON.ToJSON Cardano.DB.Sqlite.DBLog
 instance GHC.Classes.Eq Cardano.DB.Sqlite.DBLog
 instance GHC.Show.Show Cardano.DB.Sqlite.DBLog
 instance GHC.Generics.Generic Cardano.DB.Sqlite.DBLog
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.DB.Sqlite.MigrationError
+instance GHC.Generics.Generic Cardano.DB.Sqlite.MigrationError
+instance GHC.Classes.Eq Cardano.DB.Sqlite.MigrationError
+instance GHC.Show.Show Cardano.DB.Sqlite.MigrationError
 instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.DB.Sqlite.DBLog
 instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.DB.Sqlite.DBLog
 instance Data.Text.Class.ToText Cardano.DB.Sqlite.DBLog
+instance GHC.Exception.Type.Exception Cardano.DB.Sqlite.MigrationError
 
 
 -- | Provides functions for checking if TCP ports can be connected to, or
