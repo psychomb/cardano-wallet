@@ -4625,6 +4625,7 @@ NothingToMigrate :: ApiErrorCode
 NoSuchPool :: ApiErrorCode
 PoolAlreadyJoined :: ApiErrorCode
 NotDelegatingTo :: ApiErrorCode
+InvalidRestorationParameters :: ApiErrorCode
 data ApiNetworkInformation
 ApiNetworkInformation :: !ApiT SyncProgress -> !ApiEpochInfo -> !ApiBlockReference -> !ApiNetworkTip -> ApiNetworkInformation
 [$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
@@ -4661,11 +4662,11 @@ ApiByronWalletBalance :: !Quantity "lovelace" Natural -> !Quantity "lovelace" Na
 newtype ApiByronWalletMigrationInfo
 ApiByronWalletMigrationInfo :: Quantity "lovelace" Natural -> ApiByronWalletMigrationInfo
 [$sel:migrationCost:ApiByronWalletMigrationInfo] :: ApiByronWalletMigrationInfo -> Quantity "lovelace" Natural
-data ByronWalletPostData
-ByronWalletPostData :: !ApiMnemonicT '[12, 15] "seed" -> !ApiT WalletName -> !ApiT (Passphrase "encryption") -> ByronWalletPostData
-[$sel:mnemonicSentence:ByronWalletPostData] :: ByronWalletPostData -> !ApiMnemonicT '[12, 15] "seed"
-[$sel:name:ByronWalletPostData] :: ByronWalletPostData -> !ApiT WalletName
-[$sel:passphrase:ByronWalletPostData] :: ByronWalletPostData -> !ApiT (Passphrase "encryption")
+data ByronWalletPostData mw
+ByronWalletPostData :: !ApiMnemonicT mw "seed" -> !ApiT WalletName -> !ApiT (Passphrase "encryption") -> ByronWalletPostData mw
+[$sel:mnemonicSentence:ByronWalletPostData] :: ByronWalletPostData mw -> !ApiMnemonicT mw "seed"
+[$sel:name:ByronWalletPostData] :: ByronWalletPostData mw -> !ApiT WalletName
+[$sel:passphrase:ByronWalletPostData] :: ByronWalletPostData mw -> !ApiT (Passphrase "encryption")
 
 -- | An abstract class to allow encoding of addresses depending on the
 --   target backend used.
@@ -4720,9 +4721,9 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiByronWalletBalance
 instance GHC.Show.Show Cardano.Wallet.Api.Types.WalletPostData
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.WalletPostData
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.WalletPostData
-instance GHC.Show.Show Cardano.Wallet.Api.Types.ByronWalletPostData
-instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ByronWalletPostData
-instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ByronWalletPostData
+instance GHC.Show.Show (Cardano.Wallet.Api.Types.ByronWalletPostData mw)
+instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ByronWalletPostData mw)
+instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ByronWalletPostData mw)
 instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
 instance GHC.Show.Show (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
@@ -4842,8 +4843,8 @@ instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiByronWal
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiByronWalletBalance
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.WalletPostData
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.WalletPostData
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ByronWalletPostData
-instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ByronWalletPostData
+instance Cardano.Wallet.Primitive.AddressDerivation.FromMnemonic mw "seed" => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ByronWalletPostData mw)
+instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ByronWalletPostData mw)
 instance Cardano.Wallet.Primitive.AddressDerivation.FromMnemonic sizes purpose => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
@@ -5445,7 +5446,7 @@ type Addresses n = ListAddresses n
 type CoinSelections n = SelectCoins n
 type Transactions n = CreateTransaction n :<|> ListTransactions n :<|> PostTransactionFee n :<|> DeleteTransaction
 type StakePools n = ListStakePools :<|> JoinStakePool n :<|> QuitStakePool n :<|> DelegationFee
-type ByronWallets = PostByronWallet :<|> DeleteByronWallet :<|> GetByronWallet :<|> ListByronWallets
+type ByronWallets = PostByronWallet "random" '[12] :<|> PostByronWallet "icarus" '[15] :<|> PostByronWallet "trezor" '[12, 15, 18, 21, 24] :<|> PostByronWallet "ledger" '[12, 15, 18, 21, 24] :<|> DeleteByronWallet :<|> GetByronWallet :<|> ListByronWallets
 type ByronTransactions n = ListByronTransactions n :<|> DeleteByronTransaction
 type ByronMigrations n = GetByronWalletMigrationInfo :<|> MigrateByronWallet n
 type Network = "network" :> "information" :> Get '[JSON] ApiNetworkInformation

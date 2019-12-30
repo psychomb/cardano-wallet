@@ -20,7 +20,7 @@ data Faucet
 Faucet :: MVar [Mnemonic 15] -> MVar [Mnemonic 15] -> MVar [Mnemonic 12] -> MVar [(Address, Coin) -> IO ByteString] -> Faucet
 [shelley] :: Faucet -> MVar [Mnemonic 15]
 [icarus] :: Faucet -> MVar [Mnemonic 15]
-[byron] :: Faucet -> MVar [Mnemonic 12]
+[random] :: Faucet -> MVar [Mnemonic 12]
 [txBuilder] :: Faucet -> MVar [(Address, Coin) -> IO ByteString]
 nextWallet :: NextWallet scheme => Faucet -> IO (Mnemonic (MnemonicSize scheme))
 
@@ -30,7 +30,7 @@ nextWallet :: NextWallet scheme => Faucet -> IO (Mnemonic (MnemonicSize scheme))
 nextTxBuilder :: Faucet -> IO ((Address, Coin) -> IO ByteString)
 instance Test.Integration.Faucet.NextWallet "shelley"
 instance Test.Integration.Faucet.NextWallet "icarus"
-instance Test.Integration.Faucet.NextWallet "byron"
+instance Test.Integration.Faucet.NextWallet "random"
 
 module Test.Integration.Framework.Request
 
@@ -271,9 +271,9 @@ infixr 5 </>
 infixl 9 !!
 
 -- | Create an empty wallet
-emptyByronWallet :: Context t -> IO ApiByronWallet
+emptyRandomWallet :: Context t -> IO ApiByronWallet
 emptyIcarusWallet :: Context t -> IO ApiByronWallet
-emptyByronWalletWith :: Context t -> (Text, [Text], Text) -> IO ApiByronWallet
+emptyByronWalletWith :: Context t -> Text -> (Text, [Text], Text) -> IO ApiByronWallet
 
 -- | Create an empty wallet
 emptyWallet :: Context t -> IO ApiWallet
@@ -295,8 +295,8 @@ listAllTransactions :: Context t -> ApiWallet -> IO [ApiTransaction  'Testnet]
 tearDown :: Context t -> IO ()
 fixtureRawTx :: Context t -> (Address, Natural) -> IO ByteString
 
--- | Restore a faucet Byron wallet and wait until funds are available.
-fixtureByronWallet :: Context t -> IO ApiByronWallet
+-- | Restore a faucet Random wallet and wait until funds are available.
+fixtureRandomWallet :: Context t -> IO ApiByronWallet
 
 -- | Restore a faucet Icarus wallet and wait until funds are available.
 fixtureIcarusWallet :: Context t -> IO ApiByronWallet
@@ -336,7 +336,7 @@ eventuallyUsingDelay_ :: Int -> IO () -> IO ()
 -- | Default passphrase used for fixture wallets
 fixturePassphrase :: Text
 waitForNextEpoch :: Context t -> IO ()
-postByronWalletEp :: (Method, Text)
+postByronWalletEp :: Text -> (Method, Text)
 migrateByronWalletEp :: forall w n. (HasType (ApiT WalletId) w, HasType (ApiT WalletId) n) => w -> n -> (Method, Text)
 calculateByronMigrationCostEp :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
 getByronWalletEp :: ApiByronWallet -> (Method, Text)
@@ -449,6 +449,7 @@ errMsg406 :: String
 errMsg415 :: String
 errMsg415OctetStream :: String
 errMsg500 :: String
+errMsg400NumberOfWords :: String
 errMsgNotInDictionary :: String
 
 module Test.Integration.Scenario.API.Addresses
