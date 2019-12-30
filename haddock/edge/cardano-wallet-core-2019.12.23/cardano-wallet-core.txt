@@ -4393,6 +4393,22 @@ IcarusKey :: key -> IcarusKey key
 --   least 16 bytes.
 generateKeyFromSeed :: Passphrase "seed" -> Passphrase "encryption" -> IcarusKey  'RootK XPrv
 
+-- | Hardware Ledger devices generates keys from mnemonic using a different
+--   approach (different from the rest of Cardano).
+--   
+--   It is a combination of:
+--   
+--   <ul>
+--   <li><a>SLIP 0010</a></li>
+--   <li><a>BIP 0032</a></li>
+--   <li><a>BIP 0039</a></li>
+--   <li><a>RFC 8032</a></li>
+--   <li>What seems to be arbitrary changes from Ledger regarding the
+--   calculation of the initial chain code and generation of the root
+--   private key.</li>
+--   </ul>
+generateKeyFromHardwareLedger :: Mnemonic mw -> Passphrase "encryption" -> IcarusKey  'RootK XPrv
+
 -- | Generate a new key from seed. Note that the <tt>depth</tt> is left
 --   open so that the caller gets to decide what type of key this is. This
 --   is mostly for testing, in practice, seeds are used to represent root
