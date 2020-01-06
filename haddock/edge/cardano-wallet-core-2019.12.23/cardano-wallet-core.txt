@@ -2603,7 +2603,7 @@ mListWallets :: Ord wid => ModelOp wid s xprv [wid]
 mPutCheckpoint :: Ord wid => wid -> Wallet s -> ModelOp wid s xprv ()
 mReadCheckpoint :: Ord wid => wid -> ModelOp wid s xprv (Maybe (Wallet s))
 mListCheckpoints :: Ord wid => wid -> ModelOp wid s xprv [BlockHeader]
-mRollbackTo :: Ord wid => wid -> SlotId -> ModelOp wid s xprv ()
+mRollbackTo :: Ord wid => wid -> SlotId -> ModelOp wid s xprv SlotId
 mPutWalletMeta :: Ord wid => wid -> WalletMetadata -> ModelOp wid s xprv ()
 mReadWalletMeta :: Ord wid => wid -> ModelOp wid s xprv (Maybe WalletMetadata)
 mPutDelegationCertificate :: Ord wid => wid -> DelegationCertificate -> SlotId -> ModelOp wid s xprv ()
@@ -2955,7 +2955,16 @@ RollBackward :: Cursor target -> NextBlocksResult target block
 data family Cursor target
 
 -- | Subscribe to a blockchain and get called with new block (in order)!
-follow :: forall target block e0 e1. (Show e0, Show e1) => NetworkLayer IO target block -> Trace IO Text -> [BlockHeader] -> (NonEmpty block -> BlockHeader -> IO (FollowAction e0)) -> (SlotId -> IO (FollowAction e1)) -> (block -> BlockHeader) -> IO ()
+--   
+--   Exits when the node switches to a different chain with the greatest
+--   known common tip between the follower and the node. This makes it
+--   easier for client to re-start following from a different point if they
+--   have, for instance, rolled back to a point further in the past. If
+--   this occurs, clients will need to restart the chain follower from a
+--   known list of headers, re-initializing the cursor.
+--   
+--   Exits with <a>Nothing</a> in case of error.
+follow :: forall target block e. Show e => NetworkLayer IO target block -> Trace IO Text -> [BlockHeader] -> (NonEmpty block -> BlockHeader -> IO (FollowAction e)) -> (block -> BlockHeader) -> IO (Maybe SlotId)
 
 -- | <tt>FollowAction</tt> enables the callback of <tt>follow</tt> to
 --   signal if the chain-following should <tt>ExitWith</tt>,
@@ -3725,7 +3734,7 @@ module Cardano.Wallet.DB
 --   <tt>let</tt> binding here as the semantic for those are slightly
 --   different: we really need a pattern match here!
 data DBLayer m s k
-DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists stm ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> stm [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (Wallet s))) -> (PrimaryKey WalletId -> stm [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe WalletMetadata)) -> (PrimaryKey WalletId -> DelegationCertificate -> SlotId -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> stm [(Tx, TxMeta)]) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx stm ()) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> (forall a. stm a -> m a) -> DBLayer m s k
+DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists stm ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> stm [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (Wallet s))) -> (PrimaryKey WalletId -> stm [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe WalletMetadata)) -> (PrimaryKey WalletId -> DelegationCertificate -> SlotId -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> stm [(Tx, TxMeta)]) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx stm ()) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet stm SlotId) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> (forall a. stm a -> m a) -> DBLayer m s k
 
 -- | Initialize a database entry for a given wallet. <a>putCheckpoint</a>,
 --   <a>putWalletMeta</a> or <a>putTxHistory</a> will actually all fail if
@@ -3807,7 +3816,12 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] 
 [readPrivateKey] :: DBLayer m s k -> PrimaryKey WalletId -> stm (Maybe (k  'RootK XPrv, Hash "encryption"))
 
 -- | Drops all checkpoints and transaction data after the given slot.
-[rollbackTo] :: DBLayer m s k -> PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet stm ()
+--   
+--   Returns the actual slot to which the database has rolled back. This
+--   slot is guaranteed to be earlier than (or identical to) the given
+--   point of rollback but can't be guaranteed to be exactly the same
+--   because the database may only keep sparse checkpoints.
+[rollbackTo] :: DBLayer m s k -> PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet stm SlotId
 
 -- | Prune database entities and remove entities that can be discarded.
 [prune] :: DBLayer m s k -> PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()
