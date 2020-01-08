@@ -4496,6 +4496,16 @@ instance GHC.Classes.Eq Data.Time.Text.TimeFormat
 --   
 --   <a>Wallet API Specification</a>
 module Cardano.Wallet.Api.Types
+data WalletStyle
+Shelley :: WalletStyle
+Byron :: WalletStyle
+data ByronWalletStyle
+Random :: ByronWalletStyle
+Icarus :: ByronWalletStyle
+Trezor :: ByronWalletStyle
+Ledger :: ByronWalletStyle
+type family StyleSymbol (style :: ByronWalletStyle) :: Symbol
+type family AllowedMnemonics (style :: ByronWalletStyle) :: [Nat]
 data ApiAddress (n :: NetworkDiscriminant)
 ApiAddress :: !(ApiT Address, Proxy n) -> !ApiT AddressState -> ApiAddress
 [$sel:id:ApiAddress] :: ApiAddress -> !(ApiT Address, Proxy n)
@@ -5456,15 +5466,119 @@ instance Data.Text.Class.ToText key => Data.Text.Class.ToText (Cardano.Wallet.Re
 module Cardano.Wallet.Api
 type Api n = Wallets :<|> Addresses n :<|> CoinSelections n :<|> Transactions n :<|> StakePools n :<|> ByronWallets :<|> ByronTransactions n :<|> ByronMigrations n :<|> Network :<|> Proxy_
 type Wallets = DeleteWallet :<|> GetWallet :<|> ListWallets :<|> PostWallet :<|> PutWallet :<|> PutWalletPassphrase :<|> GetUTxOsStatistics
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/deleteWallet</a>
+type DeleteWallet = "wallets" :> Capture "walletId" (ApiT WalletId) :> DeleteNoContent '[Any] NoContent
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/getWallet</a>
+type GetWallet = "wallets" :> Capture "walletId" (ApiT WalletId) :> Get '[JSON] ApiWallet
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/listWallets</a>
+type ListWallets = "wallets" :> Get '[JSON] [ApiWallet]
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/postWallet</a>
+type PostWallet = "wallets" :> ReqBody '[JSON] WalletPostData :> PostCreated '[JSON] ApiWallet
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/putWallet</a>
+type PutWallet = "wallets" :> Capture "walletId" (ApiT WalletId) :> ReqBody '[JSON] WalletPutData :> Put '[JSON] ApiWallet
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/putWalletPassphrase</a>
+type PutWalletPassphrase = "wallets" :> Capture "walletId" (ApiT WalletId) :> "passphrase" :> ReqBody '[JSON] WalletPutPassphraseData :> PutNoContent '[Any] NoContent
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/getUTxOsStatistics</a>
+type GetUTxOsStatistics = "wallets" :> Capture "walletId" (ApiT WalletId) :> "statistics" :> "utxos" :> Get '[JSON] ApiUtxoStatistics
 type Addresses n = ListAddresses n
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/listAddresses</a>
+type ListAddresses n = "wallets" :> Capture "walletId" (ApiT WalletId) :> "addresses" :> QueryParam "state" (ApiT AddressState) :> Get '[JSON] [ApiAddress n]
 type CoinSelections n = SelectCoins n
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/selectCoins</a>
+type SelectCoins n = "wallets" :> Capture "walletId" (ApiT WalletId) :> "coin-selections" :> "random" :> ReqBody '[JSON] (ApiSelectCoinsData n) :> Post '[JSON] (ApiCoinSelection n)
 type Transactions n = CreateTransaction n :<|> ListTransactions n :<|> PostTransactionFee n :<|> DeleteTransaction
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/postTransaction</a>
+type CreateTransaction n = "wallets" :> Capture "walletId" (ApiT WalletId) :> "transactions" :> ReqBody '[JSON] (PostTransactionData n) :> PostAccepted '[JSON] (ApiTransaction n)
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/postTransactionFee</a>
+type PostTransactionFee n = "wallets" :> Capture "walletId" (ApiT WalletId) :> "transactions" :> "fees" :> ReqBody '[JSON] (PostTransactionFeeData n) :> PostAccepted '[JSON] ApiFee
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/listTransaction</a>
+type ListTransactions n = "wallets" :> Capture "walletId" (ApiT WalletId) :> "transactions" :> QueryParam "start" Iso8601Time :> QueryParam "end" Iso8601Time :> QueryParam "order" (ApiT SortOrder) :> Get '[JSON] [ApiTransaction n]
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/deleteTransaction</a>
+type DeleteTransaction = "wallets" :> Capture "walletId" (ApiT WalletId) :> "transactions" :> Capture "transactionId" ApiTxId :> DeleteNoContent '[Any] NoContent
 type StakePools n = ListStakePools :<|> JoinStakePool n :<|> QuitStakePool n :<|> DelegationFee
-type ByronWallets = PostByronWallet "random" '[12] :<|> PostByronWallet "icarus" '[15] :<|> PostByronWallet "trezor" '[12, 15, 18, 21, 24] :<|> PostByronWallet "ledger" '[12, 15, 18, 21, 24] :<|> DeleteByronWallet :<|> GetByronWallet :<|> ListByronWallets
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/edge/#operation/listStakePools</a>
+type ListStakePools = "stake-pools" :> Get '[JSON] [ApiStakePool]
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/joinStakePool</a>
+type JoinStakePool n = "stake-pools" :> Capture "stakePoolId" (ApiT PoolId) :> "wallets" :> Capture "walletId" (ApiT WalletId) :> ReqBody '[JSON] ApiWalletPassphrase :> PutAcccepted '[JSON] (ApiTransaction n)
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/quitStakePool</a>
+type QuitStakePool n = "stake-pools" :> Capture "stakePoolId" (ApiT PoolId) :> "wallets" :> Capture "walletId" (ApiT WalletId) :> ReqBody '[JSON] ApiWalletPassphrase :> DeleteAccepted '[JSON] (ApiTransaction n)
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/getDelegationFee</a>
+type DelegationFee = "wallets" :> Capture "walletId" (ApiT WalletId) :> "delegations" :> "fees" :> Get '[JSON] ApiFee
+type ByronWallets = PostByronWallet  'Random :<|> PostByronWallet  'Icarus :<|> PostByronWallet  'Trezor :<|> PostByronWallet  'Ledger :<|> DeleteByronWallet :<|> GetByronWallet :<|> ListByronWallets
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/deleteByronWallet</a>
+type DeleteByronWallet = "byron-wallets" :> Capture "walletId" (ApiT WalletId) :> DeleteNoContent '[Any] NoContent
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/getByronWallet</a>
+type GetByronWallet = "byron-wallets" :> Capture "walletId" (ApiT WalletId) :> Get '[JSON] ApiByronWallet
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/listByronWallets</a>
+type ListByronWallets = "byron-wallets" :> Get '[JSON] [ApiByronWallet]
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/postByronWallet</a>
+type PostByronWallet (style :: ByronWalletStyle) = "byron-wallets" :> StyleSymbol style :> ReqBody '[JSON] (ByronWalletPostData (AllowedMnemonics style)) :> PostCreated '[JSON] ApiByronWallet
 type ByronTransactions n = ListByronTransactions n :<|> DeleteByronTransaction
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/listByronTransactions</a>
+type ListByronTransactions n = "byron-wallets" :> Capture "walletId" (ApiT WalletId) :> "transactions" :> QueryParam "start" Iso8601Time :> QueryParam "end" Iso8601Time :> QueryParam "order" (ApiT SortOrder) :> Get '[JSON] [ApiTransaction n]
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/deleteByronTransaction</a>
+type DeleteByronTransaction = "byron-wallets" :> Capture "walletId" (ApiT WalletId) :> "transactions" :> Capture "transactionId" ApiTxId :> DeleteNoContent '[Any] NoContent
 type ByronMigrations n = GetByronWalletMigrationInfo :<|> MigrateByronWallet n
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/migrateByronWallet</a>
+type MigrateByronWallet n = "byron-wallets" :> Capture "sourceWalletId" (ApiT WalletId) :> "migrations" :> Capture "targetWalletId" (ApiT WalletId) :> ReqBody '[JSON] ApiWalletPassphrase :> PostAccepted '[JSON] [ApiTransaction n]
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/getByronWalletMigrationInfo</a>
+type GetByronWalletMigrationInfo = "byron-wallets" :> Capture "walletId" (ApiT WalletId) :> "migrations" :> Get '[JSON] ApiByronWalletMigrationInfo
 type Network = "network" :> "information" :> Get '[JSON] ApiNetworkInformation
 type Proxy_ = PostExternalTransaction
+
+-- | 
+--   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/postExternalTransaction</a>
+type PostExternalTransaction = "proxy" :> "transactions" :> ReqBody '[OctetStream] PostExternalTransactionData :> PostAccepted '[JSON] ApiTxId
 data ApiLayer s t (k :: Depth -> * -> *)
 ApiLayer :: Trace IO Text -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> WorkerRegistry WalletId (DBLayer IO s k) -> ApiLayer s t
 type HasWorkerRegistry s k ctx = (HasType (WorkerRegistry WalletId (DBLayer IO s k)) ctx, HasWorkerCtx (DBLayer IO s k) ctx)
@@ -5477,6 +5591,75 @@ data Any
 instance GHC.Generics.Generic (Cardano.Wallet.Api.ApiLayer s t k)
 instance Cardano.Wallet.Registry.HasWorkerCtx (Cardano.Wallet.DB.DBLayer GHC.Types.IO s k) (Cardano.Wallet.Api.ApiLayer s t k)
 instance Servant.API.ContentTypes.Accept Cardano.Wallet.Api.Any
+
+
+-- | Type-safe endpoint accessors for the wallet API. Under normal
+--   circumstances, one would prefer to use <tt>WalletClient</tt> from
+--   <a>Client</a> and not to bother with endpoints at all.
+--   
+--   Yet, in some cases (like in black-box testing), one could want to
+--   purposely send malformed requests to specific endpoints. Thus, this
+--   module facilitates the construction of valid endpoints that'd be
+--   accepted by the server, and for which, users are free to send all sort
+--   of data as payload, valid or invalid.
+--   
+--   This module is meant to be used via qualified imports and with
+--   type-applications since all exposed functions are type ambiguous in a
+--   variable <tt>style</tt> of type <a>WalletStyle</a>.
+--   
+--   <pre>
+--   import qualified Cardano.Wallet.Api.Link as Link
+--   </pre>
+--   
+--   For examples:
+--   
+--   <pre>
+--   &gt;&gt;&gt; Link.deleteWallet @'Shelley myWallet
+--   ( "DELETE", "/v2/wallets/2512a00e9653fe49a44a5886202e24d77eeb998f" )
+--   </pre>
+--   
+--   <pre>
+--   &gt;&gt;&gt; Link.getWallet @('Byron 'Icarus) myWallet
+--   ( "GET", "/v2/byron-wallets/2512a00e9653fe49a44a5886202e24d77eeb998f" )
+--   </pre>
+module Cardano.Wallet.Api.Link
+deleteWallet :: forall (style :: WalletStyle) w. (Discriminate style, HasType (ApiT WalletId) w) => w -> (Method, Text)
+getWallet :: forall (style :: WalletStyle) w. (Discriminate style, HasType (ApiT WalletId) w) => w -> (Method, Text)
+listWallets :: forall (style :: WalletStyle). Discriminate style => (Method, Text)
+postWallet :: PostWallet k => (Method, Text)
+putWallet :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
+putWalletPassphrase :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
+getUTxOsStatistics :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
+getMigrationInfo :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
+migrateWallet :: forall from to. (HasType (ApiT WalletId) from, HasType (ApiT WalletId) to) => from -> to -> (Method, Text)
+listAddresses :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
+listAddresses' :: forall w. HasType (ApiT WalletId) w => w -> Maybe AddressState -> (Method, Text)
+selectCoins :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
+createTransaction :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
+listTransactions :: forall (style :: WalletStyle) w. (Discriminate style, HasType (ApiT WalletId) w) => w -> (Method, Text)
+listTransactions' :: forall (style :: WalletStyle) w. (Discriminate style, HasType (ApiT WalletId) w) => w -> Maybe Iso8601Time -> Maybe Iso8601Time -> Maybe SortOrder -> (Method, Text)
+getTransactionFee :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
+deleteTransaction :: forall (style :: WalletStyle) w t. (Discriminate style, HasType (ApiT WalletId) w, HasType (ApiT (Hash "Tx")) t) => w -> t -> (Method, Text)
+listStakePools :: (Method, Text)
+joinStakePool :: forall s w. (HasType (ApiT PoolId) s, HasType (ApiT WalletId) w) => s -> w -> (Method, Text)
+quitStakePool :: forall s w. (HasType (ApiT PoolId) s, HasType (ApiT WalletId) w) => s -> w -> (Method, Text)
+getDelegationFee :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
+getNetworkInfo :: (Method, Text)
+postExternalTransaction :: (Method, Text)
+class PostWallet k
+instance forall k1 (m :: k1) (s :: GHC.Types.Nat) (ct :: [*]) a. Servant.API.Verbs.ReflectMethod m => Cardano.Wallet.Api.Link.HasVerb (Servant.API.Verbs.Verb m s ct a)
+instance Cardano.Wallet.Api.Link.HasVerb sub => Cardano.Wallet.Api.Link.HasVerb (path Servant.API.Sub.:> sub)
+instance Cardano.Wallet.Api.Link.HasVerb sub => Cardano.Wallet.Api.Link.HasVerb (Servant.API.Capture.Capture param t Servant.API.Sub.:> sub)
+instance Cardano.Wallet.Api.Link.HasVerb sub => Cardano.Wallet.Api.Link.HasVerb (Servant.API.ReqBody.ReqBody a b Servant.API.Sub.:> sub)
+instance Cardano.Wallet.Api.Link.HasVerb sub => Cardano.Wallet.Api.Link.HasVerb (Servant.API.QueryParam.QueryParam a b Servant.API.Sub.:> sub)
+instance forall k sub (opts :: [*]) (name :: GHC.Types.Symbol) (ty :: k). Cardano.Wallet.Api.Link.HasVerb sub => Cardano.Wallet.Api.Link.HasVerb (Servant.API.Header.Header' opts name ty Servant.API.Sub.:> sub)
+instance Cardano.Wallet.Api.Link.Discriminate 'Cardano.Wallet.Api.Types.Shelley
+instance Cardano.Wallet.Api.Link.Discriminate 'Cardano.Wallet.Api.Types.Byron
+instance Cardano.Wallet.Api.Link.PostWallet 'Cardano.Wallet.Api.Types.Shelley
+instance Cardano.Wallet.Api.Link.PostWallet 'Cardano.Wallet.Api.Types.Random
+instance Cardano.Wallet.Api.Link.PostWallet 'Cardano.Wallet.Api.Types.Icarus
+instance Cardano.Wallet.Api.Link.PostWallet 'Cardano.Wallet.Api.Types.Trezor
+instance Cardano.Wallet.Api.Link.PostWallet 'Cardano.Wallet.Api.Types.Ledger
 
 
 -- | This module provides a Servant client for the cardano-wallet V2 API.

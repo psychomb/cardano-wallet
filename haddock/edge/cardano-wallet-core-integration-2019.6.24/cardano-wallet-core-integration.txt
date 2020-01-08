@@ -273,7 +273,7 @@ infixl 9 !!
 -- | Create an empty wallet
 emptyRandomWallet :: Context t -> IO ApiByronWallet
 emptyIcarusWallet :: Context t -> IO ApiByronWallet
-emptyByronWalletWith :: Context t -> Text -> (Text, [Text], Text) -> IO ApiByronWallet
+emptyByronWalletWith :: forall (style :: ByronWalletStyle) t. PostWallet style => Context t -> (Text, [Text], Text) -> IO ApiByronWallet
 
 -- | Create an empty wallet
 emptyWallet :: Context t -> IO ApiWallet
@@ -326,7 +326,6 @@ waitForServer :: forall t ctx. (HasType (Port "wallet") ctx, KnownCommand t) => 
 
 -- | <a>map</a> flipped.
 for :: [a] -> (a -> b) -> [b]
-toQueryString :: [(Text, Text)] -> Text
 utcIso8601ToText :: UTCTime -> Text
 eventually :: IO a -> IO a
 eventuallyUsingDelay :: Int -> IO a -> IO a
@@ -336,32 +335,31 @@ eventuallyUsingDelay_ :: Int -> IO () -> IO ()
 -- | Default passphrase used for fixture wallets
 fixturePassphrase :: Text
 waitForNextEpoch :: Context t -> IO ()
-postByronWalletEp :: Text -> (Method, Text)
-migrateByronWalletEp :: forall w n. (HasType (ApiT WalletId) w, HasType (ApiT WalletId) n) => w -> n -> (Method, Text)
-calculateByronMigrationCostEp :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
-getByronWalletEp :: ApiByronWallet -> (Method, Text)
-listByronWalletsEp :: (Method, Text)
-listByronTxEp :: ApiByronWallet -> Text -> (Method, Text)
-deleteByronWalletEp :: ApiByronWallet -> (Method, Text)
-deleteByronTxEp :: ApiByronWallet -> ApiTxId -> (Method, Text)
-getWalletEp :: ApiWallet -> (Method, Text)
-deleteWalletEp :: ApiWallet -> (Method, Text)
-getWalletUtxoEp :: ApiWallet -> (Method, Text)
-getAddressesEp :: ApiWallet -> Text -> (Method, Text)
-listStakePoolsEp :: (Method, Text)
-joinStakePoolEp :: forall w. HasType (ApiT WalletId) w => ApiT PoolId -> w -> (Method, Text)
-delegationFeeEp :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
-quitStakePoolEp :: forall w. HasType (ApiT WalletId) w => ApiT PoolId -> w -> (Method, Text)
-selectCoinsEp :: HasType (ApiT WalletId) w => w -> (Method, Text)
-stakePoolEp :: forall w. HasType (ApiT WalletId) w => Method -> ApiT PoolId -> w -> (Method, Text)
-postTxEp :: ApiWallet -> (Method, Text)
-postExternalTxEp :: (Method, Text)
-postTxFeeEp :: ApiWallet -> (Method, Text)
-listTxEp :: ApiWallet -> Text -> (Method, Text)
-networkInfoEp :: (Method, Text)
-updateWalletPassEp :: ApiWallet -> (Method, Text)
-listWalletsEp :: (Method, Text)
-deleteTxEp :: ApiWallet -> ApiTxId -> (Method, Text)
+toQueryString :: [(Text, Text)] -> Text
+
+-- | Override the method of a particular endpoint, mostly to exercise
+--   invalid endpoints from existing ones.
+withMethod :: Method -> (Method, Text) -> (Method, Text)
+
+-- | Modifies the value of a path parameter at position <tt>n</tt> (indexed
+--   from 0) with the given update function. Throws if the given endpoint
+--   has no path parameter in the given position.
+--   
+--   <pre>
+--   &gt;&gt;&gt; Link.getWallet @Shelley myWallet
+--   ( "GET", "v2/wallets/2512a00e9653fe49a44a5886202e24d77eeb998f" )
+--   </pre>
+--   
+--   <pre>
+--   &gt;&gt;&gt; withPathParam 0 (&lt;&gt; "suffix") $ Link.getWallet @Shelley myWallet
+--   ( "GET", "v2/wallets/2512a00e9653fe49a44a5886202e24d77eeb998fsuffix" )
+--   </pre>
+--   
+--   <pre>
+--   &gt;&gt;&gt; withPathParam 1 (const "suffix") $ Link.joinStakePool @Shelley myPool myWallet
+--   ( "GET", "v2/stake-pools/2512a00e9653fe49a44a5886202e24d77eeb998f/wallets/patate" )
+--   </pre>
+withPathParam :: Int -> (Text -> Text) -> (Method, Text) -> (Method, Text)
 command :: CmdResult r => [CmdOption] -> String -> [String] -> IO r
 
 -- | Run a command using the 'cardano-wallet' executable for the target
