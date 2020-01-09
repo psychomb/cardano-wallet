@@ -68,15 +68,15 @@ ProcessHasExited :: String -> ExitCode -> ProcessHasExited
 --   is terminated (see <a>withCreateProcess</a>) for details. If the
 --   process exits, the action is cancelled. The return type reflects those
 --   two cases.
-withBackendProcess :: Trace IO LauncherLog -> Command -> IO a -> IO (Either ProcessHasExited a)
+withBackendProcess :: Tracer IO LauncherLog -> Command -> IO a -> IO (Either ProcessHasExited a)
 
 -- | A variant of <a>withBackendProcess</a> which also provides the
 --   <a>ProcessHandle</a> to the given action.
-withBackendProcessHandle :: Trace IO LauncherLog -> Command -> (ProcessHandle -> IO a) -> IO (Either ProcessHasExited a)
+withBackendProcessHandle :: Tracer IO LauncherLog -> Command -> (ProcessHandle -> IO a) -> IO (Either ProcessHasExited a)
 
 -- | Convert any SIGTERM received to SIGINT, for which the runtime system
 --   has handlers that will correctly clean up sub-processes.
-installSignalHandlers :: Trace IO Text -> IO ()
+installSignalHandlers :: IO () -> IO ()
 
 -- | Force the locale text encoding to UTF-8. This is needed because the
 --   CLI prints UTF-8 characters regardless of the <tt>LANG</tt>
@@ -86,23 +86,27 @@ installSignalHandlers :: Trace IO Text -> IO ()
 withUtf8Encoding :: IO a -> IO a
 data LauncherLog
 MsgLauncherStart :: Command -> LauncherLog
-MsgLauncherStarted :: String -> Text -> LauncherLog
-MsgLauncherWaitBefore :: LauncherLog
-MsgLauncherWaitAfter :: Int -> LauncherLog
-MsgLauncherCancel :: LauncherLog
+WithProcessInfo :: String -> Text -> LaunchedProcessLog -> LauncherLog
 MsgLauncherFinish :: ProcessHasExited -> LauncherLog
-MsgLauncherAction :: LauncherLog
-MsgLauncherCleanup :: LauncherLog
-transformTextTrace :: ToText a => Trace IO Text -> Trace IO a
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Launcher.LauncherLog
 instance GHC.Generics.Generic Cardano.Launcher.LauncherLog
+instance GHC.Classes.Eq Cardano.Launcher.LauncherLog
+instance GHC.Show.Show Cardano.Launcher.LauncherLog
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Launcher.LaunchedProcessLog
+instance GHC.Generics.Generic Cardano.Launcher.LaunchedProcessLog
+instance GHC.Classes.Eq Cardano.Launcher.LaunchedProcessLog
+instance GHC.Show.Show Cardano.Launcher.LaunchedProcessLog
 instance GHC.Classes.Eq Cardano.Launcher.ProcessHasExited
 instance GHC.Show.Show Cardano.Launcher.ProcessHasExited
 instance GHC.Generics.Generic Cardano.Launcher.Command
 instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Launcher.LauncherLog
 instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Launcher.LauncherLog
 instance Data.Text.Class.ToText Cardano.Launcher.LauncherLog
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Launcher.LaunchedProcessLog
+instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Launcher.LaunchedProcessLog
 instance GHC.Exception.Type.Exception Cardano.Launcher.ProcessHasExited
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Launcher.ProcessHasExited
+instance GHC.Show.Show Cardano.Launcher.Command
+instance GHC.Classes.Eq Cardano.Launcher.Command
 instance Formatting.Buildable.Buildable Cardano.Launcher.Command
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Launcher.Command

@@ -531,11 +531,11 @@ JormungandrConnParams :: Hash "Genesis" -> BaseUrl -> JormungandrConnParams
 -- | Starts the network layer and runs the given action with a
 --   <a>NetworkLayer</a>. The caller is responsible for handling errors
 --   which may have occurred while starting the Node.
-withNetworkLayer :: forall a t. t ~ Jormungandr => Trace IO Text -> JormungandrBackend -> (Either ErrStartup (JormungandrConnParams, NetworkLayer IO t Block) -> IO a) -> IO a
+withNetworkLayer :: forall a t. t ~ Jormungandr => Tracer IO NetworkLayerLog -> JormungandrBackend -> (Either ErrStartup (JormungandrConnParams, NetworkLayer IO t Block) -> IO a) -> IO a
 
 -- | Creates a new <a>NetworkLayer</a> connecting to an underlying
 --   <a>Jormungandr</a> backend target.
-newNetworkLayer :: forall t. t ~ Jormungandr => Trace IO Text -> BaseUrl -> Hash "Genesis" -> ExceptT ErrGetBlockchainParams IO (NetworkLayer IO t Block)
+newNetworkLayer :: forall t. t ~ Jormungandr => Tracer IO NetworkLayerLog -> BaseUrl -> Hash "Genesis" -> ExceptT ErrGetBlockchainParams IO (NetworkLayer IO t Block)
 
 -- | A subset of the Jormungandr configuration parameters, used for
 --   starting the Jormungandr node backend.
@@ -548,7 +548,7 @@ JormungandrConfig :: FilePath -> Either (Hash "Genesis") FilePath -> Maybe PortN
 [$sel:_extraArgs:JormungandrConfig] :: JormungandrConfig -> [String]
 
 -- | Launches a Jörmungandr node backend with the given configuration
-withJormungandr :: Trace IO Text -> JormungandrConfig -> (JormungandrConnParams -> IO a) -> IO (Either ErrStartup a)
+withJormungandr :: Tracer IO NetworkLayerLog -> JormungandrConfig -> (JormungandrConnParams -> IO a) -> IO (Either ErrStartup a)
 
 -- | Extract the port number from the base URL part of the connection
 --   params.
@@ -593,6 +593,9 @@ ErrStartupInvalidGenesisBlock :: FilePath -> ErrStartup
 ErrStartupInvalidGenesisHash :: String -> ErrStartup
 data ErrUnexpectedNetworkFailure
 ErrUnexpectedNetworkFailure :: Link -> ServantError -> ErrUnexpectedNetworkFailure
+data NetworkLayerLog
+MsgLauncher :: LauncherLog -> NetworkLayerLog
+MsgWaitForService :: WaitForServiceLog -> NetworkLayerLog
 
 -- | Wrap a Jormungandr client into a <a>NetworkLayer</a> common interface.
 --   
@@ -608,8 +611,11 @@ BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
 data Scheme
 Http :: Scheme
 Https :: Scheme
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.NetworkLayerLog
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.NetworkLayerLog
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.ErrStartup
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.ErrStartup
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Network.ErrStartup
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.Direction
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.Direction
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.JormungandrBackend
@@ -618,6 +624,9 @@ instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.JormungandrConfig
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.JormungandrConfig
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.JormungandrConnParams
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.JormungandrConnParams
+instance Data.Text.Class.ToText Cardano.Wallet.Jormungandr.Network.NetworkLayerLog
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Wallet.Jormungandr.Network.NetworkLayerLog
+instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Wallet.Jormungandr.Network.NetworkLayerLog
 instance GHC.Exception.Type.Exception Cardano.Wallet.Jormungandr.Network.ErrStartup
 
 module Cardano.Wallet.Jormungandr.Transaction
@@ -653,16 +662,51 @@ module Cardano.Wallet.Jormungandr
 -- | The <tt>cardano-wallet-jormungandr</tt> main function. It takes the
 --   configuration which was passed from the CLI and environment and starts
 --   all components of the wallet.
-serveWallet :: forall (n :: NetworkDiscriminant) t. (t ~ Jormungandr, NetworkDiscriminantVal n, DecodeAddress n, EncodeAddress n, DelegationAddress n ShelleyKey) => (Configuration, Trace IO ServerLog) -> SyncTolerance -> Maybe FilePath -> HostPreference -> Listen -> JormungandrBackend -> (SockAddr -> Port "node" -> BlockchainParameters -> IO ()) -> IO ExitCode
+serveWallet :: forall (n :: NetworkDiscriminant) t. (t ~ Jormungandr, NetworkDiscriminantVal n, DecodeAddress n, EncodeAddress n, DelegationAddress n ShelleyKey) => Tracers IO -> SyncTolerance -> Maybe FilePath -> HostPreference -> Listen -> JormungandrBackend -> (SockAddr -> Port "node" -> BlockchainParameters -> IO ()) -> IO ExitCode
 
 -- | Covert a raw block to one that the <a>Cardano.Pool.Metrics</a> module
 --   accepts.
 toSPBlock :: Block -> Block
 
--- | The type of trace events produced by the Jörmungandr API server.
-data ServerLog
-LogApiServerMsg :: ApiLog -> ServerLog
-LogStakePoolLayerMsg :: StakePoolLayerMsg -> ServerLog
-LogText :: Text -> ServerLog
-instance GHC.Show.Show Cardano.Wallet.Jormungandr.ServerLog
-instance Data.Text.Class.ToText Cardano.Wallet.Jormungandr.ServerLog
+-- | The types of trace events produced by the Jörmungandr API server.
+data Tracers' f
+Tracers :: f ApplicationLog -> f ApiLog -> f WorkerRegistryLog -> f DBLog -> f NetworkLayerLog -> f StakePoolMonitorLog -> f StakePoolLayerLog -> f DBLog -> f DaedalusIPCLog -> Tracers' f
+[applicationTracer] :: Tracers' f -> f ApplicationLog
+[apiServerTracer] :: Tracers' f -> f ApiLog
+[walletEngine] :: Tracers' f -> f WorkerRegistryLog
+[walletDbTracer] :: Tracers' f -> f DBLog
+[networkTracer] :: Tracers' f -> f NetworkLayerLog
+[stakePoolMonitorTracer] :: Tracers' f -> f StakePoolMonitorLog
+[stakePoolLayerTracer] :: Tracers' f -> f StakePoolLayerLog
+[stakePoolDBTracer] :: Tracers' f -> f DBLog
+[daedalusIPCTracer] :: Tracers' f -> f DaedalusIPCLog
+
+-- | All of the Jörmungandr <a>Tracer</a>s.
+type Tracers m = Tracers' (Tracer m)
+
+-- | The minimum severities for <a>Tracers'</a>. <a>Nothing</a> indicates
+--   that tracing is completely disabled.
+type TracerSeverities = Tracers' (Const (Maybe Severity))
+
+-- | Strings that the user can refer to tracers by.
+tracerLabels :: Tracers' (Const Text)
+
+-- | Names and descriptions of the tracers, for user documentation.
+tracerDescriptions :: [(String, String)]
+
+-- | Use a <a>nullTracer</a> for each of the <a>Tracer</a>s in
+--   <a>Tracers'</a>
+nullTracers :: Monad m => Tracers m
+
+-- | Set up tracing with textual log messages.
+setupTracers :: TracerSeverities -> Trace IO Text -> Tracers IO
+
+-- | Construct a <a>TracerSeverities</a> record with all tracers set to the
+--   given severity.
+tracerSeverities :: Maybe Severity -> TracerSeverities
+instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.ApplicationLog
+instance GHC.Show.Show Cardano.Wallet.Jormungandr.ApplicationLog
+instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.ApplicationLog
+instance Data.Text.Class.ToText Cardano.Wallet.Jormungandr.ApplicationLog
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Wallet.Jormungandr.ApplicationLog
+instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Wallet.Jormungandr.ApplicationLog
