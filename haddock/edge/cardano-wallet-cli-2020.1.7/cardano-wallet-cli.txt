@@ -71,11 +71,6 @@ nodePortMaybeOption :: Parser (Maybe (Port "Node"))
 stateDirOption :: FilePath -> Parser (Maybe FilePath)
 
 -- | <ul>
---   <li><i>--logging-config=FILE.YAML</i></li>
---   </ul>
-loggingConfigFileOption :: Parser FilePath
-
--- | <ul>
 --   <li><i>(--quiet|--verbose)</i></li>
 --   </ul>
 verbosityOption :: Parser Verbosity
