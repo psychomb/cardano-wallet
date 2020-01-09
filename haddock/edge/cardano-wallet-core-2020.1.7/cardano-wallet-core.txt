@@ -67,9 +67,13 @@ chunkSize :: Int
 --   there can be multiple variables per row updated.
 dbChunked :: ([a] -> SqlPersistT IO b) -> [a] -> SqlPersistT IO ()
 
--- | Finalize database statements and close the database connection. If the
---   database connection is still in use, it will retry for up to a minute,
---   to let other threads finish up.
+-- | Finalize database statements and close the database connection.
+--   
+--   If the database connection is still in use, it will retry for up to a
+--   minute, to let other threads finish up.
+--   
+--   This function is idempotent: if the database connection has already
+--   been closed, calling this function will exit without doing anything.
 destroyDBLayer :: SqliteContext -> IO ()
 
 -- | Run an action, and convert any Sqlite constraints exception into the
