@@ -88,6 +88,8 @@ instance GHC.Show.Show Cardano.DB.Sqlite.MigrationError
 instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.DB.Sqlite.DBLog
 instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.DB.Sqlite.DBLog
 instance Data.Text.Class.ToText Cardano.DB.Sqlite.DBLog
+instance Cardano.DB.Sqlite.MatchMigrationError Database.Persist.Types.Base.PersistException
+instance Cardano.DB.Sqlite.MatchMigrationError Database.Sqlite.SqliteException
 instance GHC.Exception.Type.Exception Cardano.DB.Sqlite.MigrationError
 
 
