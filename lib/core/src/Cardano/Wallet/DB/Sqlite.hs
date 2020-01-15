@@ -41,7 +41,7 @@ import Cardano.BM.Data.Severity
 import Cardano.BM.Data.Tracer
     ( DefinePrivacyAnnotation (..), DefineSeverity (..) )
 import Cardano.DB.Sqlite
-    ( DBLog
+    ( DBLog (..)
     , SqliteContext (..)
     , chunkSize
     , dbChunked
@@ -163,6 +163,8 @@ import Database.Persist.Sql
     )
 import Database.Persist.Sqlite
     ( SqlPersistT )
+import Database.Persist.Types
+    ( PersistValue (PersistText) )
 import System.Directory
     ( doesFileExist, listDirectory, removePathForcibly )
 import System.FilePath
@@ -175,6 +177,7 @@ import qualified Cardano.Wallet.Primitive.Model as W
 import qualified Cardano.Wallet.Primitive.Types as W
 import qualified Data.Map as Map
 import qualified Data.Text as T
+import qualified Database.Sqlite as Sqlite
 
 -- | Runs an action with a connection to the SQLite database.
 --
@@ -302,9 +305,50 @@ newDBLayer
        -- ^ Path to database file, or Nothing for in-memory database
     -> IO (SqliteContext, DBLayer IO s k)
 newDBLayer trace mDatabaseFile = do
+    let migrateManual conn = do
+            let report = traceWith trace . MsgManualMigrationStep
+            getCheckpointTableInfo <- Sqlite.prepare conn
+                "select sql from sqlite_master\
+                \   where type = 'table'      \
+                \     and name = 'checkpoint';"
+            row <- Sqlite.step getCheckpointTableInfo
+                >> Sqlite.columns getCheckpointTableInfo
+            Sqlite.finalize getCheckpointTableInfo
+            case row of
+                [PersistText t]
+                    | "active_slot_coeff" `T.isInfixOf` t ->
+                        report
+                            "Checkpoint table already contains all required \
+                            \fields: doing nothing."
+                    | otherwise -> do
+                        report
+                            "Checkpoint table is MISSING a required field: \
+                            \active_slot_coeff."
+
+                        report
+                            "Deleting all existing rows from checkpoint table."
+                        deleteRows <- Sqlite.prepare conn
+                            "delete from checkpoint;"
+                        _ <- Sqlite.step deleteRows
+                        Sqlite.finalize deleteRows
+
+                        report
+                            "Adding required field active_slot_coeff to \
+                            \checkpoint table."
+                        addColumn <- Sqlite.prepare conn
+                            "alter table checkpoint \
+                            \   add column active_slot_coeff double;"
+                        _ <- Sqlite.step addColumn
+                        Sqlite.finalize addColumn
+
+                        report
+                            "Finished preprocessing checkpoint table."
+                _ ->
+                    traceWith trace $ MsgManualMigrationStep
+                        "newDBLayer: Cannot find checkpoint table!"
     ctx@SqliteContext{runQuery} <-
         either throwIO pure =<<
-        startSqliteBackend migrateAll trace mDatabaseFile
+        startSqliteBackend migrateManual migrateAll trace mDatabaseFile
     return (ctx, DBLayer
 
         {-----------------------------------------------------------------------

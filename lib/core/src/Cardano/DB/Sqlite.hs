@@ -176,12 +176,13 @@ destroyDBLayer (SqliteContext {getSqlBackend, trace, dbFile}) = do
 -- | Opens the SQLite database connection, sets up query logging and timing,
 -- runs schema migrations if necessary.
 startSqliteBackend
-    :: Migration
+    :: (Sqlite.Connection -> IO ())
+    -> Migration
     -> Tracer IO DBLog
     -> Maybe FilePath
     -> IO (Either MigrationError SqliteContext)
-startSqliteBackend migrateAll trace fp = do
-    backend <- createSqliteBackend trace fp (queryLogFunc trace)
+startSqliteBackend migrateManual migrateAll trace fp = do
+    backend <- createSqliteBackend trace fp migrateManual (queryLogFunc trace)
     lock <- newMVar ()
     let traceRun = traceWith trace . MsgRun
     let observe :: IO a -> IO a
@@ -222,12 +223,14 @@ instance MatchMigrationError SqliteException where
 createSqliteBackend
     :: Tracer IO DBLog
     -> Maybe FilePath
+    -> (Sqlite.Connection -> IO ())
     -> LogFunc
     -> IO SqlBackend
-createSqliteBackend trace fp logFunc = do
+createSqliteBackend trace fp preop logFunc = do
     let connStr = sqliteConnStr fp
     traceWith trace $ MsgConnStr connStr
     conn <- Sqlite.open connStr
+    preop conn
     wrapConnectionInfo (mkSqliteConnectionInfo connStr) conn logFunc
 
 sqliteConnStr :: Maybe FilePath -> Text
@@ -244,6 +247,7 @@ data DBLog
     | MsgConnStr Text
     | MsgClosing (Maybe FilePath)
     | MsgDatabaseReset
+    | MsgManualMigrationStep Text
     deriving (Generic, Show, Eq, ToJSON)
 
 instance DefinePrivacyAnnotation DBLog
@@ -257,6 +261,7 @@ instance DefineSeverity DBLog where
         MsgConnStr _ -> Debug
         MsgClosing _ -> Debug
         MsgDatabaseReset -> Notice
+        MsgManualMigrationStep _ -> Notice
 
 instance ToText DBLog where
     toText msg = case msg of
@@ -274,6 +279,8 @@ instance ToText DBLog where
         MsgDatabaseReset ->
             "Non backward compatible database found. Removing old database \
             \and re-creating it from scratch. Ignore the previous error."
+        MsgManualMigrationStep t ->
+            "Manual migration step: " <> t
 
 {-------------------------------------------------------------------------------
                                Extra DB Helpers
