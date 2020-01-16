@@ -185,7 +185,7 @@ expectListItemFieldSatisfy :: (MonadIO m, MonadFail m, Show a) => Int -> Lens' s
 expectListSizeEqual :: (MonadIO m, MonadFail m, Foldable xs) => Int -> (Status, Either RequestException (xs a)) -> m ()
 
 -- | Expect a given response code on the response.
-expectResponseCode :: MonadIO m => Status -> (Status, a) -> m ()
+expectResponseCode :: (MonadIO m, Show a) => Status -> (Status, a) -> m ()
 
 -- | Expects wallet from the request to eventually reach the given state or
 --   beyond.
@@ -449,6 +449,7 @@ errMsg415OctetStream :: String
 errMsg500 :: String
 errMsg400NumberOfWords :: String
 errMsgNotInDictionary :: String
+errMsg403RejectedTip :: String
 
 module Test.Integration.Scenario.API.Addresses
 spec :: forall t n. n ~  'Testnet => SpecWith (Context t)
