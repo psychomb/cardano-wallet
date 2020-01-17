@@ -2385,6 +2385,7 @@ data RegistryLogMsg
 MsgDownloadStarted :: RegistryLogMsg
 MsgDownloadComplete :: Integer -> RegistryLogMsg
 MsgDownloadError :: FetchError -> RegistryLogMsg
+MsgCleanupDownload :: RegistryLogMsg
 MsgExtractFile :: FilePath -> RegistryLogMsg
 MsgExtractFileResult :: Maybe (Either String StakePoolMetadata) -> RegistryLogMsg
 MsgUsingCached :: FilePath -> UTCTime -> RegistryLogMsg
