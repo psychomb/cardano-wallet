@@ -138,6 +138,7 @@ Checkpoint
     checkpointTxMaxSize         Word16       sql=tx_max_size
     checkpointEpochStability    Word32       sql=epoch_stability
     checkpointActiveSlotCoeff   Double       sql=active_slot_coeff
+    checkpointWibble            Word32 Maybe sql=wibble
 
     Primary checkpointWalletId checkpointSlot
     Foreign Wallet checkpoint checkpointWalletId ! ON DELETE CASCADE

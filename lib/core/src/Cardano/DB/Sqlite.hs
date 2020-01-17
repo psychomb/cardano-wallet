@@ -205,6 +205,7 @@ startSqliteBackend migrateAll trace fp = do
         & fmap join
         :: IO (Either MigrationError [Text])
     traceWith trace $ MsgMigrations (fmap length migrations)
+    print migrations
     let ctx = SqliteContext backend runQuery fp trace
     case migrations of
         Left e -> do

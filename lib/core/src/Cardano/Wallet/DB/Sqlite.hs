@@ -313,6 +313,7 @@ newDBLayer trace mDatabaseFile = do
     ctx@SqliteContext{runQuery} <-
         either throwIO pure =<<
         startSqliteBackend migrateAll trace mDatabaseFile
+    _ <- error "let's just stop here."
     return (ctx, DBLayer
 
         {-----------------------------------------------------------------------
@@ -570,6 +571,7 @@ mkCheckpointEntity wid wal =
         , checkpointEpochStability = coerce (bp ^. #getEpochStability)
         , checkpointActiveSlotCoeff =
             W.unActiveSlotCoefficient (bp ^. #getActiveSlotCoefficient)
+        , checkpointWibble = Nothing
         }
     utxo =
         [ UTxO wid sl (TxId input) ix addr coin
@@ -605,6 +607,7 @@ checkpointFromEntity cp utxo s =
         txMaxSize
         epochStability
         activeSlotCoeff
+        _wibble
         ) = cp
     header = (W.BlockHeader slot (Quantity bh) headerHash parentHeaderHash)
     utxo' = W.UTxO . Map.fromList $
