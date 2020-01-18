@@ -3122,7 +3122,7 @@ data family Cursor target
 --   known list of headers, re-initializing the cursor.
 --   
 --   Exits with <a>Nothing</a> in case of error.
-follow :: forall target block e. Show e => NetworkLayer IO target block -> Trace IO Text -> [BlockHeader] -> (NonEmpty block -> BlockHeader -> IO (FollowAction e)) -> (block -> BlockHeader) -> IO (Maybe SlotId)
+follow :: forall target block e. Show e => NetworkLayer IO target block -> Tracer IO FollowLog -> [BlockHeader] -> (NonEmpty block -> BlockHeader -> IO (FollowAction e)) -> (block -> BlockHeader) -> IO (Maybe SlotId)
 
 -- | <tt>FollowAction</tt> enables the callback of <tt>follow</tt> to
 --   signal if the chain-following should <tt>ExitWith</tt>,
@@ -3174,6 +3174,13 @@ ErrPostTxProtocolFailure :: Text -> ErrPostTx
 data ErrGetAccountBalance
 ErrGetAccountBalanceNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetAccountBalance
 ErrGetAccountBalanceAccountNotFound :: ChimericAccount -> ErrGetAccountBalance
+data FollowLog
+MsgFollowAction :: FollowAction String -> FollowLog
+MsgFatalUnhandledException :: Text -> FollowLog
+MsgUnhandledException :: Text -> FollowLog
+MsgNextBlockFailed :: ErrGetBlock -> FollowLog
+MsgSynced :: FollowLog
+MsgApplyBlocks :: NonEmpty BlockHeader -> FollowLog
 
 -- | A default <tt>RetryPolicy</tt> with a delay that starts short, and
 --   that retries for no longer than a minute.
@@ -3182,6 +3189,9 @@ defaultRetryPolicy :: Monad m => RetryPolicyM m
 -- | Wait until 'networkTip networkLayer' succeeds according to a given
 --   retry policy. Throws an exception otherwise.
 waitForNetwork :: ExceptT ErrNetworkUnavailable IO () -> RetryPolicyM IO -> IO ()
+instance GHC.Classes.Eq Cardano.Wallet.Network.FollowLog
+instance GHC.Show.Show Cardano.Wallet.Network.FollowLog
+instance GHC.Base.Functor Cardano.Wallet.Network.FollowAction
 instance GHC.Show.Show err => GHC.Show.Show (Cardano.Wallet.Network.FollowAction err)
 instance GHC.Classes.Eq err => GHC.Classes.Eq (Cardano.Wallet.Network.FollowAction err)
 instance GHC.Show.Show Cardano.Wallet.Network.ErrGetAccountBalance
@@ -3199,6 +3209,9 @@ instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkTip
 instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkUnavailable
 instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkUnavailable
 instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkUnavailable
+instance Data.Text.Class.ToText Cardano.Wallet.Network.FollowLog
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Wallet.Network.FollowLog
+instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Wallet.Network.FollowLog
 instance GHC.Base.Functor m => GHC.Base.Functor (Cardano.Wallet.Network.NetworkLayer m target)
 instance GHC.Base.Functor (Cardano.Wallet.Network.NextBlocksResult target)
 instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrPostTx
@@ -5219,11 +5232,11 @@ shuffleWith :: RandomGen g => g -> [a] -> IO [a]
 --   </ul>
 module Cardano.Wallet
 data WalletLayer s t (k :: Depth -> * -> *)
-WalletLayer :: Trace IO Text -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBLayer IO s k -> WalletLayer s t
+WalletLayer :: Tracer IO WalletLog -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBLayer IO s k -> WalletLayer s t
 type HasDBLayer s k = HasType (DBLayer IO s k)
 dbLayer :: forall s k ctx. HasDBLayer s k ctx => Lens' ctx (DBLayer IO s k)
-type HasLogger = HasType (Trace IO Text)
-logger :: forall ctx. HasLogger ctx => Lens' ctx (Trace IO Text)
+type HasLogger msg = HasType (Tracer IO msg)
+logger :: forall msg ctx. HasLogger msg ctx => Lens' ctx (Tracer IO msg)
 
 -- | This module is only interested in one block-, and tx-type. This
 --   constraint hides that choice, for some ease of use.
@@ -5266,7 +5279,7 @@ deleteWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> ExceptT
 --   This function returns immediately, starting a worker thread in the
 --   background that will fetch and apply remaining blocks until the
 --   network tip is reached or until failure.
-restoreWallet :: forall ctx s t k. (HasLogger ctx, HasNetworkLayer t ctx, HasDBLayer s k ctx, HasGenesisData ctx) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
+restoreWallet :: forall ctx s t k. (HasLogger WalletLog ctx, HasNetworkLayer t ctx, HasDBLayer s k ctx, HasGenesisData ctx) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO ()
 
 -- | Update a wallet's metadata with the given update function.
 updateWallet :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> (WalletMetadata -> WalletMetadata) -> ExceptT ErrNoSuchWallet IO ()
@@ -5285,7 +5298,7 @@ fetchRewardBalance :: forall ctx s t k. (HasDBLayer s k ctx, HasNetworkLayer t c
 -- | Rewind the UTxO snapshots, transaction history and other information
 --   to a the earliest point in the past that is before or is the point of
 --   rollback.
-rollbackBlocks :: forall ctx s k. (HasLogger ctx, HasDBLayer s k ctx) => ctx -> WalletId -> SlotId -> ExceptT ErrNoSuchWallet IO ()
+rollbackBlocks :: forall ctx s k. (HasLogger WalletLog ctx, HasDBLayer s k ctx) => ctx -> WalletId -> SlotId -> ExceptT ErrNoSuchWallet IO ()
 
 -- | Forbidden operation was executed on an already existing wallet
 newtype ErrWalletAlreadyExists
@@ -5314,13 +5327,13 @@ ErrFetchRewardsNoSuchWallet :: ErrNoSuchWallet -> ErrFetchRewards
 listAddresses :: forall ctx s k n. (HasDBLayer s k ctx, IsOurs s Address, CompareDiscovery s, KnownAddresses s, MkKeyFingerprint k Address, DelegationAddress n k, HasRewardAccount s, k ~ RewardAccountKey s) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [(Address, AddressState)]
 
 -- | Makes a fully-resolved coin selection for the given set of payments.
-selectCoinsExternal :: forall ctx s t k e. (GenChange s, HasDBLayer s k ctx, HasLogger ctx, HasTransactionLayer t k ctx, IsOwned s k, NFData s, Show s, e ~ ErrValidateSelection t) => ctx -> WalletId -> ArgGenChange s -> NonEmpty TxOut -> ExceptT (ErrSelectCoinsExternal e) IO UnsignedTx
+selectCoinsExternal :: forall ctx s t k e. (GenChange s, HasDBLayer s k ctx, HasLogger WalletLog ctx, HasTransactionLayer t k ctx, IsOwned s k, NFData s, Show s, e ~ ErrValidateSelection t) => ctx -> WalletId -> ArgGenChange s -> NonEmpty TxOut -> ExceptT (ErrSelectCoinsExternal e) IO UnsignedTx
 
 -- | Prepare a transaction and automatically select inputs from the wallet
 --   to cover the requested outputs. Note that this only runs coin
 --   selection for the given outputs. In order to construct (and sign) an
 --   actual transaction, use <a>signPayment</a>.
-selectCoinsForPayment :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s k ctx, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrSelectForPayment e) IO CoinSelection
+selectCoinsForPayment :: forall ctx s t k e. (HasTransactionLayer t k ctx, HasLogger WalletLog ctx, HasDBLayer s k ctx, e ~ ErrValidateSelection t) => ctx -> WalletId -> NonEmpty TxOut -> ExceptT (ErrSelectForPayment e) IO CoinSelection
 
 -- | Produce witnesses and construct a transaction from a given selection.
 --   Requires the encryption passphrase in order to decrypt the root
@@ -5409,14 +5422,14 @@ ErrSelectForMigrationNoSuchWallet :: ErrNoSuchWallet -> ErrSelectForMigration
 ErrSelectForMigrationEmptyWallet :: WalletId -> ErrSelectForMigration
 
 -- | Helper function to factor necessary logic for joining a stake pool.
-joinStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger ctx, HasNetworkLayer t ctx, HasTransactionLayer t k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> (PoolId, [PoolId]) -> ArgGenChange s -> Passphrase "encryption" -> ExceptT ErrJoinStakePool IO (Tx, TxMeta, UTCTime)
+joinStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger WalletLog ctx, HasNetworkLayer t ctx, HasTransactionLayer t k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> (PoolId, [PoolId]) -> ArgGenChange s -> Passphrase "encryption" -> ExceptT ErrJoinStakePool IO (Tx, TxMeta, UTCTime)
 
 -- | Helper function to factor necessary logic for quitting a stake pool.
-quitStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger ctx, HasNetworkLayer t ctx, HasTransactionLayer t k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> PoolId -> ArgGenChange s -> Passphrase "encryption" -> ExceptT ErrQuitStakePool IO (Tx, TxMeta, UTCTime)
+quitStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger WalletLog ctx, HasNetworkLayer t ctx, HasTransactionLayer t k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> PoolId -> ArgGenChange s -> Passphrase "encryption" -> ExceptT ErrQuitStakePool IO (Tx, TxMeta, UTCTime)
 
 -- | Select necessary coins to cover for a single delegation request
 --   (including one certificate).
-selectCoinsForDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasLogger ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrSelectForDelegation IO CoinSelection
+selectCoinsForDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasLogger WalletLog ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrSelectForDelegation IO CoinSelection
 signDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> PoolId -> DelegationAction -> ExceptT ErrSignDelegation IO (Tx, TxMeta, UTCTime, SealedTx)
 data ErrJoinStakePool
 ErrJoinStakePoolNoSuchWallet :: ErrNoSuchWallet -> ErrJoinStakePool
@@ -5528,6 +5541,24 @@ ErrWithRootKeyWrongPassphrase :: WalletId -> ErrWrongPassphrase -> ErrWithRootKe
 -- | Indicate a failure when checking for a given <a>Passphrase</a> match
 data ErrWrongPassphrase
 ErrWrongPassphrase :: ErrWrongPassphrase
+data WalletLog
+MsgTryingRollback :: SlotId -> WalletLog
+MsgRolledBack :: SlotId -> WalletLog
+MsgFollow :: FollowLog -> WalletLog
+MsgDelegation :: SlotId -> DelegationCertificate -> WalletLog
+MsgCheckpoint :: BlockHeader -> WalletLog
+MsgWalletMetadata :: WalletMetadata -> WalletLog
+MsgSyncProgress :: SyncProgress -> WalletLog
+MsgDiscoveredTxs :: [(Tx, TxMeta)] -> WalletLog
+MsgDiscoveredTxsContent :: [(Tx, TxMeta)] -> WalletLog
+MsgTip :: BlockHeader -> WalletLog
+MsgBlocks :: NonEmpty Block -> WalletLog
+MsgDelegationCoinSelection :: CoinSelection -> WalletLog
+MsgPaymentCoinSelection :: CoinSelection -> WalletLog
+MsgPaymentCoinSelectionAdjusted :: CoinSelection -> WalletLog
+instance GHC.Generics.Generic (Cardano.Wallet.WalletLayer s t k)
+instance GHC.Classes.Eq Cardano.Wallet.WalletLog
+instance GHC.Show.Show Cardano.Wallet.WalletLog
 instance GHC.Show.Show Cardano.Wallet.ErrSelectForMigration
 instance GHC.Classes.Eq Cardano.Wallet.ErrSelectForMigration
 instance GHC.Show.Show Cardano.Wallet.ErrQuitStakePool
@@ -5560,7 +5591,9 @@ instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrSelectCoinsExternal
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrSelectCoinsExternal e)
 instance GHC.Classes.Eq e => GHC.Classes.Eq (Cardano.Wallet.ErrSelectForPayment e)
 instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrSelectForPayment e)
-instance GHC.Generics.Generic (Cardano.Wallet.WalletLayer s t k)
+instance Data.Text.Class.ToText Cardano.Wallet.WalletLog
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Wallet.WalletLog
+instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Wallet.WalletLog
 
 module Cardano.Wallet.Registry
 
@@ -5587,23 +5620,23 @@ remove :: Ord key => WorkerRegistry key resource -> key -> IO ()
 data Worker key resource
 
 -- | See <a>newWorker</a>
-data MkWorker key resource ctx
-MkWorker :: (WorkerCtx ctx -> key -> IO ()) -> (WorkerCtx ctx -> key -> IO ()) -> (Trace IO Text -> Either SomeException () -> IO ()) -> ((resource -> IO ()) -> IO ()) -> MkWorker key resource ctx
+data MkWorker key resource msg ctx
+MkWorker :: (WorkerCtx ctx -> key -> IO ()) -> (WorkerCtx ctx -> key -> IO ()) -> (Tracer IO (WorkerLog key msg) -> Either SomeException () -> IO ()) -> ((resource -> IO ()) -> IO ()) -> MkWorker key resource msg ctx
 
 -- | A task to execute before the main worker's task. When creating a
 --   worker, this task is guaranteed to have terminated once
 --   <a>newWorker</a> returns.
-[workerBefore] :: MkWorker key resource ctx -> WorkerCtx ctx -> key -> IO ()
+[workerBefore] :: MkWorker key resource msg ctx -> WorkerCtx ctx -> key -> IO ()
 
 -- | A task for the worker, possibly infinite
-[workerMain] :: MkWorker key resource ctx -> WorkerCtx ctx -> key -> IO ()
+[workerMain] :: MkWorker key resource msg ctx -> WorkerCtx ctx -> key -> IO ()
 
 -- | Action to run when the worker exits
-[workerAfter] :: MkWorker key resource ctx -> Trace IO Text -> Either SomeException () -> IO ()
+[workerAfter] :: MkWorker key resource msg ctx -> Tracer IO (WorkerLog key msg) -> Either SomeException () -> IO ()
 
 -- | A bracket-style factory to acquire a resource
-[workerAcquire] :: MkWorker key resource ctx -> (resource -> IO ()) -> IO ()
-defaultWorkerAfter :: Trace IO WorkerRegistryLog -> Either SomeException a -> IO ()
+[workerAcquire] :: MkWorker key resource msg ctx -> (resource -> IO ()) -> IO ()
+defaultWorkerAfter :: Tracer IO (WorkerLog key msg) -> Either SomeException a -> IO ()
 
 -- | Create a new worker for a given key. Workers maintain an acquired
 --   resource. They expect a task as argument and will terminate as soon as
@@ -5618,7 +5651,7 @@ defaultWorkerAfter :: Trace IO WorkerRegistryLog -> Either SomeException a -> IO
 --   &gt;&gt;&gt; newWorker ctx k withDBLayer restoreWallet
 --   worker&lt;thread#1234&gt;
 --   </pre>
-newWorker :: forall key resource ctx. (HasLogger ctx, HasWorkerCtx resource ctx, ToText key) => ctx -> key -> MkWorker key resource ctx -> IO (Maybe (Worker key resource))
+newWorker :: forall resource ctx key msg. (key ~ WorkerKey ctx, msg ~ WorkerMsg ctx, HasLogger (WorkerLog key msg) ctx, HasWorkerCtx resource ctx) => ctx -> key -> MkWorker key resource msg ctx -> IO (Maybe (Worker key resource))
 workerThread :: Worker key resource -> ThreadId
 workerId :: Worker key resource -> key
 workerResource :: Worker key resource -> resource
@@ -5626,30 +5659,22 @@ workerResource :: Worker key resource -> resource
 -- | A class to link an existing context to a worker context.
 class HasType resource (WorkerCtx ctx) => HasWorkerCtx resource ctx where {
     type family WorkerCtx ctx :: *;
+    type family WorkerMsg ctx :: *;
+    type family WorkerKey ctx :: *;
 }
-hoistResource :: HasWorkerCtx resource ctx => resource -> ctx -> WorkerCtx ctx
-
--- | A worker log event includes the key (i.e. wallet ID) as context.
-data WithWorkerKey key
-WithWorkerKey :: key -> Text -> WithWorkerKey key
-data WorkerRegistryLog
-MsgFinished :: WorkerRegistryLog
-MsgThreadKilled :: WorkerRegistryLog
-MsgUserInterrupt :: WorkerRegistryLog
-MsgUnhandledException :: Text -> WorkerRegistryLog
-
--- | Registry permits workers to log with Text only
-MsgFromWorker :: Text -> WorkerRegistryLog
-transformTrace :: ToText key => key -> Trace IO Text -> Trace IO Text
-instance GHC.Classes.Eq Cardano.Wallet.Registry.WorkerRegistryLog
-instance GHC.Show.Show Cardano.Wallet.Registry.WorkerRegistryLog
-instance GHC.Show.Show key => GHC.Show.Show (Cardano.Wallet.Registry.WithWorkerKey key)
-instance GHC.Classes.Eq key => GHC.Classes.Eq (Cardano.Wallet.Registry.WithWorkerKey key)
+hoistResource :: HasWorkerCtx resource ctx => resource -> (WorkerMsg ctx -> WorkerLog (WorkerKey ctx) (WorkerMsg ctx)) -> ctx -> WorkerCtx ctx
+data WorkerLog key msg
+MsgFinished :: WorkerLog key msg
+MsgThreadKilled :: WorkerLog key msg
+MsgUserInterrupt :: WorkerLog key msg
+MsgUnhandledException :: Text -> WorkerLog key msg
+MsgFromWorker :: key -> msg -> WorkerLog key msg
+instance (GHC.Classes.Eq key, GHC.Classes.Eq msg) => GHC.Classes.Eq (Cardano.Wallet.Registry.WorkerLog key msg)
+instance (GHC.Show.Show key, GHC.Show.Show msg) => GHC.Show.Show (Cardano.Wallet.Registry.WorkerLog key msg)
 instance GHC.Generics.Generic (Cardano.Wallet.Registry.Worker key resource)
-instance Data.Text.Class.ToText Cardano.Wallet.Registry.WorkerRegistryLog
-instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Wallet.Registry.WorkerRegistryLog
-instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Wallet.Registry.WorkerRegistryLog
-instance Data.Text.Class.ToText key => Data.Text.Class.ToText (Cardano.Wallet.Registry.WithWorkerKey key)
+instance (Data.Text.Class.ToText key, Data.Text.Class.ToText msg) => Data.Text.Class.ToText (Cardano.Wallet.Registry.WorkerLog key msg)
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation (Cardano.Wallet.Registry.WorkerLog key msg)
+instance Cardano.BM.Data.Tracer.DefineSeverity msg => Cardano.BM.Data.Tracer.DefineSeverity (Cardano.Wallet.Registry.WorkerLog key msg)
 
 module Cardano.Wallet.Api
 type Api n = Wallets :<|> Addresses n :<|> CoinSelections n :<|> Transactions n :<|> StakePools n :<|> ByronWallets :<|> ByronTransactions n :<|> ByronMigrations n :<|> Network :<|> Proxy_
@@ -5776,8 +5801,8 @@ type Proxy_ = PostExternalTransaction
 --   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/postExternalTransaction</a>
 type PostExternalTransaction = "proxy" :> "transactions" :> ReqBody '[OctetStream] PostExternalTransactionData :> PostAccepted '[JSON] ApiTxId
 data ApiLayer s t (k :: Depth -> * -> *)
-ApiLayer :: Trace IO Text -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> WorkerRegistry WalletId (DBLayer IO s k) -> ApiLayer s t
-type HasWorkerRegistry s k ctx = (HasType (WorkerRegistry WalletId (DBLayer IO s k)) ctx, HasWorkerCtx (DBLayer IO s k) ctx)
+ApiLayer :: Tracer IO (WorkerLog WalletId WalletLog) -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> WorkerRegistry WalletId (DBLayer IO s k) -> ApiLayer s t
+type HasWorkerRegistry s k ctx = (HasType (WorkerRegistry WalletId (DBLayer IO s k)) ctx, HasWorkerCtx (DBLayer IO s k) ctx, WorkerKey ctx ~ WalletId, WorkerMsg ctx ~ WalletLog)
 workerRegistry :: forall s k ctx. HasWorkerRegistry s k ctx => Lens' ctx (WorkerRegistry WalletId (DBLayer IO s k))
 type HasDBFactory s k = HasType (DBFactory IO s k)
 dbFactory :: forall s k ctx. HasDBFactory s k ctx => Lens' ctx (DBFactory IO s k)
@@ -5943,7 +5968,7 @@ StakePoolLayer :: ExceptT ErrListStakePools m [(StakePool, Maybe StakePoolMetada
 --   Jörmungandr or any registry. This list comes from the registration
 --   certificates that have been seen on chain.
 [$sel:knownStakePools:StakePoolLayer] :: StakePoolLayer m -> m [PoolId]
-newStakePoolLayer :: Tracer IO StakePoolLayerLog -> DBLayer IO -> NetworkLayer IO t Block -> FilePath -> StakePoolLayer IO
+newStakePoolLayer :: Tracer IO StakePoolLog -> DBLayer IO -> NetworkLayer IO t Block -> FilePath -> StakePoolLayer IO
 data ErrListStakePools
 ErrMetricsIsUnsynced :: Quantity "percent" Percentage -> ErrListStakePools
 ErrListStakePoolsMetricsInconsistency :: ErrMetricsInconsistency -> ErrListStakePools
@@ -5955,7 +5980,7 @@ ErrListStakePoolsErrNetworkTip :: ErrNetworkTip -> ErrListStakePools
 --   
 --   The pool productions and stake distrubtions in the db can <i>never</i>
 --   be from different forks such that it's safe for readers to access it.
-monitorStakePools :: Tracer IO StakePoolMonitorLog -> NetworkLayer IO t Block -> DBLayer IO -> IO ()
+monitorStakePools :: Tracer IO StakePoolLog -> NetworkLayer IO t Block -> DBLayer IO -> IO ()
 
 -- | Possible errors returned by <a>combineMetrics</a>.
 newtype ErrMetricsInconsistency
@@ -6023,30 +6048,24 @@ calculatePerformance :: ActiveSlotCoefficient -> Int -> Map PoolId (Quantity "lo
 --   <a>PoolId</a>.
 --   
 --   It also provides a log message for each association.
-associateMetadata :: [(PoolId, [PoolOwner])] -> [(PoolOwner, Maybe StakePoolMetadata)] -> [(StakePoolLayerLog, Maybe StakePoolMetadata)]
-
--- | Messages associated with stake pool monitoring
-data StakePoolMonitorLog
-MsgStartMonitoring :: [BlockHeader] -> StakePoolMonitorLog
-MsgFollow :: Text -> StakePoolMonitorLog
-MsgStakeDistribution :: EpochNo -> StakePoolMonitorLog
-MsgStakePoolRegistration :: PoolRegistrationCertificate -> StakePoolMonitorLog
-MsgApplyError :: ErrMonitorStakePools -> StakePoolMonitorLog
+associateMetadata :: [(PoolId, [PoolOwner])] -> [(PoolOwner, Maybe StakePoolMetadata)] -> [(StakePoolLog, Maybe StakePoolMetadata)]
 
 -- | Messages associated with stake pool layer.
-data StakePoolLayerLog
-MsgRegistry :: RegistryLog -> StakePoolLayerLog
-MsgStakePoolWorker :: WorkerRegistryLog -> StakePoolLayerLog
-MsgListStakePoolsBegin :: StakePoolLayerLog
-MsgMetadataUnavailable :: StakePoolLayerLog
-MsgMetadataUsing :: PoolId -> PoolOwner -> StakePoolMetadata -> StakePoolLayerLog
-MsgMetadataMissing :: PoolId -> StakePoolLayerLog
-MsgMetadataMultiple :: PoolId -> [(PoolOwner, StakePoolMetadata)] -> StakePoolLayerLog
-MsgComputedProgress :: BlockHeader -> BlockHeader -> StakePoolLayerLog
-instance GHC.Classes.Eq Cardano.Pool.Metrics.StakePoolMonitorLog
-instance GHC.Show.Show Cardano.Pool.Metrics.StakePoolMonitorLog
-instance GHC.Classes.Eq Cardano.Pool.Metrics.StakePoolLayerLog
-instance GHC.Show.Show Cardano.Pool.Metrics.StakePoolLayerLog
+data StakePoolLog
+MsgRegistry :: RegistryLog -> StakePoolLog
+MsgListStakePoolsBegin :: StakePoolLog
+MsgMetadataUnavailable :: StakePoolLog
+MsgMetadataUsing :: PoolId -> PoolOwner -> StakePoolMetadata -> StakePoolLog
+MsgMetadataMissing :: PoolId -> StakePoolLog
+MsgMetadataMultiple :: PoolId -> [(PoolOwner, StakePoolMetadata)] -> StakePoolLog
+MsgComputedProgress :: BlockHeader -> BlockHeader -> StakePoolLog
+MsgStartMonitoring :: [BlockHeader] -> StakePoolLog
+MsgFollow :: FollowLog -> StakePoolLog
+MsgStakeDistribution :: EpochNo -> StakePoolLog
+MsgStakePoolRegistration :: PoolRegistrationCertificate -> StakePoolLog
+MsgApplyError :: ErrMonitorStakePools -> StakePoolLog
+instance GHC.Classes.Eq Cardano.Pool.Metrics.StakePoolLog
+instance GHC.Show.Show Cardano.Pool.Metrics.StakePoolLog
 instance GHC.Show.Show Cardano.Pool.Metrics.ErrListStakePools
 instance GHC.Classes.Eq Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance GHC.Show.Show Cardano.Pool.Metrics.ErrMetricsInconsistency
@@ -6057,12 +6076,9 @@ instance GHC.Show.Show Cardano.Pool.Metrics.StakePool
 instance GHC.Generics.Generic Cardano.Pool.Metrics.Block
 instance GHC.Show.Show Cardano.Pool.Metrics.Block
 instance GHC.Classes.Eq Cardano.Pool.Metrics.Block
-instance Data.Text.Class.ToText Cardano.Pool.Metrics.StakePoolMonitorLog
-instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Pool.Metrics.StakePoolMonitorLog
-instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Pool.Metrics.StakePoolMonitorLog
-instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Pool.Metrics.StakePoolLayerLog
-instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Pool.Metrics.StakePoolLayerLog
-instance Data.Text.Class.ToText Cardano.Pool.Metrics.StakePoolLayerLog
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Pool.Metrics.StakePoolLog
+instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Pool.Metrics.StakePoolLog
+instance Data.Text.Class.ToText Cardano.Pool.Metrics.StakePoolLog
 
 module Network.Wai.Middleware.Logging
 
@@ -6171,7 +6187,7 @@ data HostPreference
 start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DecodeAddress n, EncodeAddress n, DelegationAddress n ShelleyKey) => Settings -> Tracer IO ApiLog -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState  'Mainnet IcarusKey) t IcarusKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
 
 -- | Create a new instance of the wallet layer.
-newApiLayer :: forall ctx s t k. ctx ~ ApiLayer s t k => Tracer IO WorkerRegistryLog -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> [WalletId] -> IO ctx
+newApiLayer :: forall ctx s t k. ctx ~ ApiLayer s t k => Tracer IO (WorkerLog WalletId WalletLog) -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> [WalletId] -> IO ctx
 
 -- | Run an action with a TCP socket bound to a port specified by the
 --   <a>Listen</a> parameter.
