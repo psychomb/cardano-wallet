@@ -236,14 +236,8 @@ ClientError :: Value -> RequestException
 
 -- | A wild exception upon sending the request
 HttpException :: HttpExceptionContent -> RequestException
-addressPoolGap :: HasType (ApiT AddressPoolGap) s => Lens' s Int
 amount :: HasType (Quantity "lovelace" Natural) s => Lens' s Natural
 apparentPerformance :: HasType Double s => Lens' s Double
-byronBalanceAvailable :: HasType ApiByronWalletBalance s => Lens' s Natural
-balanceAvailable :: HasType (ApiT WalletBalance) s => Lens' s Natural
-byronBalanceTotal :: HasType ApiByronWalletBalance s => Lens' s Natural
-balanceTotal :: HasType (ApiT WalletBalance) s => Lens' s Natural
-balanceReward :: HasType (ApiT WalletBalance) s => Lens' s Natural
 blocks :: HasField' "producedBlocks" s (Quantity "block" Natural) => Lens' s Natural
 coinSelectionInputs :: forall s n a. (s ~ ApiCoinSelection n, a ~ ApiCoinSelectionInput n, HasType (NonEmpty a) s) => Lens' s [a]
 coinSelectionOutputs :: forall s n a. (s ~ ApiCoinSelection n, a ~ AddressAmount n, HasType (NonEmpty a) s) => Lens' s [a]
@@ -256,7 +250,6 @@ nextEpoch :: HasType ApiEpochInfo s => Lens' s ApiEpochInfo
 outputs :: forall s t a. (a ~ AddressAmount t, HasType (NonEmpty a) s) => Lens' s [a]
 passphraseLastUpdate :: forall s i. (i ~ WalletPassphraseInfo, HasType (Maybe (ApiT i)) s) => Lens' s (Maybe Text)
 stake :: HasField' "controlledStake" s (Quantity "lovelace" Natural) => Lens' s Natural
-state :: HasField' "state" s (ApiT t) => Lens' s t
 status :: HasType (ApiT TxStatus) s => Lens' s TxStatus
 syncProgress :: HasType (ApiT SyncProgress) s => Lens' s SyncProgress
 walletId :: HasType (ApiT WalletId) s => Lens' s Text
@@ -408,12 +401,8 @@ kanjiWalletName :: Text
 polishWalletName :: Text
 russianWalletName :: Text
 wildcardsWalletName :: Text
-addressPoolGapMax :: Int
-addressPoolGapMin :: Int
 cmdOk :: String
 versionLine :: Text
-passphraseMaxLength :: Int
-passphraseMinLength :: Int
 payloadWith :: Text -> [Text] -> Payload
 simplePayload :: Payload
 updateNamePayload :: Text -> Payload
