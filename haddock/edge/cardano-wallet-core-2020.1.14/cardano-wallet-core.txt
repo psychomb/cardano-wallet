@@ -28,21 +28,6 @@ SqliteContext :: SqlBackend -> (forall a. SqlPersistT IO a -> IO a) -> Maybe Fil
 -- | A <a>Tracer</a> for logging
 [$sel:trace:SqliteContext] :: SqliteContext -> Tracer IO DBLog
 
--- | Error type for when migrations go wrong after opening a database.
-newtype MigrationError
-MigrationError :: Text -> MigrationError
-[$sel:getMigrationErrorMessage:MigrationError] :: MigrationError -> Text
-data DBLog
-MsgMigrations :: Either MigrationError Int -> DBLog
-MsgQuery :: Text -> Severity -> DBLog
-MsgRun :: Bool -> DBLog
-MsgConnStr :: Text -> DBLog
-MsgClosing :: Maybe FilePath -> DBLog
-MsgDatabaseReset :: DBLog
-MsgIsAlreadyClosed :: Text -> DBLog
-MsgStatementAlreadyFinalized :: Text -> DBLog
-MsgRemoving :: Text -> DBLog
-
 -- | Size of chunks when inserting, updating or deleting many rows at once.
 --   We only act on <a>chunkSize</a> values at a time. See also
 --   <a>dbChunked</a>.
@@ -74,12 +59,40 @@ handleConstraint :: MonadCatch m => e -> m a -> m (Either e a)
 
 -- | Opens the SQLite database connection, sets up query logging and
 --   timing, runs schema migrations if necessary.
-startSqliteBackend :: Migration -> Tracer IO DBLog -> Maybe FilePath -> IO (Either MigrationError SqliteContext)
+startSqliteBackend :: ManualMigration -> Migration -> Tracer IO DBLog -> Maybe FilePath -> IO (Either MigrationError SqliteContext)
 
 -- | Run a raw query from the outside using an instantiate DB layer. This
 --   is completely unsafe because it breaks the abstraction boundary and
 --   can have disastrous results on the database consistency.
 unsafeRunQuery :: SqliteContext -> SqlPersistT IO a -> IO a
+
+-- | Encapsulates a manual migration action (or sequence of actions) to be
+--   performed immediately after an SQL connection is initiated.
+newtype ManualMigration
+ManualMigration :: (Connection -> IO ()) -> ManualMigration
+[$sel:executeManualMigration:ManualMigration] :: ManualMigration -> Connection -> IO ()
+
+-- | Error type for when migrations go wrong after opening a database.
+newtype MigrationError
+MigrationError :: Text -> MigrationError
+[$sel:getMigrationErrorMessage:MigrationError] :: MigrationError -> Text
+data DBField
+[DBField] :: forall record typ. PersistEntity record => EntityField record typ -> DBField
+tableName :: DBField -> Text
+fieldName :: DBField -> Text
+fieldType :: DBField -> Text
+data DBLog
+MsgMigrations :: Either MigrationError Int -> DBLog
+MsgQuery :: Text -> Severity -> DBLog
+MsgRun :: Bool -> DBLog
+MsgConnStr :: Text -> DBLog
+MsgClosing :: Maybe FilePath -> DBLog
+MsgDatabaseReset :: DBLog
+MsgIsAlreadyClosed :: Text -> DBLog
+MsgStatementAlreadyFinalized :: Text -> DBLog
+MsgRemoving :: Text -> DBLog
+MsgManualMigrationNeeded :: DBField -> Text -> DBLog
+MsgManualMigrationNotNeeded :: DBField -> DBLog
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.DB.Sqlite.DBLog
 instance GHC.Classes.Eq Cardano.DB.Sqlite.DBLog
 instance GHC.Show.Show Cardano.DB.Sqlite.DBLog
@@ -91,6 +104,9 @@ instance GHC.Show.Show Cardano.DB.Sqlite.MigrationError
 instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.DB.Sqlite.DBLog
 instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.DB.Sqlite.DBLog
 instance Data.Text.Class.ToText Cardano.DB.Sqlite.DBLog
+instance GHC.Show.Show Cardano.DB.Sqlite.DBField
+instance GHC.Classes.Eq Cardano.DB.Sqlite.DBField
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.DB.Sqlite.DBField
 instance Cardano.DB.Sqlite.MatchMigrationError Database.Persist.Types.Base.PersistException
 instance Cardano.DB.Sqlite.MatchMigrationError Database.Sqlite.SqliteException
 instance GHC.Exception.Type.Exception Cardano.DB.Sqlite.MigrationError
@@ -4524,10 +4540,10 @@ module Cardano.Wallet.DB.Sqlite
 --   implementation. The database should be closed with
 --   <a>destroyDBLayer</a>. If you use <a>withDBLayer</a> then both of
 --   these things will be handled for you.
-newDBLayer :: forall s k. (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK)) => Tracer IO DBLog -> Maybe FilePath -> IO (SqliteContext, DBLayer IO s k)
+newDBLayer :: forall s k. (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK)) => Tracer IO DBLog -> DefaultFieldValues -> Maybe FilePath -> IO (SqliteContext, DBLayer IO s k)
 
 -- | Instantiate a <a>DBFactory</a> from a given directory
-newDBFactory :: forall s k. (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK), WalletKey k) => Tracer IO DBLog -> Maybe FilePath -> IO (DBFactory IO s k)
+newDBFactory :: forall s k. (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK), WalletKey k) => Tracer IO DBLog -> DefaultFieldValues -> Maybe FilePath -> IO (DBFactory IO s k)
 
 -- | Return all wallet databases that match the specified key type within
 --   the specified directory.
@@ -4539,7 +4555,7 @@ findDatabases :: forall k. WalletKey k => Tracer IO DatabasesStartupLog -> FileP
 --   
 --   If the given file path does not exist, it will be created by the
 --   sqlite library.
-withDBLayer :: forall s k a. (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK)) => Tracer IO DBLog -> Maybe FilePath -> ((SqliteContext, DBLayer IO s k) -> IO a) -> IO a
+withDBLayer :: forall s k a. (IsOurs s Address, IsOurs s ChimericAccount, NFData s, Show s, PersistState s, PersistPrivateKey (k  'RootK)) => Tracer IO DBLog -> DefaultFieldValues -> Maybe FilePath -> ((SqliteContext, DBLayer IO s k) -> IO a) -> IO a
 
 -- | Functions for saving/loading the wallet's address discovery state into
 --   SQLite.
@@ -4550,6 +4566,12 @@ insertState :: PersistState s => (WalletId, SlotId) -> s -> SqlPersistT IO ()
 
 -- | Load the state for a checkpoint.
 selectState :: PersistState s => (WalletId, SlotId) -> SqlPersistT IO (Maybe s)
+
+-- | A set of default field values that can be consulted when performing a
+--   database migration.
+newtype DefaultFieldValues
+DefaultFieldValues :: ActiveSlotCoefficient -> DefaultFieldValues
+[$sel:defaultActiveSlotCoefficient:DefaultFieldValues] :: DefaultFieldValues -> ActiveSlotCoefficient
 
 -- | Log messages arising from accessing the wallet repository.
 data DatabasesStartupLog
