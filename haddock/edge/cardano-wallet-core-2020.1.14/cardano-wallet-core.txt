@@ -5322,6 +5322,9 @@ fetchRewardBalance :: forall ctx s t k. (HasDBLayer s k ctx, HasNetworkLayer t c
 --   rollback.
 rollbackBlocks :: forall ctx s k. (HasLogger WalletLog ctx, HasDBLayer s k ctx) => ctx -> WalletId -> SlotId -> ExceptT ErrNoSuchWallet IO ()
 
+-- | Check whether a wallet is in good shape when restarting a worker.
+checkWalletIntegrity :: forall ctx s k. HasDBLayer s k ctx => ctx -> WalletId -> BlockchainParameters -> ExceptT ErrCheckWalletIntegrity IO ()
+
 -- | Forbidden operation was executed on an already existing wallet
 newtype ErrWalletAlreadyExists
 ErrWalletAlreadyExists :: WalletId -> ErrWalletAlreadyExists
@@ -5343,6 +5346,9 @@ ErrUpdatePassphraseWithRootKey :: ErrWithRootKey -> ErrUpdatePassphrase
 data ErrFetchRewards
 ErrFetchRewardsNetworkUnreachable :: ErrNetworkUnavailable -> ErrFetchRewards
 ErrFetchRewardsNoSuchWallet :: ErrNoSuchWallet -> ErrFetchRewards
+data ErrCheckWalletIntegrity
+ErrCheckWalletIntegrityNoSuchWallet :: ErrNoSuchWallet -> ErrCheckWalletIntegrity
+ErrCheckIntegrityDifferentGenesis :: Hash "Genesis" -> Hash "Genesis" -> ErrCheckWalletIntegrity
 
 -- | List all addresses of a wallet with their metadata. Addresses are
 --   ordered from the most-recently-discovered to the oldest known.
@@ -5581,6 +5587,8 @@ MsgPaymentCoinSelectionAdjusted :: CoinSelection -> WalletLog
 instance GHC.Generics.Generic (Cardano.Wallet.WalletLayer s t k)
 instance GHC.Classes.Eq Cardano.Wallet.WalletLog
 instance GHC.Show.Show Cardano.Wallet.WalletLog
+instance GHC.Show.Show Cardano.Wallet.ErrCheckWalletIntegrity
+instance GHC.Classes.Eq Cardano.Wallet.ErrCheckWalletIntegrity
 instance GHC.Show.Show Cardano.Wallet.ErrSelectForMigration
 instance GHC.Classes.Eq Cardano.Wallet.ErrSelectForMigration
 instance GHC.Show.Show Cardano.Wallet.ErrQuitStakePool
@@ -5616,6 +5624,7 @@ instance GHC.Show.Show e => GHC.Show.Show (Cardano.Wallet.ErrSelectForPayment e)
 instance Data.Text.Class.ToText Cardano.Wallet.WalletLog
 instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Wallet.WalletLog
 instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Wallet.WalletLog
+instance GHC.Exception.Type.Exception Cardano.Wallet.ErrCheckWalletIntegrity
 
 module Cardano.Wallet.Registry
 
