@@ -4280,6 +4280,48 @@ instance GHC.Show.Show Cardano.Pool.DB.ErrPointAlreadyExists
 instance GHC.Classes.Eq Cardano.Pool.DB.ErrPointAlreadyExists
 
 
+-- | This module defines necessary bits to compute an averaged apparent
+--   performance for stake pools. The definition is inspired from the
+--   "Design Specification for Delegation and Incentives in Cardano" by
+--   Kant et Al, yet deviates slightly from it because of different real
+--   constraints:
+--   
+--   a) The wallet software doesn't have a reliable access to various epoch
+--   details such as the stake distribution for past epochs.
+--   
+--   b) The wallet software makes therefore a significant use of the
+--   current epoch's data which represents unfinished snapshots of epochs
+--   which, because of their non-deterministic nature, may favor leaders
+--   elected early in the process more than those not yet elected.
+--   
+--   To cope with these two issues, we try to harmonize past known epochs
+--   with the ongoing one by averaging over a whole range of epochs,
+--   simultaneously. This means computing a ratio of the total blocks
+--   produced by a leader on the total number of blocks we could reasonably
+--   expect a leader to have produced, across many epochs at once (i.e.,
+--   doing a ratio of sums, instead of a sum of ratios).
+--   
+--   This should be less punitive for leaders that have not yet been
+--   elected as part of the ongoing epoch while having still performed
+--   reasonably okay in the past.
+module Cardano.Pool.Performance
+data EpochStats
+EpochStats :: !Natural -> !Natural -> !Natural -> !Natural -> EpochStats
+[poolProduction] :: EpochStats -> !Natural
+[poolStake] :: EpochStats -> !Natural
+[totalStake] :: EpochStats -> !Natural
+[totalProduction] :: EpochStats -> !Natural
+apparentPerformance :: [EpochStats] -> Double
+
+-- | Read pool performances of many epochs from the database
+readPoolsPerformances :: Monad m => DBLayer m -> EpochNo -> m (Map PoolId Double)
+
+-- | Count elements inside a <a>Map</a>
+count :: Map k [a] -> Map k (Quantity any Word64)
+instance GHC.Show.Show Cardano.Pool.Performance.EpochStats
+instance GHC.Generics.Generic Cardano.Pool.Performance.EpochStats
+
+
 -- | An implementation of the DBLayer which uses Persistent and SQLite.
 module Cardano.Pool.DB.Sqlite
 
@@ -5992,7 +6034,7 @@ StakePool :: PoolId -> Quantity "lovelace" Word64 -> Quantity "block" Word64 -> 
 [$sel:poolId:StakePool] :: StakePool -> PoolId
 [$sel:stake:StakePool] :: StakePool -> Quantity "lovelace" Word64
 [$sel:production:StakePool] :: StakePool -> Quantity "block" Word64
-[$sel:apparentPerformance:StakePool] :: StakePool -> Double
+[$sel:performance:StakePool] :: StakePool -> Double
 [$sel:cost:StakePool] :: StakePool -> Quantity "lovelace" Word64
 [$sel:margin:StakePool] :: StakePool -> Percentage
 
@@ -6056,24 +6098,6 @@ ErrProducerNotInDistribution :: PoolId -> ErrMetricsInconsistency
 --   If a pool is in (1+2) but not in (3), it simply means it has produced
 --   0 blocks so far.
 combineMetrics :: Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Word64) -> Map PoolId Double -> Either ErrMetricsInconsistency (Map PoolId (Quantity "lovelace" Word64, Quantity "block" Word64, Double))
-
--- | Calculate pool apparent performance over the given data. The
---   performance is a <a>Double</a> between 0 and 1 as:
---   
---   <pre>
---     p = n <i> (f * N) * S </i> s
---   where
---     n = number of blocks produced in an epoch e
---     N = number of slots in e
---     f = active slot coeff, i.e. % of slots for which a leader can be elected.
---     s = stake owned by the pool in e
---     S = total stake delegated to pools in e
---   </pre>
---   
---   Note that, this apparent performance is clamped to [0,1] as it may in
---   practice, be greater than 1 if a stake pool produces more than it is
---   expected.
-calculatePerformance :: ActiveSlotCoefficient -> Int -> Map PoolId (Quantity "lovelace" Word64) -> Map PoolId (Quantity "block" Word64) -> Map PoolId Double
 
 -- | Given a mapping from <a>PoolId</a> -&gt; <a>PoolOwner</a> and a
 --   mapping between <a>PoolOwner</a> <a>-</a> <a>StakePoolMetadata</a>,
