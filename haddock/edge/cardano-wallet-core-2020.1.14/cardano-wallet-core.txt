@@ -6126,6 +6126,7 @@ MsgStartMonitoring :: [BlockHeader] -> StakePoolLog
 MsgFollow :: FollowLog -> StakePoolLog
 MsgStakeDistribution :: EpochNo -> StakePoolLog
 MsgStakePoolRegistration :: PoolRegistrationCertificate -> StakePoolLog
+MsgRollingBackTo :: SlotId -> StakePoolLog
 MsgApplyError :: ErrMonitorStakePools -> StakePoolLog
 instance GHC.Classes.Eq Cardano.Pool.Metrics.StakePoolLog
 instance GHC.Show.Show Cardano.Pool.Metrics.StakePoolLog
