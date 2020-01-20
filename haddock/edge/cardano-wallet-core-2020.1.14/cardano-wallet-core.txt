@@ -241,6 +241,9 @@ logTrace :: (MonadIO m, DefinePrivacyAnnotation a, DefineSeverity a) => Trace m 
 -- | Strips out the data that <a>trMessage</a> (or
 --   "Cardano.BM.Data.Tracer.toLogObject") adds.
 fromLogObject :: Show a => Tracer IO a -> Tracer IO (LogObject a)
+
+-- | Tracer transformer which converts 'Trace m a' to 'Tracer m a' by
+--   wrapping typed log messages into a <a>LogObject</a>.
 trMessage :: (MonadIO m, DefinePrivacyAnnotation a, DefineSeverity a) => Tracer m (LogObject a) -> Tracer m a
 
 -- | Tracer transformer which transforms traced items to their
@@ -252,6 +255,11 @@ trMessageText :: (MonadIO m, ToText a, DefinePrivacyAnnotation a, DefineSeverity
 -- | Tracer transformer which removes tracing below the qgiven severity
 --   limit.
 filterTraceSeverity :: forall m a. Monad m => Severity -> Trace m a -> Trace m a
+
+-- | Creates a tracer that prints any <a>ToText</a> log message. This is
+--   useful for debugging functions in the REPL, when you need a
+--   <a>Tracer</a> object.
+stdoutTextTracer :: (MonadIO m, ToText a) => Tracer m a
 instance (Control.Monad.IO.Class.MonadIO m, Data.Text.Class.ToText a, Cardano.BM.Data.Tracer.DefinePrivacyAnnotation a, Cardano.BM.Data.Tracer.DefineSeverity a) => Cardano.BM.Data.Tracer.Transformable Data.Text.Internal.Text m a
 
 
@@ -6286,6 +6294,31 @@ version :: Version
 --   Alternatively, the git revision of the <tt>cardano-wallet</tt> binary
 --   can be updated post-build using "Data.FileEmbed.injectWith".
 gitRevision :: GitRevision
+data GitRevision
+
+-- | A <a>Version</a> represents the version of a software entity.
+--   
+--   An instance of <a>Eq</a> is provided, which implements exact equality
+--   modulo reordering of the tags in the <a>versionTags</a> field.
+--   
+--   An instance of <a>Ord</a> is also provided, which gives lexicographic
+--   ordering on the <a>versionBranch</a> fields (i.e. 2.1 &gt; 2.0, 1.2.3
+--   &gt; 1.2.2, etc.). This is expected to be sufficient for many uses,
+--   but note that you may need to use a more specific ordering for your
+--   versioning scheme. For example, some versioning schemes may include
+--   pre-releases which have tags <tt>"pre1"</tt>, <tt>"pre2"</tt>, and so
+--   on, and these would need to be taken into account when determining
+--   ordering. In some cases, date ordering may be more appropriate, so the
+--   application would have to look for <tt>date</tt> tags in the
+--   <a>versionTags</a> field and compare those. The bottom line is, don't
+--   always assume that <a>compare</a> and other <a>Ord</a> operations are
+--   the right thing for every <a>Version</a>.
+--   
+--   Similarly, concrete representations of versions may differ. One
+--   possible concrete representation is provided (see <a>showVersion</a>
+--   and <a>parseVersion</a>), but depending on the application a different
+--   concrete representation may be more appropriate.
+data Version
 
 -- | Provides one possible concrete representation for <a>Version</a>. For
 --   a version with <a>versionBranch</a> <tt>= [1,2,3]</tt> and
@@ -6295,3 +6328,5 @@ showVersion :: Version -> String
 
 -- | Like <a>showVersion</a>, but also show the git revision.
 showFullVersion :: Version -> GitRevision -> String
+instance GHC.Classes.Eq Cardano.Wallet.Version.GitRevision
+instance GHC.Show.Show Cardano.Wallet.Version.GitRevision

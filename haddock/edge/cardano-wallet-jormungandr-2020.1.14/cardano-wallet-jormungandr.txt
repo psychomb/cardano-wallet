@@ -628,6 +628,7 @@ instance Data.Text.Class.ToText Cardano.Wallet.Jormungandr.Network.NetworkLayerL
 instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Wallet.Jormungandr.Network.NetworkLayerLog
 instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Wallet.Jormungandr.Network.NetworkLayerLog
 instance GHC.Exception.Type.Exception Cardano.Wallet.Jormungandr.Network.ErrStartup
+instance Data.Text.Class.ToText Cardano.Wallet.Jormungandr.Network.JormungandrBackend
 
 module Cardano.Wallet.Jormungandr.Transaction
 
@@ -703,9 +704,20 @@ setupTracers :: TracerSeverities -> Trace IO Text -> Tracers IO
 -- | Construct a <a>TracerSeverities</a> record with all tracers set to the
 --   given severity.
 tracerSeverities :: Maybe Severity -> TracerSeverities
+
+-- | Log messages related to application startup and shutdown.
+data ApplicationLog
+MsgStarting :: JormungandrBackend -> ApplicationLog
+MsgNetworkName :: NetworkDiscriminant -> ApplicationLog
+MsgSigTerm :: ApplicationLog
+MsgWalletStartupError :: ErrStartup -> ApplicationLog
+MsgServerStartupError :: ListenError -> ApplicationLog
+MsgDatabaseStartup :: DatabasesStartupLog -> ApplicationLog
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.ApplicationLog
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.ApplicationLog
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.ApplicationLog
+instance GHC.Show.Show (Cardano.Wallet.Jormungandr.Tracers' (Data.Functor.Const.Const (GHC.Maybe.Maybe Cardano.BM.Data.Severity.Severity)))
+instance GHC.Classes.Eq (Cardano.Wallet.Jormungandr.Tracers' (Data.Functor.Const.Const (GHC.Maybe.Maybe Cardano.BM.Data.Severity.Severity)))
 instance Data.Text.Class.ToText Cardano.Wallet.Jormungandr.ApplicationLog
 instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Wallet.Jormungandr.ApplicationLog
 instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Wallet.Jormungandr.ApplicationLog
