@@ -9,121 +9,6 @@
 @version 2020.1.14
 
 
--- | A self contained module for ranking pools according to the delegation
---   design spec <i>Design Specification for Delegation and Incentives in
---   Cardano</i> <a>(Kant et al, 2019)</a>.
---   
---   The module currently implements the non-myopic desirability, and might
---   later support calculating the full non-myopic pool member rewards. The
---   latter being the recomended way to rank stake-pools (see section 4.3).
---   
---   The term non-myopic is explained on page 37:
---   
---   <pre>
---   It would be short-sighted (“myopic”) for stakeholders to directly use the
---   reward splitting formulas from Section 6.5. They should instead take the
---   long-term (“non-myopic”) view. To this end, the system will calculate and
---   display the “non-myopic” rewards that pool leaders and pool members can
---   expect, thus supporting stakeholders in their decision whether to create a
---   pool and to which pool to delegate their stake.
---   
---   The idea is to first rank all pools by “desirability”, to then assume that
---   the k most desirable pools will eventually be saturated, whereas all other
---   pools will lose all their members, then to finally base all reward
---   calculations on these assumptions.
---   </pre>
---   
---   <h2>Relevant identifiers</h2>
---   
---   Epoch Parameters
---   
---   TODO: table
---   
---   Pool's Parameters
---   
---   TODO: table
-module Cardano.Pool.Ranking
-
--- | Non-myopic pool desirability according to section 5.6.1.
---   
---   Is <i>not</i> affected by oversaturation nor pool stake in general.
-desirability :: EpochConstants -> Pool -> Double
-
--- | Total rewards for a pool if it were saturated.
---   
---   When a0 = 0 this reduces to just p*R*z0 (tested by
---   <tt>prop_saturatedPoolRewardsReduces</tt>)
-saturatedPoolRewards :: EpochConstants -> Pool -> Double
-
--- | Determines z0, i.e 1 / k
-saturatedPoolSize :: EpochConstants -> Ratio
-data EpochConstants
-EpochConstants :: NonNegative Double -> Positive Int -> Lovelace -> EpochConstants
-
--- | a_0
-[leaderStakeInfluence] :: EpochConstants -> NonNegative Double
-
--- | k
-[desiredNumberOfPools] :: EpochConstants -> Positive Int
-
--- | Total rewards in an epoch. <a>R</a> in the spec.
-[totalRewards] :: EpochConstants -> Lovelace
-data Pool
-Pool :: Ratio -> Lovelace -> Ratio -> NonNegative Double -> Pool
-
--- | s
-[leaderStake] :: Pool -> Ratio
-
--- | c
-[cost] :: Pool -> Lovelace
-
--- | m
-[margin] :: Pool -> Ratio
-
--- | hat{p}, an already averaged (apparent) performance-value.
---   
---   Should mostly be in the range [0, 1]. May be higher than 1 due to
---   randomness.
-[recentAvgPerformance] :: Pool -> NonNegative Double
-newtype Lovelace
-Lovelace :: Word64 -> Lovelace
-[getLovelace] :: Lovelace -> Word64
-data Ratio
-unsafeMkRatio :: Double -> Ratio
-getRatio :: Ratio -> Double
-newtype NonNegative a
-NonNegative :: a -> NonNegative a
-[getNonNegative] :: NonNegative a -> a
-newtype Positive a
-Positive :: a -> Positive a
-[getPositive] :: Positive a -> a
-unsafeMkPositive :: (Ord a, Show a, Num a) => a -> Positive a
-unsafeMkNonNegative :: (Ord a, Show a, Num a) => a -> NonNegative a
-instance GHC.Generics.Generic Cardano.Pool.Ranking.EpochConstants
-instance GHC.Classes.Eq Cardano.Pool.Ranking.EpochConstants
-instance GHC.Show.Show Cardano.Pool.Ranking.EpochConstants
-instance GHC.Generics.Generic Cardano.Pool.Ranking.Pool
-instance GHC.Classes.Eq Cardano.Pool.Ranking.Pool
-instance GHC.Show.Show Cardano.Pool.Ranking.Pool
-instance GHC.Num.Num a => GHC.Num.Num (Cardano.Pool.Ranking.NonNegative a)
-instance GHC.Classes.Ord a => GHC.Classes.Ord (Cardano.Pool.Ranking.NonNegative a)
-instance GHC.Show.Show a => GHC.Show.Show (Cardano.Pool.Ranking.NonNegative a)
-instance GHC.Classes.Eq a => GHC.Classes.Eq (Cardano.Pool.Ranking.NonNegative a)
-instance GHC.Generics.Generic (Cardano.Pool.Ranking.NonNegative a)
-instance GHC.Num.Num a => GHC.Num.Num (Cardano.Pool.Ranking.Positive a)
-instance GHC.Classes.Ord a => GHC.Classes.Ord (Cardano.Pool.Ranking.Positive a)
-instance GHC.Show.Show a => GHC.Show.Show (Cardano.Pool.Ranking.Positive a)
-instance GHC.Classes.Eq a => GHC.Classes.Eq (Cardano.Pool.Ranking.Positive a)
-instance GHC.Generics.Generic (Cardano.Pool.Ranking.Positive a)
-instance GHC.Classes.Ord Cardano.Pool.Ranking.Ratio
-instance GHC.Classes.Eq Cardano.Pool.Ranking.Ratio
-instance GHC.Show.Show Cardano.Pool.Ranking.Ratio
-instance GHC.Num.Num Cardano.Pool.Ranking.Lovelace
-instance GHC.Classes.Ord Cardano.Pool.Ranking.Lovelace
-instance GHC.Classes.Eq Cardano.Pool.Ranking.Lovelace
-instance GHC.Show.Show Cardano.Pool.Ranking.Lovelace
-
-
 -- | This module contains utility functions for logging and mapping trace
 --   data.
 module Cardano.Wallet.Logging
@@ -4037,6 +3922,132 @@ instance GHC.Show.Show Cardano.Wallet.DB.MVar.MVarDBError
 instance GHC.Exception.Type.Exception Cardano.Wallet.DB.MVar.MVarDBError
 
 
+-- | A self contained module for ranking pools according to the delegation
+--   design spec <i>Design Specification for Delegation and Incentives in
+--   Cardano</i> <a>(Kant et al, 2019)</a>.
+--   
+--   The module currently implements the non-myopic desirability, and might
+--   later support calculating the full non-myopic pool member rewards. The
+--   latter being the recomended way to rank stake-pools (see section 4.3).
+--   
+--   The term non-myopic is explained on page 37:
+--   
+--   <pre>
+--   It would be short-sighted (“myopic”) for stakeholders to directly use the
+--   reward splitting formulas from Section 6.5. They should instead take the
+--   long-term (“non-myopic”) view. To this end, the system will calculate and
+--   display the “non-myopic” rewards that pool leaders and pool members can
+--   expect, thus supporting stakeholders in their decision whether to create a
+--   pool and to which pool to delegate their stake.
+--   
+--   The idea is to first rank all pools by “desirability”, to then assume that
+--   the k most desirable pools will eventually be saturated, whereas all other
+--   pools will lose all their members, then to finally base all reward
+--   calculations on these assumptions.
+--   </pre>
+--   
+--   <h2>Relevant identifiers</h2>
+--   
+--   Epoch Parameters
+--   
+--   TODO: table
+--   
+--   Pool's Parameters
+--   
+--   TODO: table
+module Cardano.Pool.Ranking
+
+-- | Non-myopic pool desirability according to section 5.6.1.
+--   
+--   Is <i>not</i> affected by oversaturation nor pool stake in general.
+desirability :: EpochConstants -> Pool -> Double
+
+-- | The saturation-level of a pool indicate how far a pool is from the
+--   desirated relative stake fixed by the network. A saturation level
+--   above 1 means that the pool is satured. A level of 0.5 / 50% means
+--   that the pool owns half the ideal stake.
+--   
+--   The saturation corresponds therefore to the ratio between the ideal
+--   relative stake of a pool on the actual relative stake of that pool.
+--   
+--   The ideal relative stake is given by:
+--   
+--   1 S 1 σ_ideal = --- * --- = --- = z0 (where S stands for the total
+--   available S k k stake in Ada)
+--   
+--   which gives us the saturation as:
+--   
+--   σ σ sat = --------- = ---- σ_ideal z0
+saturation :: EpochConstants -> Quantity "lovelace" Word64 -> Quantity "lovelace" Word64 -> Double
+
+-- | Total rewards for a pool if it were saturated.
+--   
+--   When a0 = 0 this reduces to just p*R*z0 (tested by
+--   <tt>prop_saturatedPoolRewardsReduces</tt>)
+saturatedPoolRewards :: EpochConstants -> Pool -> Double
+
+-- | Determines z0, i.e 1 / k
+saturatedPoolSize :: EpochConstants -> Ratio
+data EpochConstants
+EpochConstants :: NonNegative Double -> Positive Int -> Quantity "lovelace" Word64 -> EpochConstants
+
+-- | a_0
+[leaderStakeInfluence] :: EpochConstants -> NonNegative Double
+
+-- | k
+[desiredNumberOfPools] :: EpochConstants -> Positive Int
+
+-- | Total rewards in an epoch. <a>R</a> in the spec.
+[totalRewards] :: EpochConstants -> Quantity "lovelace" Word64
+data Pool
+Pool :: Ratio -> Quantity "lovelace" Word64 -> Ratio -> NonNegative Double -> Pool
+
+-- | s
+[leaderStake] :: Pool -> Ratio
+
+-- | c
+[cost] :: Pool -> Quantity "lovelace" Word64
+
+-- | m
+[margin] :: Pool -> Ratio
+
+-- | hat{p}, an already averaged (apparent) performance-value.
+--   
+--   Should mostly be in the range [0, 1]. May be higher than 1 due to
+--   randomness.
+[recentAvgPerformance] :: Pool -> NonNegative Double
+data Ratio
+unsafeMkRatio :: Double -> Ratio
+getRatio :: Ratio -> Double
+newtype NonNegative a
+NonNegative :: a -> NonNegative a
+[getNonNegative] :: NonNegative a -> a
+newtype Positive a
+Positive :: a -> Positive a
+[getPositive] :: Positive a -> a
+unsafeMkPositive :: (Ord a, Show a, Num a) => a -> Positive a
+unsafeMkNonNegative :: (Ord a, Show a, Num a) => a -> NonNegative a
+instance GHC.Generics.Generic Cardano.Pool.Ranking.EpochConstants
+instance GHC.Classes.Eq Cardano.Pool.Ranking.EpochConstants
+instance GHC.Show.Show Cardano.Pool.Ranking.EpochConstants
+instance GHC.Generics.Generic Cardano.Pool.Ranking.Pool
+instance GHC.Classes.Eq Cardano.Pool.Ranking.Pool
+instance GHC.Show.Show Cardano.Pool.Ranking.Pool
+instance GHC.Num.Num a => GHC.Num.Num (Cardano.Pool.Ranking.NonNegative a)
+instance GHC.Classes.Ord a => GHC.Classes.Ord (Cardano.Pool.Ranking.NonNegative a)
+instance GHC.Show.Show a => GHC.Show.Show (Cardano.Pool.Ranking.NonNegative a)
+instance GHC.Classes.Eq a => GHC.Classes.Eq (Cardano.Pool.Ranking.NonNegative a)
+instance GHC.Generics.Generic (Cardano.Pool.Ranking.NonNegative a)
+instance GHC.Num.Num a => GHC.Num.Num (Cardano.Pool.Ranking.Positive a)
+instance GHC.Classes.Ord a => GHC.Classes.Ord (Cardano.Pool.Ranking.Positive a)
+instance GHC.Show.Show a => GHC.Show.Show (Cardano.Pool.Ranking.Positive a)
+instance GHC.Classes.Eq a => GHC.Classes.Eq (Cardano.Pool.Ranking.Positive a)
+instance GHC.Generics.Generic (Cardano.Pool.Ranking.Positive a)
+instance GHC.Classes.Ord Cardano.Pool.Ranking.Ratio
+instance GHC.Classes.Eq Cardano.Pool.Ranking.Ratio
+instance GHC.Show.Show Cardano.Pool.Ranking.Ratio
+
+
 -- | An implementation of the production pool database using only pure
 --   functions.
 --   
@@ -4773,13 +4784,15 @@ ApiCoinSelectionInput :: !ApiT (Hash "Tx") -> !Word32 -> !(ApiT Address, Proxy n
 [$sel:address:ApiCoinSelectionInput] :: ApiCoinSelectionInput -> !(ApiT Address, Proxy n)
 [$sel:amount:ApiCoinSelectionInput] :: ApiCoinSelectionInput -> !Quantity "lovelace" Natural
 data ApiStakePool
-ApiStakePool :: !ApiT PoolId -> !ApiStakePoolMetrics -> !Double -> !Maybe StakePoolMetadata -> !Quantity "lovelace" Natural -> !Quantity "percent" Percentage -> ApiStakePool
+ApiStakePool :: !ApiT PoolId -> !ApiStakePoolMetrics -> !Double -> !Maybe StakePoolMetadata -> !Quantity "lovelace" Natural -> !Quantity "percent" Percentage -> !Double -> !Double -> ApiStakePool
 [$sel:id:ApiStakePool] :: ApiStakePool -> !ApiT PoolId
 [$sel:metrics:ApiStakePool] :: ApiStakePool -> !ApiStakePoolMetrics
 [$sel:apparentPerformance:ApiStakePool] :: ApiStakePool -> !Double
 [$sel:metadata:ApiStakePool] :: ApiStakePool -> !Maybe StakePoolMetadata
 [$sel:cost:ApiStakePool] :: ApiStakePool -> !Quantity "lovelace" Natural
 [$sel:margin:ApiStakePool] :: ApiStakePool -> !Quantity "percent" Percentage
+[$sel:desirability:ApiStakePool] :: ApiStakePool -> !Double
+[$sel:saturation:ApiStakePool] :: ApiStakePool -> !Double
 data ApiStakePoolMetrics
 ApiStakePoolMetrics :: !Quantity "lovelace" Natural -> !Quantity "block" Natural -> ApiStakePoolMetrics
 [$sel:controlledStake:ApiStakePoolMetrics] :: ApiStakePoolMetrics -> !Quantity "lovelace" Natural
@@ -6023,13 +6036,15 @@ Block :: BlockHeader -> PoolId -> ![PoolRegistrationCertificate] -> Block
 -- | Any stake pools that were registered in this block.
 [$sel:poolRegistrations:Block] :: Block -> ![PoolRegistrationCertificate]
 data StakePool
-StakePool :: PoolId -> Quantity "lovelace" Word64 -> Quantity "block" Word64 -> Double -> Quantity "lovelace" Word64 -> Percentage -> StakePool
+StakePool :: PoolId -> Quantity "lovelace" Word64 -> Quantity "block" Word64 -> Double -> Double -> Quantity "lovelace" Word64 -> Percentage -> Double -> StakePool
 [$sel:poolId:StakePool] :: StakePool -> PoolId
 [$sel:stake:StakePool] :: StakePool -> Quantity "lovelace" Word64
 [$sel:production:StakePool] :: StakePool -> Quantity "block" Word64
 [$sel:performance:StakePool] :: StakePool -> Double
+[$sel:desirability:StakePool] :: StakePool -> Double
 [$sel:cost:StakePool] :: StakePool -> Quantity "lovelace" Word64
 [$sel:margin:StakePool] :: StakePool -> Percentage
+[$sel:saturation:StakePool] :: StakePool -> Double
 
 -- | <tt>StakePoolLayer</tt> is a thin layer ontop of the DB. It is
 --   <i>one</i> value that can easily be passed to the API-server, where it
@@ -6042,7 +6057,7 @@ StakePoolLayer :: ExceptT ErrListStakePools m [(StakePool, Maybe StakePoolMetada
 --   Jörmungandr or any registry. This list comes from the registration
 --   certificates that have been seen on chain.
 [$sel:knownStakePools:StakePoolLayer] :: StakePoolLayer m -> m [PoolId]
-newStakePoolLayer :: Tracer IO StakePoolLog -> DBLayer IO -> NetworkLayer IO t Block -> FilePath -> StakePoolLayer IO
+newStakePoolLayer :: Tracer IO StakePoolLog -> (EpochNo -> EpochConstants) -> DBLayer IO -> NetworkLayer IO t Block -> FilePath -> StakePoolLayer IO
 data ErrListStakePools
 ErrMetricsIsUnsynced :: Quantity "percent" Percentage -> ErrListStakePools
 ErrListStakePoolsMetricsInconsistency :: ErrMetricsInconsistency -> ErrListStakePools
