@@ -334,6 +334,7 @@ instance (GHC.TypeLits.KnownSymbol unit, Data.Aeson.Types.ToJSON.ToJSON a) => Da
 instance (GHC.TypeLits.KnownSymbol unit, Data.Aeson.Types.FromJSON.FromJSON a) => Data.Aeson.Types.FromJSON.FromJSON (Data.Quantity.Quantity unit a)
 instance Data.Text.Class.FromText b => Data.Text.Class.FromText (Data.Quantity.Quantity sym b)
 instance Data.Text.Class.ToText b => Data.Text.Class.ToText (Data.Quantity.Quantity sym b)
+instance (GHC.TypeLits.KnownSymbol unit, Formatting.Buildable.Buildable a) => Formatting.Buildable.Buildable (Data.Quantity.Quantity unit a)
 
 
 -- | This module contains the core primitive of a Wallet. This is roughly a
@@ -4046,6 +4047,7 @@ instance GHC.Generics.Generic (Cardano.Pool.Ranking.Positive a)
 instance GHC.Classes.Ord Cardano.Pool.Ranking.Ratio
 instance GHC.Classes.Eq Cardano.Pool.Ranking.Ratio
 instance GHC.Show.Show Cardano.Pool.Ranking.Ratio
+instance Formatting.Buildable.Buildable Cardano.Pool.Ranking.EpochConstants
 
 
 -- | An implementation of the production pool database using only pure
@@ -6178,6 +6180,8 @@ MsgStakeDistribution :: EpochNo -> StakePoolLog
 MsgStakePoolRegistration :: PoolRegistrationCertificate -> StakePoolLog
 MsgRollingBackTo :: SlotId -> StakePoolLog
 MsgApplyError :: ErrMonitorStakePools -> StakePoolLog
+MsgUsingRankingEpochConstants :: EpochConstants -> StakePoolLog
+MsgUsingTotalStakeForRanking :: Quantity "lovelace" Word64 -> StakePoolLog
 instance GHC.Classes.Eq Cardano.Pool.Metrics.StakePoolLog
 instance GHC.Show.Show Cardano.Pool.Metrics.StakePoolLog
 instance GHC.Show.Show Cardano.Pool.Metrics.ErrListStakePools
