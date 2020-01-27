@@ -176,8 +176,9 @@ expectFieldBetween :: (MonadIO m, MonadFail m, Show a, Ord a) => Lens' s a -> (a
 expectListItemFieldBetween :: (MonadIO m, MonadFail m, Show a, Eq a, Ord a) => Int -> Lens' s a -> (a, a) -> (Status, Either RequestException [s]) -> m ()
 
 -- | Expects that returned data list's particular item field matches the
---   expected value. e.g. expectListItemFieldEqual 0 walletName "first"
---   response expectListItemFieldEqual 1 walletName "second" response
+--   expected value. e.g. expectListItemFieldEqual 0 (getApiT .
+--   #getWalletName) "first" r expectListItemFieldEqual 1 (getApiT .
+--   #getWalletName) "second" r
 expectListItemFieldEqual :: (MonadIO m, MonadFail m, Show a, Eq a) => Int -> Lens' s a -> a -> (Status, Either RequestException [s]) -> m ()
 expectListItemFieldSatisfy :: (MonadIO m, MonadFail m, Show a) => Int -> Lens' s a -> (a -> Bool) -> (Status, Either RequestException [s]) -> m ()
 
@@ -236,24 +237,7 @@ ClientError :: Value -> RequestException
 
 -- | A wild exception upon sending the request
 HttpException :: HttpExceptionContent -> RequestException
-amount :: HasType (Quantity "lovelace" Natural) s => Lens' s Natural
-apparentPerformance :: HasType Double s => Lens' s Double
-blocks :: HasField' "producedBlocks" s (Quantity "block" Natural) => Lens' s Natural
-coinSelectionInputs :: forall s n a. (s ~ ApiCoinSelection n, a ~ ApiCoinSelectionInput n, HasType (NonEmpty a) s) => Lens' s [a]
-coinSelectionOutputs :: forall s n a. (s ~ ApiCoinSelection n, a ~ AddressAmount n, HasType (NonEmpty a) s) => Lens' s [a]
-delegation :: forall s d. (d ~ WalletDelegation (ApiT PoolId), HasType (ApiT d) s) => Lens' s (WalletDelegation (ApiT PoolId))
-direction :: HasType (ApiT Direction) s => Lens' s Direction
-feeEstimator :: Lens' (Context t) (TxDescription -> (Natural, Natural))
-inputs :: HasType [ApiTxInput t] s => Lens' s [ApiTxInput t]
-metrics :: HasType ApiStakePoolMetrics s => Lens' s ApiStakePoolMetrics
-nextEpoch :: HasType ApiEpochInfo s => Lens' s ApiEpochInfo
-outputs :: forall s t a. (a ~ AddressAmount t, HasType (NonEmpty a) s) => Lens' s [a]
-passphraseLastUpdate :: forall s i. (i ~ WalletPassphraseInfo, HasType (Maybe (ApiT i)) s) => Lens' s (Maybe Text)
-stake :: HasField' "controlledStake" s (Quantity "lovelace" Natural) => Lens' s Natural
-status :: HasType (ApiT TxStatus) s => Lens' s TxStatus
-syncProgress :: HasType (ApiT SyncProgress) s => Lens' s SyncProgress
 walletId :: HasType (ApiT WalletId) s => Lens' s Text
-walletName :: HasType (ApiT WalletName) s => Lens' s Text
 (</>) :: ToHttpApiData a => Text -> a -> Text
 infixr 5 </>
 
