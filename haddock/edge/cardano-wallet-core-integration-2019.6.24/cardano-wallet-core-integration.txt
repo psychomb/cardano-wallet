@@ -409,11 +409,13 @@ errMsg404NoEndpoint :: String
 errMsg404CannotFindTx :: Text -> String
 errMsg404NoRootKey :: Text -> String
 errMsg404NoWallet :: Text -> String
+errMsg404NoEpochNo :: String -> String
 errMsg403InputsDepleted :: String
 errMsg403TxTooBig :: Int -> String
 errMsg400MalformedTxPayload :: String
 errMsg400WronglyEncodedTxPayload :: String
 errMsg400ParseError :: String
+errMsg400MalformedEpoch :: String -> String
 errMsg403ZeroAmtOutput :: String
 errMsg405 :: String
 errMsg406 :: String
