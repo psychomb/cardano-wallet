@@ -565,10 +565,10 @@ data ErrGetDescendants
 ErrGetDescendantsNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetDescendants
 ErrGetDescendantsParentNotFound :: Hash "BlockHeader" -> ErrGetDescendants
 
--- | Error while trying to get the network tip
-data ErrNetworkTip
-ErrNetworkTipNetworkUnreachable :: ErrNetworkUnavailable -> ErrNetworkTip
-ErrNetworkTipNotFound :: ErrNetworkTip
+-- | Error while trying to get the node tip
+data ErrCurrentNodeTip
+ErrCurrentNodeTipNetworkUnreachable :: ErrNetworkUnavailable -> ErrCurrentNodeTip
+ErrCurrentNodeTipNotFound :: ErrCurrentNodeTip
 
 -- | Network is unavailable
 data ErrNetworkUnavailable
@@ -608,7 +608,7 @@ instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Api.Client.ErrGetAccountState
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Api.Client.ErrGetAccountState
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Api.Client.ErrUnexpectedNetworkFailure
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Api.Client.ErrUnexpectedNetworkFailure
-instance Cardano.Wallet.Jormungandr.Api.Client.LiftError (Cardano.Wallet.Network.ErrGetBlock -> Cardano.Wallet.Network.ErrNetworkTip)
+instance Cardano.Wallet.Jormungandr.Api.Client.LiftError (Cardano.Wallet.Network.ErrGetBlock -> Cardano.Wallet.Network.ErrCurrentNodeTip)
 instance Cardano.Wallet.Jormungandr.Api.Client.LiftError (Cardano.Wallet.Network.ErrNetworkUnavailable -> Cardano.Wallet.Network.ErrGetBlock)
 instance Cardano.Wallet.Jormungandr.Api.Client.LiftError (Cardano.Wallet.Jormungandr.Api.Client.ErrGetDescendants -> Cardano.Wallet.Network.ErrGetBlock)
 instance GHC.Exception.Type.Exception Cardano.Wallet.Jormungandr.Api.Client.ErrUnexpectedNetworkFailure
@@ -674,10 +674,10 @@ data ErrGetDescendants
 ErrGetDescendantsNetworkUnreachable :: ErrNetworkUnavailable -> ErrGetDescendants
 ErrGetDescendantsParentNotFound :: Hash "BlockHeader" -> ErrGetDescendants
 
--- | Error while trying to get the network tip
-data ErrNetworkTip
-ErrNetworkTipNetworkUnreachable :: ErrNetworkUnavailable -> ErrNetworkTip
-ErrNetworkTipNotFound :: ErrNetworkTip
+-- | Error while trying to get the node tip
+data ErrCurrentNodeTip
+ErrCurrentNodeTipNetworkUnreachable :: ErrNetworkUnavailable -> ErrCurrentNodeTip
+ErrCurrentNodeTipNotFound :: ErrCurrentNodeTip
 
 -- | Network is unavailable
 data ErrNetworkUnavailable
@@ -720,6 +720,7 @@ BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
 data Scheme
 Http :: Scheme
 Https :: Scheme
+pattern Cursor :: () => BlockHeaders -> Cursor Jormungandr
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.NetworkLayerLog
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Network.NetworkLayerLog
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Network.ErrStartup

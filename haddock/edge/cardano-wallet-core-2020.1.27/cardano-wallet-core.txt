@@ -407,12 +407,6 @@ data TxStatus
 Pending :: TxStatus
 InLedger :: TxStatus
 
--- | <tt>TxWitness</tt> is proof that transaction inputs are allowed to be
---   spent
-newtype TxWitness
-TxWitness :: ByteString -> TxWitness
-[$sel:unWitness:TxWitness] :: TxWitness -> ByteString
-
 -- | <tt>SealedTx</tt> is a serialised transaction that is ready to be
 --   submited to the node.
 newtype SealedTx
@@ -1094,10 +1088,6 @@ instance GHC.Show.Show Cardano.Wallet.Primitive.Types.Address
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.FeePolicy
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.FeePolicy
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.FeePolicy
-instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.TxWitness
-instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.TxWitness
-instance GHC.Show.Show Cardano.Wallet.Primitive.Types.TxWitness
-instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.TxWitness
 instance Data.ByteArray.Types.ByteArrayAccess Cardano.Wallet.Primitive.Types.SealedTx
 instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.SealedTx
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.SealedTx
@@ -1216,7 +1206,6 @@ instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.Address
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.FeePolicy
 instance Data.Text.Class.ToText Cardano.Wallet.Primitive.Types.FeePolicy
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.FeePolicy
-instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.TxWitness
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.Direction
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.Direction
 instance Data.Text.Class.FromText Cardano.Wallet.Primitive.Types.Direction
@@ -1574,10 +1563,6 @@ keyTypeDescriptor :: WalletKey key => Proxy key -> String
 -- | Unwrap the <a>WalletKey</a> to use the <a>XPrv</a> or <a>XPub</a>.
 getRawKey :: WalletKey key => key depth raw -> raw
 
--- | Produce a fake address key of this scheme, for use in
---   <a>dummyAddress</a>.
-dummyKey :: WalletKey key => key  'AddressK XPub
-
 -- | Operations for saving a private key into a database, and restoring it
 --   from a database. The keys should be encoded in hexadecimal strings.
 class PersistPrivateKey (key :: * -> *)
@@ -1631,13 +1616,6 @@ ErrInvalidAddress :: from -> Proxy key -> ErrMkKeyFingerprint key from
 --   that key or the key itself.
 newtype KeyFingerprint (s :: Symbol) key
 KeyFingerprint :: ByteString -> KeyFingerprint key
-
--- | Produce a fake address of representative size for the target and key
---   type. This can be used in transaction size estimations.
---   
---   This function is ambiguous, like <a>paymentAddress</a>, and types need
---   to be applied.
-dummyAddress :: forall network key. (PaymentAddress network key, WalletKey key) => Address
 
 -- | An encapsulated passphrase. The inner format is free, but the wrapper
 --   helps readability in function signatures.
@@ -1829,33 +1807,6 @@ type family ErrValidateSelection t
 data ErrDecodeSignedTx
 ErrDecodeSignedTxWrongPayload :: Text -> ErrDecodeSignedTx
 ErrDecodeSignedTxNotSupported :: ErrDecodeSignedTx
-
--- | This is called by the <a>TransactionLayer</a> implementation. It uses
---   the serialization functions to calculate the size of an empty
---   transaction compared to a transaction with one input. The estimation
---   is based on that.
---   
---   It doesn't account for transaction outputs, and assumes there is a
---   single Tx output.
---   
---   All the values used are the smaller ones. For example, the shortest
---   adress type and shortest witness type are chosen to use for the
---   estimate.
-estimateMaxNumberOfInputsBase :: forall t n k. (PaymentAddress n k, WalletKey k) => EstimateMaxNumberOfInputsParams t -> Quantity "byte" Word16 -> Word8 -> Word8
-
--- | Backend-specific variables used by
---   <a>estimateMaxNumberOfInputsBase</a>.
-data EstimateMaxNumberOfInputsParams t
-EstimateMaxNumberOfInputsParams :: ([TxIn] -> [TxOut] -> [TxWitness] -> Int) -> Int -> Int -> EstimateMaxNumberOfInputsParams t
-
--- | Finds the size of a serialized transaction.
-[estMeasureTx] :: EstimateMaxNumberOfInputsParams t -> [TxIn] -> [TxOut] -> [TxWitness] -> Int
-
--- | Block ID size
-[estBlockHashSize] :: EstimateMaxNumberOfInputsParams t -> Int
-
--- | Tx Witness size
-[estTxWitnessSize] :: EstimateMaxNumberOfInputsParams t -> Int
 instance GHC.Show.Show Cardano.Wallet.Transaction.ErrMkTx
 instance GHC.Classes.Eq Cardano.Wallet.Transaction.ErrMkTx
 instance GHC.Classes.Eq Cardano.Wallet.Transaction.ErrDecodeSignedTx
@@ -2860,7 +2811,7 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Network.BlockHeaders.BlockHeaders
 
 module Cardano.Wallet.Network
 data NetworkLayer m target block
-NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> (Cursor target -> m (Maybe BlockHeader)) -> ([BlockHeader] -> Cursor target) -> (Cursor target -> SlotId) -> ExceptT ErrNetworkTip m BlockHeader -> (SealedTx -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> (ChimericAccount -> ExceptT ErrGetAccountBalance m (Quantity "lovelace" Word64)) -> NetworkLayer m target block
+NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> ([BlockHeader] -> m (Cursor target)) -> (Cursor target -> SlotId) -> ExceptT ErrCurrentNodeTip m BlockHeader -> (SealedTx -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> (ChimericAccount -> ExceptT ErrGetAccountBalance m (Quantity "lovelace" Word64)) -> NetworkLayer m target block
 
 -- | Starting from the given <a>Cursor</a>, fetches a contiguous sequence
 --   of blocks from the node, if they are available. An updated cursor will
@@ -2875,20 +2826,15 @@ NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target
 --   <a>RollBackward</a> with a new cursor.
 [nextBlocks] :: NetworkLayer m target block -> Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)
 
--- | Attempt to find an intersection between the node's unstable blocks and
---   a given list of headers. This can be useful if we need to know whether
---   we are 'in sync' with the node or, close enough.
-[findIntersection] :: NetworkLayer m target block -> Cursor target -> m (Maybe BlockHeader)
-
 -- | Creates a cursor from the given block header so that <a>nextBlocks</a>
 --   can be used to fetch blocks.
-[initCursor] :: NetworkLayer m target block -> [BlockHeader] -> Cursor target
+[initCursor] :: NetworkLayer m target block -> [BlockHeader] -> m (Cursor target)
 
 -- | Get the slot corresponding to a cursor.
 [cursorSlotId] :: NetworkLayer m target block -> Cursor target -> SlotId
 
--- | Get the current network tip from the chain producer
-[networkTip] :: NetworkLayer m target block -> ExceptT ErrNetworkTip m BlockHeader
+-- | Get the current tip from the chain producer
+[currentNodeTip] :: NetworkLayer m target block -> ExceptT ErrCurrentNodeTip m BlockHeader
 
 -- | Broadcast a transaction to the chain producer
 [postTx] :: NetworkLayer m target block -> SealedTx -> ExceptT ErrPostTx m ()
@@ -2939,6 +2885,14 @@ follow :: forall target block e. Show e => NetworkLayer IO target block -> Trace
 --   NOTE: <tt>Retry</tt> is needed to handle data-races in <a>Metrics</a>,
 --   where it is essensial that we fetch the stake distribution while the
 --   node-tip
+--   
+--   FIXME: Retry actions with the Haskell nodes are not possible (or at
+--   least, requires some additional manipulation to find a new
+--   intersection). As a possible fix, we could use a type family to define
+--   <a>FollowAction</a> in terms of the underlying target.
+--   <a>RetryImmediately</a> and <a>RetryLater</a> could be authorized in
+--   the context of Jormungandr but absent in the context of the Haskell
+--   nodes.
 data FollowAction err
 
 -- | Stop following the chain.
@@ -2963,10 +2917,10 @@ ErrNetworkUnreachable :: Text -> ErrNetworkUnavailable
 -- | Network backend reports that the requested network is invalid.
 ErrNetworkInvalid :: Text -> ErrNetworkUnavailable
 
--- | Error while trying to get the network tip
-data ErrNetworkTip
-ErrNetworkTipNetworkUnreachable :: ErrNetworkUnavailable -> ErrNetworkTip
-ErrNetworkTipNotFound :: ErrNetworkTip
+-- | Error while trying to get the node tip
+data ErrCurrentNodeTip
+ErrCurrentNodeTipNetworkUnreachable :: ErrNetworkUnavailable -> ErrCurrentNodeTip
+ErrCurrentNodeTipNotFound :: ErrCurrentNodeTip
 
 -- | Error while trying to get one or more blocks
 data ErrGetBlock
@@ -2993,7 +2947,7 @@ MsgApplyBlocks :: NonEmpty BlockHeader -> FollowLog
 --   that retries for no longer than a minute.
 defaultRetryPolicy :: Monad m => RetryPolicyM m
 
--- | Wait until 'networkTip networkLayer' succeeds according to a given
+-- | Wait until 'currentNodeTip networkLayer' succeeds according to a given
 --   retry policy. Throws an exception otherwise.
 waitForNetwork :: ExceptT ErrNetworkUnavailable IO () -> RetryPolicyM IO -> IO ()
 instance GHC.Classes.Eq Cardano.Wallet.Network.FollowLog
@@ -3010,9 +2964,9 @@ instance GHC.Generics.Generic Cardano.Wallet.Network.ErrPostTx
 instance GHC.Classes.Eq Cardano.Wallet.Network.ErrGetBlock
 instance GHC.Show.Show Cardano.Wallet.Network.ErrGetBlock
 instance GHC.Generics.Generic Cardano.Wallet.Network.ErrGetBlock
-instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkTip
-instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkTip
-instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkTip
+instance GHC.Classes.Eq Cardano.Wallet.Network.ErrCurrentNodeTip
+instance GHC.Show.Show Cardano.Wallet.Network.ErrCurrentNodeTip
+instance GHC.Generics.Generic Cardano.Wallet.Network.ErrCurrentNodeTip
 instance GHC.Classes.Eq Cardano.Wallet.Network.ErrNetworkUnavailable
 instance GHC.Show.Show Cardano.Wallet.Network.ErrNetworkUnavailable
 instance GHC.Generics.Generic Cardano.Wallet.Network.ErrNetworkUnavailable
@@ -3022,7 +2976,7 @@ instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Wallet.Network.FollowLog
 instance GHC.Base.Functor m => GHC.Base.Functor (Cardano.Wallet.Network.NetworkLayer m target)
 instance GHC.Base.Functor (Cardano.Wallet.Network.NextBlocksResult target)
 instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrPostTx
-instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkTip
+instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrCurrentNodeTip
 instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkUnavailable
 
 
@@ -4394,9 +4348,9 @@ decodeAddressPayload :: Decoder s ByteString
 decodeAllAttributes :: Decoder s [(Word8, ByteString)]
 decodeBlockHeader :: Decoder s BlockHeader
 decodeDerivationPathAttr :: Passphrase "addr-derivation-payload" -> [(Word8, ByteString)] -> Decoder s (Maybe (Index  'WholeDomain  'AccountK, Index  'WholeDomain  'AddressK))
-decodeSignedTx :: Decoder s (([TxIn], [TxOut]), [TxWitness])
+decodeSignedTx :: Decoder s (([TxIn], [TxOut]), [ByteString])
 decodeTx :: Decoder s ([TxIn], [TxOut])
-decodeTxWitness :: Decoder s TxWitness
+decodeTxWitness :: Decoder s ByteString
 
 -- | Encode a public key to a corresponding Cardano Address. The encoding
 --   of the attributes part of an address is left out to the caller; This
@@ -4431,8 +4385,10 @@ encodeAddress :: XPub -> [Encoding] -> Encoding
 encodeAttributes :: [Encoding] -> Encoding
 encodeDerivationPathAttr :: Passphrase "addr-derivation-payload" -> Index  'WholeDomain  'AccountK -> Index  'WholeDomain  'AddressK -> Encoding
 encodeProtocolMagicAttr :: ProtocolMagic -> Encoding
-encodePublicKeyWitness :: XPub -> Hash "signature" -> Encoding
+encodePublicKeyWitness :: XPub -> ByteString -> Encoding
 encodeTx :: ([TxIn], [TxOut]) -> Encoding
+encodeSignedTx :: ([TxIn], [TxOut]) -> [ByteString] -> Encoding
+encodeTxWitness :: ByteString -> Encoding
 
 -- | Shortcut for deserialising a strict <tt>Bytestring</tt> with the given
 --   decoder.
@@ -5807,6 +5763,7 @@ instance Cardano.BM.Data.Tracer.DefineSeverity msg => Cardano.BM.Data.Tracer.Def
 
 module Cardano.Wallet.Api
 type Api n = Wallets :<|> Addresses n :<|> CoinSelections n :<|> Transactions n :<|> StakePools n :<|> ByronWallets :<|> ByronTransactions n :<|> ByronMigrations n :<|> Network :<|> Proxy_
+type ApiV2 n = "v2" :> Api n
 type Wallets = DeleteWallet :<|> GetWallet :<|> ListWallets :<|> PostWallet :<|> PutWallet :<|> PutWalletPassphrase :<|> GetUTxOsStatistics :<|> ForceResyncWallet
 
 -- | 
@@ -6106,7 +6063,7 @@ newStakePoolLayer :: Tracer IO StakePoolLog -> (EpochNo -> Quantity "lovelace" W
 data ErrListStakePools
 ErrMetricsIsUnsynced :: Quantity "percent" Percentage -> ErrListStakePools
 ErrListStakePoolsMetricsInconsistency :: ErrMetricsInconsistency -> ErrListStakePools
-ErrListStakePoolsErrNetworkTip :: ErrNetworkTip -> ErrListStakePools
+ErrListStakePoolsCurrentNodeTip :: ErrCurrentNodeTip -> ErrListStakePools
 
 -- | <a>monitorStakePools</a> follows the chain and puts pool productions
 --   and stake distributions to a <a>DBLayer</a>, such that the data in the
@@ -6303,7 +6260,14 @@ data HostPreference
 
 -- | Start the application server, using the given settings and a bound
 --   socket.
-start :: forall t (n :: NetworkDiscriminant). (Buildable (ErrValidateSelection t), DecodeAddress n, EncodeAddress n, DelegationAddress n ShelleyKey) => Settings -> Tracer IO ApiLog -> Socket -> ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState  'Mainnet IcarusKey) t IcarusKey -> ApiLayer (SeqState n ShelleyKey) t ShelleyKey -> StakePoolLayer IO -> IO ()
+start :: Settings -> Tracer IO ApiLog -> Socket -> Application -> IO ()
+serve :: HasServer api ([] :: [Type]) => Proxy api -> Server api -> Application
+
+-- | A Servant server for our wallet API
+server :: forall t n byron icarus shelley. (byron ~ ApiLayer (RndState  'Mainnet) t ByronKey, icarus ~ ApiLayer (SeqState  'Mainnet IcarusKey) t IcarusKey, shelley ~ ApiLayer (SeqState n ShelleyKey) t ShelleyKey, DelegationAddress n ShelleyKey, Buildable (ErrValidateSelection t)) => byron -> icarus -> shelley -> StakePoolLayer IO -> Server (Api n)
+
+-- | A diminished servant server to serve Byron wallets only.
+byronServer :: forall t n. () => ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState  'Mainnet IcarusKey) t IcarusKey -> Server (Api n)
 
 -- | Create a new instance of the wallet layer.
 newApiLayer :: forall ctx s t k. ctx ~ ApiLayer s t k => Tracer IO (WorkerLog WalletId WalletLog) -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> [WalletId] -> IO ctx
@@ -6343,7 +6307,7 @@ instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrNetwork
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrUpdatePassphrase
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrListTransactions
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrStartTimeLaterThanEndTime
-instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrNetworkTip
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Network.ErrCurrentNodeTip
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Pool.Metrics.ErrListStakePools
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Pool.Metrics.ErrMetricsInconsistency
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSelectForDelegation

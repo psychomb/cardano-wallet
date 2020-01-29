@@ -74,9 +74,19 @@ stateDirOption :: FilePath -> Parser (Maybe FilePath)
 --   <li>-sync-tolerance=DURATION, default: 300s</li>
 --   </ul>
 syncToleranceOption :: Parser SyncTolerance
-loggingSeverityReader :: ReadM Severity
-loggingSeverityOrOffReader :: ReadM (Maybe Severity)
+data LoggingOptions tracers
+LoggingOptions :: Severity -> tracers -> Maybe Void -> LoggingOptions tracers
+[$sel:loggingMinSeverity:LoggingOptions] :: LoggingOptions tracers -> Severity
+[$sel:loggingTracers:LoggingOptions] :: LoggingOptions tracers -> tracers
+[$sel:loggingTracersDoc:LoggingOptions] :: LoggingOptions tracers -> Maybe Void
+
+-- | A hidden "helper" option which always fails, but shows info about the
+--   logging options.
+helperTracing :: [(String, String)] -> Parser (a -> a)
+loggingOptions :: Parser tracers -> Parser (LoggingOptions tracers)
 loggingSeverities :: [(String, Severity)]
+loggingSeverityOrOffReader :: ReadM (Maybe Severity)
+loggingSeverityReader :: ReadM Severity
 
 -- | Wrapper type around <a>Text</a> to make its semantic more explicit
 data Service
@@ -158,6 +168,8 @@ MsgServiceTimedOut :: Service -> WaitForServiceLog
 MsgServiceErrNetworkInvalid :: Text -> WaitForServiceLog
 instance GHC.Classes.Eq Cardano.CLI.WaitForServiceLog
 instance GHC.Show.Show Cardano.CLI.WaitForServiceLog
+instance GHC.Classes.Eq tracers => GHC.Classes.Eq (Cardano.CLI.LoggingOptions tracers)
+instance GHC.Show.Show tracers => GHC.Show.Show (Cardano.CLI.LoggingOptions tracers)
 instance GHC.Show.Show Cardano.CLI.Verbosity
 instance GHC.Classes.Eq Cardano.CLI.Verbosity
 instance GHC.Show.Show Cardano.CLI.TxId
