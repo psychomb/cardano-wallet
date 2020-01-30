@@ -4906,6 +4906,17 @@ ApiNetworkParameters :: !ApiT (Hash "Genesis") -> !ApiT StartTime -> !Quantity "
 [$sel:epochLength:ApiNetworkParameters] :: ApiNetworkParameters -> !Quantity "slot" Word32
 [$sel:epochStability:ApiNetworkParameters] :: ApiNetworkParameters -> !Quantity "block" Word32
 [$sel:activeSlotCoefficient:ApiNetworkParameters] :: ApiNetworkParameters -> !Quantity "percent" Double
+data ApiWalletDelegation
+ApiWalletDelegation :: ApiDelegationStatus -> !Maybe ApiWalletDelegationNext -> ApiWalletDelegation
+[$sel:active:ApiWalletDelegation] :: ApiWalletDelegation -> ApiDelegationStatus
+[$sel:next:ApiWalletDelegation] :: ApiWalletDelegation -> !Maybe ApiWalletDelegationNext
+newtype ApiDelegationStatus
+ApiDelegationStatus :: ApiT (WalletDelegation (ApiT PoolId)) -> ApiDelegationStatus
+[$sel:status:ApiDelegationStatus] :: ApiDelegationStatus -> ApiT (WalletDelegation (ApiT PoolId))
+data ApiWalletDelegationNext
+ApiWalletDelegationNext :: ApiDelegationStatus -> ApiEpochInfo -> ApiWalletDelegationNext
+[$sel:status:ApiWalletDelegationNext] :: ApiWalletDelegationNext -> ApiDelegationStatus
+[$sel:changesAt:ApiWalletDelegationNext] :: ApiWalletDelegationNext -> ApiEpochInfo
 data ApiByronWallet
 ApiByronWallet :: !ApiT WalletId -> !ApiByronWalletBalance -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> !ApiBlockReference -> ApiByronWallet
 [$sel:id:ApiByronWallet] :: ApiByronWallet -> !ApiT WalletId
@@ -4989,6 +5000,12 @@ instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpo
 instance GHC.Show.Show (Cardano.Wallet.Api.Types.ApiAddress n)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiAddress n)
 instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiAddress n)
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiWalletDelegation
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiWalletDelegation
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiWalletDelegation
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiWalletDelegationNext
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiWalletDelegationNext
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiWalletDelegationNext
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiNetworkInformation
@@ -5004,6 +5021,9 @@ instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiCoinSelectionInput n)
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiWallet
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiWallet
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiDelegationStatus
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiDelegationStatus
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiDelegationStatus
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiWalletPassphrase
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiWalletPassphrase
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiWalletPassphrase
@@ -5112,12 +5132,18 @@ instance Cardano.Wallet.Primitive.AddressDerivation.FromMnemonic mw "seed" => Da
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ByronWalletPostData mw)
 instance Cardano.Wallet.Primitive.AddressDerivation.FromMnemonic sizes purpose => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWalletDelegation
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiWalletDelegation
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWalletDelegationNext
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiWalletDelegationNext
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiEpochInfo
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiEpochInfo
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWallet
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiWallet
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiDelegationStatus
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiDelegationStatus
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWalletPassphrase
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiWalletPassphrase
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiStakePool
