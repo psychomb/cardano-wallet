@@ -74,6 +74,7 @@ test-suite unit
     , hspec
     , optparse-applicative
     , QuickCheck
+    , silently
     , temporary
     , text
     , text-class

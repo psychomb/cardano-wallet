@@ -200,6 +200,7 @@ test-suite unit
     , memory
     , network
     , persistent
+    , process
     , OddWord
     , QuickCheck
     , quickcheck-state-machine >= 0.6.0

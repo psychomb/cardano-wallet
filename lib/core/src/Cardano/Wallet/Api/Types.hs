@@ -2,7 +2,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -36,6 +36,7 @@ module Cardano.Wallet.Api.Types
     , ByronWalletStyle (..)
     , StyleSymbol
     , AllowedMnemonics
+    , ManyNatVal (..)
 
     -- * API Types
     , ApiAddress (..)
@@ -195,7 +196,13 @@ import Data.Quantity
 import Data.Text
     ( Text, split )
 import Data.Text.Class
-    ( FromText (..), TextDecodingError (..), ToText (..) )
+    ( CaseStyle (..)
+    , FromText (..)
+    , TextDecodingError (..)
+    , ToText (..)
+    , fromTextToBoundedEnum
+    , toTextFromBoundedEnum
+    )
 import Data.Time.Clock
     ( NominalDiffTime, UTCTime )
 import Data.Time.Text
@@ -211,7 +218,7 @@ import GHC.Exts
 import GHC.Generics
     ( Generic )
 import GHC.TypeLits
-    ( Nat, Symbol )
+    ( KnownNat, Nat, Symbol, natVal )
 import Numeric.Natural
     ( Natural )
 import Servant.API
@@ -242,6 +249,13 @@ data ByronWalletStyle
     | Icarus
     | Trezor
     | Ledger
+    deriving (Show, Generic, Eq, Bounded, Enum)
+
+instance FromText ByronWalletStyle where
+    fromText = fromTextToBoundedEnum KebabLowerCase
+
+instance ToText ByronWalletStyle where
+    toText = toTextFromBoundedEnum KebabLowerCase
 
 type family StyleSymbol (style :: ByronWalletStyle) :: Symbol where
     StyleSymbol 'Random  = "random"
@@ -254,6 +268,20 @@ type family AllowedMnemonics (style :: ByronWalletStyle) :: [Nat] where
     AllowedMnemonics 'Icarus  = '[15]
     AllowedMnemonics 'Trezor  = '[12,15,18,21,24]
     AllowedMnemonics 'Ledger  = '[12,15,18,21,24]
+
+
+-- | Machinery to demote type level [Nat] to a normal [Integer] list
+--
+-- Needed to get the result of @AllowedMnemonics@ as a value.
+class ManyNatVal (xs :: [Nat]) where
+  manyNatVal :: proxy xs -> [Integer]
+
+instance ManyNatVal '[] where
+  manyNatVal _ = []
+
+instance (KnownNat a, ManyNatVal as) => ManyNatVal (a ': as) where
+  manyNatVal _ =
+    natVal (Proxy :: Proxy a) : manyNatVal (Proxy :: Proxy as)
 
 {-------------------------------------------------------------------------------
                                   API Types

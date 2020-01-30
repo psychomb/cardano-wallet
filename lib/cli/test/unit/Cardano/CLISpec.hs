@@ -17,6 +17,7 @@ import Cardano.CLI
     , TxId
     , cli
     , cmdAddress
+    , cmdKey
     , cmdMnemonic
     , cmdNetwork
     , cmdStakePool
@@ -25,6 +26,8 @@ import Cardano.CLI
     , hGetLine
     , hGetSensitiveLine
     )
+import Cardano.Wallet.Api.Types
+    ( ByronWalletStyle (..) )
 import Cardano.Wallet.Primitive.AddressDerivation
     ( NetworkDiscriminant (..) )
 import Control.Concurrent
@@ -45,10 +48,12 @@ import System.FilePath
     ( (</>) )
 import System.IO
     ( Handle, IOMode (..), hClose, openFile )
+import System.IO.Silently
+    ( capture_ )
 import System.IO.Temp
     ( withSystemTempDirectory )
 import Test.Hspec
-    ( Spec, describe, it, shouldBe )
+    ( Spec, describe, expectationFailure, it, shouldBe )
 import Test.QuickCheck
     ( Arbitrary (..)
     , Large (..)
@@ -68,28 +73,40 @@ import qualified Data.Text.IO as TIO
 
 spec :: Spec
 spec = do
+
+    let defaultPrefs = prefs (mempty <> columns 65)
+
+    let parser = cli $ mempty
+            <> cmdMnemonic
+            <> cmdWallet @'Testnet
+            <> cmdTransaction @'Testnet
+            <> cmdAddress @'Testnet
+            <> cmdStakePool @'Testnet
+            <> cmdNetwork @'Testnet
+            <> cmdKey
+
+
+    let shouldStdOut args expected = it (unwords args) $
+            case execParserPure defaultPrefs parser args of
+                Success x -> capture_ x >>= (`shouldBe` expected)
+                CompletionInvoked _ -> expectationFailure
+                    "expected parser to show usage but it offered completion"
+                Failure failure ->
+                    expectationFailure $ "parser failed with: " ++ show failure
     describe "Specification / Usage Overview" $ do
-        let parser = cli $ mempty
-                <> cmdMnemonic
-                <> cmdWallet @'Testnet
-                <> cmdTransaction @'Testnet
-                <> cmdAddress @'Testnet
-                <> cmdStakePool @'Testnet
-                <> cmdNetwork @'Testnet
 
-        let defaultPrefs = prefs (mempty <> columns 65)
-
-        let expectationFailure = flip counterexample False
-
+        let expectationFailure' = flip counterexample False
         let shouldShowUsage args expected = it (unwords args) $
                 case execParserPure defaultPrefs parser args of
-                    Success _ -> expectationFailure
+                    Success _ -> expectationFailure'
                         "expected parser to show usage but it has succeeded"
-                    CompletionInvoked _ -> expectationFailure
+                    CompletionInvoked _ -> expectationFailure'
                         "expected parser to show usage but it offered completion"
                     Failure failure -> property $
                         let (usage, _) = renderFailure failure mempty
-                        in counterexample usage $ expected === lines usage
+                            msg = "*** Expected:\n" ++ (unlines expected)
+                                ++ "*** but actual usage is:\n" ++ usage
+                        in counterexample msg $ expected === lines usage
 
         ["--help"] `shouldShowUsage`
             [ "The CLI is a proxy to the wallet server, which is required for"
@@ -111,6 +128,7 @@ spec = do
             , "  address                  Manage addresses."
             , "  stake-pool               Manage stake pools."
             , "  network                  Manage network."
+            , "  key                      Derive keys from mnemonics."
             ]
 
         ["mnemonic", "--help"] `shouldShowUsage`
@@ -145,6 +163,19 @@ spec = do
             , "  -h,--help                Show this help text"
             , ""
             , "!!! Only for the Incentivized Testnet !!!"
+            ]
+
+
+        ["key", "--help"] `shouldShowUsage`
+            [ "Usage:  key COMMAND"
+            , "  Derive keys from mnemonics."
+            , ""
+            , "Available options:"
+            , "  -h,--help                Show this help text"
+            , ""
+            , "Available commands:"
+            , "  root                     Extract root xprv as hex (64 bytes"
+            , "                           private key + 32 bytes chain code)"
             ]
 
         ["wallet", "--help"] `shouldShowUsage`
@@ -384,9 +415,24 @@ spec = do
             , "  EPOCH_NUMBER             epoch number parameter or 'latest'"
             ]
 
+        ["key", "root", "--help"] `shouldShowUsage`
+            [ "Usage:  key root --type KEYTYPE MNEMONIC_WORDS..."
+            , "  Extract root xprv as hex (64 bytes private key + 32 bytes chain"
+            , "  code)"
+            , ""
+            , "Available options:"
+            , "  -h,--help                Show this help text"
+            , "  --type KEYTYPE           Any of the following:"
+            , "                             random (12 words)"
+            , "                             icarus (15 words)"
+            , "                             trezor (12, 15, 18, 21 or 24 words)"
+            , "                             ledger (12, 15, 18, 21 or 24 words)"
+            ]
+
     describe "Can perform roundtrip textual encoding & decoding" $ do
         textRoundtrip $ Proxy @(Port "test")
         textRoundtrip $ Proxy @MnemonicSize
+        textRoundtrip $ Proxy @ByronWalletStyle
 
     describe "Transaction ID decoding from text" $ do
 
@@ -473,6 +519,30 @@ spec = do
             , expectedStdout = "Prompt: ******\ESC[1D \ESC[1D\ESC[1D \ESC[1D**\n"
             , expectedResult = "pata14" :: Text
             }
+
+
+
+    describe "key derivation from mnemonics" $ do
+        let mw15 = words "message mask aunt wheel ten maze between tomato slow \
+                         \analyst ladder such report capital produce"
+        let mw12 = words "broccoli side goddess shaft alarm victory sheriff \
+                         \combine birth deny train outdoor"
+        (["key", "root", "--type", "icarus"] ++ mw15) `shouldStdOut`
+            "00aa5f5f364980f4ac6295fd0fbf65643390d6bb1cf76536c2ebb02713c8ba50d8\
+            \903bee774b7bf8678ea0d6fded6d876db3b42bef687640cc514eb73f767537a8c7\
+            \54f89bc9cc83533eab257d7c94625c95f0d749710428f5aa2404eeb6499b\n"
+        (["key", "root", "--type", "trezor"] ++ mw15) `shouldStdOut`
+            "00aa5f5f364980f4ac6295fd0fbf65643390d6bb1cf76536c2ebb02713c8ba50d8\
+            \903bee774b7bf8678ea0d6fded6d876db3b42bef687640cc514eb73f767537a8c7\
+            \54f89bc9cc83533eab257d7c94625c95f0d749710428f5aa2404eeb6499b\n"
+        (["key", "root", "--type", "ledger"] ++ mw15) `shouldStdOut`
+            "00aa5f5f364980f4ac6295fd0fbf65643390d6bb1cf76536c2ebb02713c8ba50d8\
+            \903bee774b7bf8678ea0d6fded6d876db3b42bef687640cc514eb73f767537a8c7\
+            \54f89bc9cc83533eab257d7c94625c95f0d749710428f5aa2404eeb6499b\n"
+        (["key", "root", "--type", "random"] ++ mw12) `shouldStdOut`
+            "f0ca39a0f8e259704de6fe79b61926411515b97ec99c265a55aefb5c2094e25a80\
+            \d0b739ca2f4d200f2d674a57ea3266f54c53f8b8df068d0cb8874e05368462b078\
+            \abfa9b0d8764fedecea41018ee6dcf51861bc3923e371dc1c14f79f9e6ea\n"
   where
     backspace :: Text
     backspace = T.singleton (toEnum 127)
@@ -529,6 +599,10 @@ test fn (GetLineTest prompt_ input_ output expected) =
 -------------------------------------------------------------------------------}
 
 instance Arbitrary MnemonicSize where
+    arbitrary = arbitraryBoundedEnum
+    shrink = genericShrink
+
+instance Arbitrary ByronWalletStyle where
     arbitrary = arbitraryBoundedEnum
     shrink = genericShrink
 

@@ -155,6 +155,7 @@ in { system, compiler, flags, pkgs, hsPkgs, pkgconfPkgs, ... }:
             (hsPkgs."memory" or (buildDepError "memory"))
             (hsPkgs."network" or (buildDepError "network"))
             (hsPkgs."persistent" or (buildDepError "persistent"))
+            (hsPkgs."process" or (buildDepError "process"))
             (hsPkgs."OddWord" or (buildDepError "OddWord"))
             (hsPkgs."QuickCheck" or (buildDepError "QuickCheck"))
             (hsPkgs."quickcheck-state-machine" or (buildDepError "quickcheck-state-machine"))

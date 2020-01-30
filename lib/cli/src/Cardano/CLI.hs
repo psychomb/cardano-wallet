@@ -1,18 +1,22 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- |
 -- Copyright: © 2018-2020 IOHK
@@ -34,6 +38,7 @@ module Cardano.CLI
     , cmdStakePool
     , cmdNetwork
     , cmdVersion
+    , cmdKey
 
     -- * Option & Argument Parsers
     , optionT
@@ -57,6 +62,7 @@ module Cardano.CLI
     , TxId
     , MnemonicSize (..)
     , Port (..)
+    , CliKeyScheme (..)
 
     -- * Logging
     , withLogging
@@ -102,13 +108,16 @@ import Cardano.Wallet.Api.Server
     ( HostPreference, Listen (..) )
 import Cardano.Wallet.Api.Types
     ( AddressAmount
+    , AllowedMnemonics
     , ApiEpochNumber
     , ApiMnemonicT (..)
     , ApiT (..)
     , ApiTxId (..)
+    , ByronWalletStyle (..)
     , DecodeAddress
     , EncodeAddress
     , Iso8601Time (..)
+    , ManyNatVal (..)
     , PostExternalTransactionData (..)
     , PostTransactionData (..)
     , PostTransactionFeeData (..)
@@ -120,12 +129,16 @@ import Cardano.Wallet.Network
     ( ErrNetworkUnavailable (..) )
 import Cardano.Wallet.Primitive.AddressDerivation
     ( FromMnemonic (..)
+    , FromMnemonicError (..)
     , Passphrase (..)
     , PassphraseMaxLength
     , PassphraseMinLength
     , WalletKey (..)
+    , XPrv
     , deriveRewardAccount
+    , hex
     , unXPrv
+    , unXPrvStripPub
     )
 import Cardano.Wallet.Primitive.AddressDiscovery.Sequential
     ( AddressPoolGap, defaultAddressPoolGap )
@@ -153,12 +166,16 @@ import Data.Char
     ( toLower )
 import Data.Functor
     ( (<$), (<&>) )
+import Data.List
+    ( intercalate )
 import Data.List.Extra
     ( enumerate )
 import Data.List.NonEmpty
     ( NonEmpty (..) )
 import Data.Maybe
     ( fromMaybe )
+import Data.Proxy
+    ( Proxy (..) )
 import Data.String
     ( IsString )
 import Data.Text
@@ -199,6 +216,7 @@ import Options.Applicative
     , footer
     , header
     , help
+    , helpDoc
     , helper
     , hidden
     , info
@@ -214,6 +232,8 @@ import Options.Applicative
     , subparser
     , value
     )
+import Options.Applicative.Help.Pretty
+    ( string, vsep )
 import Options.Applicative.Types
     ( ReadM (..), readerAsk )
 import Servant.Client
@@ -250,6 +270,7 @@ import System.IO
     , hGetEcho
     , hIsTerminalDevice
     , hPutChar
+    , hPutStrLn
     , hSetBuffering
     , hSetEcho
     , stderr
@@ -259,6 +280,8 @@ import System.IO
 
 import qualified Cardano.BM.Configuration.Model as CM
 import qualified Cardano.BM.Data.BackendKind as CM
+import qualified Cardano.Wallet.Primitive.AddressDerivation.Byron as Byron
+import qualified Cardano.Wallet.Primitive.AddressDerivation.Icarus as Icarus
 import qualified Cardano.Wallet.Primitive.AddressDerivation.Shelley as Shelley
 import qualified Codec.Binary.Bech32 as Bech32
 import qualified Codec.Binary.Bech32.TH as Bech32
@@ -267,6 +290,7 @@ import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.Bifunctor as Bi
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BL8
 import qualified Data.List.NonEmpty as NE
@@ -297,6 +321,133 @@ runCli :: ParserInfo (IO ()) -> IO ()
 runCli = join . customExecParser preferences
   where
     preferences = prefs showHelpOnEmpty
+
+{-------------------------------------------------------------------------------
+                            Commands - 'HD Derivation'
+-------------------------------------------------------------------------------}
+
+cmdKey :: Mod CommandFields (IO ())
+cmdKey = command "key" $ info (helper <*> cmds) $ mempty
+    <> progDesc "Derive keys from mnemonics."
+  where
+    cmds = subparser $ mempty
+        <> cmdRootKey
+
+-- | Parse a key type
+--
+-- Note that we in the future might replace the type @ByronWalletStyle@ with
+-- another type, to include Shelley keys.
+parseKeyType :: Parser (IO ByronWalletStyle)
+parseKeyType = toIO . fromText <$> strOption
+    ( long "type"
+    <> metavar "KEYTYPE"
+    <> helpDoc (Just (vsep typeOptions))
+    )
+  where
+    toIO :: Either TextDecodingError ByronWalletStyle -> IO ByronWalletStyle
+    toIO (Right x) =
+        return x
+    toIO (Left (TextDecodingError e)) =
+        hPutStrLn stderr e >> exitFailure
+
+    typeOptions = string <$>
+        [ "Any of the following:"
+        , "  random (" ++ allowedWords Random ++ ")"
+        , "  icarus (" ++ allowedWords Icarus ++ ")"
+        , "  trezor (" ++ allowedWords Trezor ++ ")"
+        , "  ledger (" ++ allowedWords Ledger ++ ")"
+        ]
+
+    allowedWords = (++ " words")
+        . formatEnglishEnumeration
+        . map show
+        . allowedWordLengths
+        . byronCliKeyScheme
+       where
+          -- >>> formatEnglishEnumeration ["a", "b", "c"]
+          -- "a, b or c"
+          --
+          -- >>> formatEnglishEnumeration ["a", "b"]
+          -- "a or b"
+          --
+          -- >>> formatEnglishEnumeration ["a"]
+          -- "a"
+         formatEnglishEnumeration = formatEnglishEnumerationRev . reverse
+         formatEnglishEnumerationRev [ult, penult]
+            = penult ++ " or " ++ ult
+         formatEnglishEnumerationRev (ult:penult:revBeginning)
+            = intercalate ", " (reverse revBeginning)
+                ++ ", "
+                ++ penult
+                ++ " or "
+                ++ ult
+         formatEnglishEnumerationRev xs = intercalate ", " (reverse xs)
+
+parseSeedWords :: Parser [Text]
+parseSeedWords = some (argument str (metavar "MNEMONIC_WORDS..."))
+
+-- | Lay thine eyes upon the type parameters and see that there are none.
+data CliKeyScheme = CliKeyScheme
+    { wordsToSeed :: [Text] -> Either String (Passphrase "seed")
+    , allowedWordLengths :: [Int]
+    , seedToRootKey :: Passphrase "seed" -> XPrv
+    }
+
+byronCliKeyScheme :: ByronWalletStyle -> CliKeyScheme
+byronCliKeyScheme = \case
+    Random -> mkScheme (Proxy @'Random)
+            (Byron.getKey . flip Byron.generateKeyFromSeed pass)
+    Icarus ->
+        mkScheme (Proxy @'Icarus)
+            icarusStyleKeyToSeed
+    Trezor ->
+        mkScheme (Proxy @'Trezor)
+            icarusStyleKeyToSeed
+    Ledger ->
+        mkScheme (Proxy @'Ledger)
+            icarusStyleKeyToSeed
+  where
+    mkScheme
+        :: forall (s :: ByronWalletStyle).
+            ( FromMnemonic (AllowedMnemonics s) "seed"
+            , ManyNatVal (AllowedMnemonics s)
+            )
+        => Proxy s
+        -> (Passphrase "seed" -> XPrv)
+        -> CliKeyScheme
+
+    -- Construct a KeyScheme using the type families of the promoted type
+    -- argument.
+    mkScheme _ = CliKeyScheme
+            (left getFromMnemonicError . fromMnemonic @(AllowedMnemonics s) @"seed")
+            (map fromIntegral (manyNatVal $ Proxy @(AllowedMnemonics s)))
+
+    icarusStyleKeyToSeed =
+            (Icarus.getKey . flip Icarus.generateKeyFromSeed pass)
+
+    -- We don't use passwords to encrypt the keys here.
+    pass = mempty
+
+cmdRootKey :: Mod CommandFields (IO ())
+cmdRootKey =
+    command "root" $ info (helper <*> cmd) $ mempty
+        <> progDesc "Extract root xprv as hex\n\
+                    \ (64 bytes private key + 32 bytes chain code)"
+  where
+    cmd = do
+        keyType <- parseKeyType
+        ws <- parseSeedWords
+        return $ do
+            scheme <- byronCliKeyScheme <$> keyType
+
+            seed <-toIOErr $ wordsToSeed scheme ws
+            let xprv = seedToRootKey scheme seed
+            TIO.putStrLn $ T.pack . B8.unpack . hex $ unXPrvStripPub xprv
+
+    toIOErr :: Either String a -> IO a
+    toIOErr (Right a) = return a
+    toIOErr (Left e) = hPutStrLn stderr e >> exitFailure
+
 
 {-------------------------------------------------------------------------------
                             Commands - 'mnemonic'

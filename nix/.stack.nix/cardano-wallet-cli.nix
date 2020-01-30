@@ -89,6 +89,7 @@ in { system, compiler, flags, pkgs, hsPkgs, pkgconfPkgs, ... }:
             (hsPkgs."hspec" or (buildDepError "hspec"))
             (hsPkgs."optparse-applicative" or (buildDepError "optparse-applicative"))
             (hsPkgs."QuickCheck" or (buildDepError "QuickCheck"))
+            (hsPkgs."silently" or (buildDepError "silently"))
             (hsPkgs."temporary" or (buildDepError "temporary"))
             (hsPkgs."text" or (buildDepError "text"))
             (hsPkgs."text-class" or (buildDepError "text-class"))
