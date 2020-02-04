@@ -5714,29 +5714,37 @@ data WorkerRegistry key resource
 -- | Construct a new empty registry
 empty :: Ord key => IO (WorkerRegistry key resource)
 
--- | Register a new worker
-insert :: Ord key => WorkerRegistry key resource -> Worker key resource -> IO ()
-
 -- | Get all registered keys in the registry
 keys :: WorkerRegistry key resource -> IO [key]
 
 -- | Lookup the registry for a given worker
 lookup :: (MonadIO m, Ord key) => WorkerRegistry key resource -> key -> m (Maybe (Worker key resource))
 
--- | Remove a worker from the registry (and cancel any running task)
-remove :: Ord key => WorkerRegistry key resource -> key -> IO ()
+-- | Register a new worker for a given key.
+--   
+--   A worker maintains an acquired resource. It expects a task as an
+--   argument and will terminate as soon as its task is over. In practice,
+--   we provide a never-ending task that keeps the worker alive forever.
+--   
+--   Returns <a>Nothing</a> if the worker fails to acquire the necessary
+--   resource or terminates unexpectedly before entering its <tt>main</tt>
+--   action.
+register :: forall resource ctx key msg. (Ord key, key ~ WorkerKey ctx, msg ~ WorkerMsg ctx, HasLogger (WorkerLog key msg) ctx, HasWorkerCtx resource ctx) => WorkerRegistry key resource -> ctx -> key -> MkWorker key resource msg ctx -> IO (Maybe (Worker key resource))
+
+-- | Unregister a worker from the registry, terminating the running task.
+unregister :: Ord key => WorkerRegistry key resource -> key -> IO ()
 
 -- | A worker which holds and manipulate a paticular acquired resource.
 --   That resource can be, for example, a handle to a database connection.
 data Worker key resource
 
--- | See <a>newWorker</a>
+-- | See <tt>newWorker</tt>
 data MkWorker key resource msg ctx
 MkWorker :: (WorkerCtx ctx -> key -> IO ()) -> (WorkerCtx ctx -> key -> IO ()) -> (Tracer IO (WorkerLog key msg) -> Either SomeException () -> IO ()) -> ((resource -> IO ()) -> IO ()) -> MkWorker key resource msg ctx
 
 -- | A task to execute before the main worker's task. When creating a
 --   worker, this task is guaranteed to have terminated once
---   <a>newWorker</a> returns.
+--   <tt>newWorker</tt> returns.
 [workerBefore] :: MkWorker key resource msg ctx -> WorkerCtx ctx -> key -> IO ()
 
 -- | A task for the worker, possibly infinite
@@ -5748,21 +5756,6 @@ MkWorker :: (WorkerCtx ctx -> key -> IO ()) -> (WorkerCtx ctx -> key -> IO ()) -
 -- | A bracket-style factory to acquire a resource
 [workerAcquire] :: MkWorker key resource msg ctx -> (resource -> IO ()) -> IO ()
 defaultWorkerAfter :: Tracer IO (WorkerLog key msg) -> Either SomeException a -> IO ()
-
--- | Create a new worker for a given key. Workers maintain an acquired
---   resource. They expect a task as argument and will terminate as soon as
---   their task is over; so in practice, we provide a never-ending task
---   that keeps the worker alive forever.
---   
---   Returns <a>Nothing</a> if the worker fails to acquire the necessary
---   resource or terminate unexpectedly before entering its <tt>main</tt>
---   action.
---   
---   <pre>
---   &gt;&gt;&gt; newWorker ctx k withDBLayer restoreWallet
---   worker&lt;thread#1234&gt;
---   </pre>
-newWorker :: forall resource ctx key msg. (key ~ WorkerKey ctx, msg ~ WorkerMsg ctx, HasLogger (WorkerLog key msg) ctx, HasWorkerCtx resource ctx) => ctx -> key -> MkWorker key resource msg ctx -> IO (Maybe (Worker key resource))
 workerThread :: Worker key resource -> ThreadId
 workerId :: Worker key resource -> key
 workerResource :: Worker key resource -> resource
