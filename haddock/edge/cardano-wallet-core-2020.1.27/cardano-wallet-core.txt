@@ -536,6 +536,17 @@ PoolRegistrationCertificate :: !PoolId -> ![PoolOwner] -> Percentage -> Quantity
 [$sel:poolMargin:PoolRegistrationCertificate] :: PoolRegistrationCertificate -> Percentage
 [$sel:poolCost:PoolRegistrationCertificate] :: PoolRegistrationCertificate -> Quantity "lovelace" Word64
 
+-- | A delegation certificate discovered by the "current wallet".
+data DelegationDiscovered
+DelegationDiscovered :: !SlotId -> !Maybe PoolId -> DelegationDiscovered
+
+-- | Slot corresponding to the block the certificate was discovered
+[$sel:slotId:DelegationDiscovered] :: DelegationDiscovered -> !SlotId
+
+-- | Stake pool identifier - in case the certificate pertains to
+--   (re)joining or <tt>Nothing</tt> if quitting.
+[$sel:poolId:DelegationDiscovered] :: DelegationDiscovered -> !Maybe PoolId
+
 -- | Coins are stored as Lovelace (reminder: 1 Lovelace = 1e-6 ADA)
 newtype Coin
 Coin :: Word64 -> Coin
@@ -992,6 +1003,10 @@ instance GHC.Classes.Ord (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Classes.Eq (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Generics.Generic (Cardano.Wallet.Primitive.Types.Hash tag)
 instance GHC.Show.Show (Cardano.Wallet.Primitive.Types.Hash tag)
+instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.DelegationDiscovered
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.DelegationDiscovered
+instance GHC.Show.Show Cardano.Wallet.Primitive.Types.DelegationDiscovered
+instance GHC.Generics.Generic Cardano.Wallet.Primitive.Types.DelegationDiscovered
 instance GHC.Classes.Ord Cardano.Wallet.Primitive.Types.PoolRegistrationCertificate
 instance GHC.Classes.Eq Cardano.Wallet.Primitive.Types.PoolRegistrationCertificate
 instance GHC.Show.Show Cardano.Wallet.Primitive.Types.PoolRegistrationCertificate
@@ -1171,6 +1186,7 @@ instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Account"
 instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Genesis")
 instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "Block")
 instance Data.Text.Class.FromText (Cardano.Wallet.Primitive.Types.Hash "BlockHeader")
+instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.DelegationDiscovered
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.PoolRegistrationCertificate
 instance Formatting.Buildable.Buildable Cardano.Wallet.Primitive.Types.PoolRegistrationCertificate
 instance Control.DeepSeq.NFData Cardano.Wallet.Primitive.Types.DelegationCertificate
@@ -2522,6 +2538,7 @@ mListCheckpoints :: Ord wid => wid -> ModelOp wid s xprv [BlockHeader]
 mRollbackTo :: Ord wid => wid -> SlotId -> ModelOp wid s xprv SlotId
 mPutWalletMeta :: Ord wid => wid -> WalletMetadata -> ModelOp wid s xprv ()
 mReadWalletMeta :: Ord wid => wid -> ModelOp wid s xprv (Maybe WalletMetadata)
+mReadWalletDelegations :: Ord wid => wid -> ModelOp wid s xprv [DelegationDiscovered]
 mPutDelegationCertificate :: Ord wid => wid -> DelegationCertificate -> SlotId -> ModelOp wid s xprv ()
 mPutTxHistory :: forall wid s xprv. Ord wid => wid -> TxHistory -> ModelOp wid s xprv ()
 mReadTxHistory :: forall wid s xprv. Ord wid => wid -> SortOrder -> Range SlotId -> Maybe TxStatus -> ModelOp wid s xprv TxHistory
@@ -3658,7 +3675,7 @@ module Cardano.Wallet.DB
 --   <tt>let</tt> binding here as the semantic for those are slightly
 --   different: we really need a pattern match here!
 data DBLayer m s k
-DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists stm ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> stm [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (Wallet s))) -> (PrimaryKey WalletId -> stm [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe WalletMetadata)) -> (PrimaryKey WalletId -> DelegationCertificate -> SlotId -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> stm [(Tx, TxMeta)]) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx stm ()) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet stm SlotId) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> (forall a. stm a -> m a) -> DBLayer m s k
+DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] -> ExceptT ErrWalletAlreadyExists stm ()) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> stm [PrimaryKey WalletId] -> (PrimaryKey WalletId -> Wallet s -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (Wallet s))) -> (PrimaryKey WalletId -> stm [BlockHeader]) -> (PrimaryKey WalletId -> WalletMetadata -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe WalletMetadata)) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm [DelegationDiscovered]) -> (PrimaryKey WalletId -> DelegationCertificate -> SlotId -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> [(Tx, TxMeta)] -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> SortOrder -> Range SlotId -> Maybe TxStatus -> stm [(Tx, TxMeta)]) -> (PrimaryKey WalletId -> Hash "Tx" -> ExceptT ErrRemovePendingTx stm ()) -> (PrimaryKey WalletId -> (k  'RootK XPrv, Hash "encryption") -> ExceptT ErrNoSuchWallet stm ()) -> (PrimaryKey WalletId -> stm (Maybe (k  'RootK XPrv, Hash "encryption"))) -> (PrimaryKey WalletId -> SlotId -> ExceptT ErrNoSuchWallet stm SlotId) -> (PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm ()) -> (forall a. stm a -> m a) -> DBLayer m s k
 
 -- | Initialize a database entry for a given wallet. <a>putCheckpoint</a>,
 --   <a>putWalletMeta</a> or <a>putTxHistory</a> will actually all fail if
@@ -3697,6 +3714,11 @@ DBLayer :: (PrimaryKey WalletId -> Wallet s -> WalletMetadata -> [(Tx, TxMeta)] 
 --   
 --   Return <a>Nothing</a> if there's no such wallet.
 [readWalletMeta] :: DBLayer m s k -> PrimaryKey WalletId -> stm (Maybe WalletMetadata)
+
+-- | Fetch last two wallet delegations dicovered
+--   
+--   If the wallet doesn't exist, this operation returns an error
+[readWalletDelegations] :: DBLayer m s k -> PrimaryKey WalletId -> ExceptT ErrNoSuchWallet stm [DelegationDiscovered]
 
 -- | Binds a stake pool id to a wallet. This will have an influence on the
 --   wallet metadata: the last known certificate will indicate to which
@@ -4760,11 +4782,11 @@ ApiStakePoolMetrics :: !Quantity "lovelace" Natural -> !Quantity "block" Natural
 [$sel:controlledStake:ApiStakePoolMetrics] :: ApiStakePoolMetrics -> !Quantity "lovelace" Natural
 [$sel:producedBlocks:ApiStakePoolMetrics] :: ApiStakePoolMetrics -> !Quantity "block" Natural
 data ApiWallet
-ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !ApiT (WalletDelegation (ApiT PoolId)) -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> !ApiBlockReference -> ApiWallet
+ApiWallet :: !ApiT WalletId -> !ApiT AddressPoolGap -> !ApiT WalletBalance -> !ApiWalletDelegation -> !ApiT WalletName -> !Maybe (ApiT WalletPassphraseInfo) -> !ApiT SyncProgress -> !ApiBlockReference -> ApiWallet
 [$sel:id:ApiWallet] :: ApiWallet -> !ApiT WalletId
 [$sel:addressPoolGap:ApiWallet] :: ApiWallet -> !ApiT AddressPoolGap
 [$sel:balance:ApiWallet] :: ApiWallet -> !ApiT WalletBalance
-[$sel:delegation:ApiWallet] :: ApiWallet -> !ApiT (WalletDelegation (ApiT PoolId))
+[$sel:delegation:ApiWallet] :: ApiWallet -> !ApiWalletDelegation
 [$sel:name:ApiWallet] :: ApiWallet -> !ApiT WalletName
 [$sel:passphrase:ApiWallet] :: ApiWallet -> !Maybe (ApiT WalletPassphraseInfo)
 [$sel:state:ApiWallet] :: ApiWallet -> !ApiT SyncProgress
@@ -4873,6 +4895,7 @@ InvalidRestorationParameters :: ApiErrorCode
 RejectedTip :: ApiErrorCode
 InvalidEpochNo :: ApiErrorCode
 NotSuchEpochNo :: ApiErrorCode
+InvalidDelegationDiscovery :: ApiErrorCode
 data ApiNetworkInformation
 ApiNetworkInformation :: !ApiT SyncProgress -> !ApiEpochInfo -> !ApiBlockReference -> !ApiNetworkTip -> ApiNetworkInformation
 [$sel:syncProgress:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiT SyncProgress
@@ -4982,6 +5005,30 @@ ApiT :: a -> ApiT a
 newtype ApiMnemonicT (sizes :: [Nat]) (purpose :: Symbol)
 ApiMnemonicT :: (Passphrase purpose, [Text]) -> ApiMnemonicT
 getApiMnemonicT :: ApiMnemonicT sizes purpose -> Passphrase purpose
+
+-- | Wallet not delegating and not about to join any stake pool.
+notDelegating :: ApiWalletDelegation
+
+-- | Wallet not delegating and joined the stake pool. The delegation will
+--   be effective as specified by epoch info.
+notDelegatingAboutToJoin :: ApiT PoolId -> EpochNo -> SlotParameters -> ApiWalletDelegation
+
+-- | Wallet delegating to a given stake pool.
+delegating :: ApiT PoolId -> ApiWalletDelegation
+
+-- | Wallet delegating to a given stake pool and quitted the stake pool.
+--   The quitting will be effective as specified by epoch info.
+delegatingAboutToQuit :: ApiT PoolId -> EpochNo -> SlotParameters -> ApiWalletDelegation
+
+-- | Wallet delegating to a given stake pool, and joined another stake
+--   pool. The delegation to another stake pool will be effective as
+--   specified by epoch info.
+delegatingAboutToRejoin :: ApiT PoolId -> ApiT PoolId -> EpochNo -> SlotParameters -> ApiWalletDelegation
+toApiWalletDelegation :: EpochNo -> SlotParameters -> [DelegationDiscovered] -> Either ErrDelegationsDiscoveredInconsistency ApiWalletDelegation
+newtype ErrDelegationsDiscoveredInconsistency
+ErrDelegationsDiscoveredInconsistency :: Text -> ErrDelegationsDiscoveredInconsistency
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ErrDelegationsDiscoveredInconsistency
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ErrDelegationsDiscoveredInconsistency
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiByronWallet
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiByronWallet
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiByronWallet
@@ -5000,6 +5047,9 @@ instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpo
 instance GHC.Show.Show (Cardano.Wallet.Api.Types.ApiAddress n)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiAddress n)
 instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiAddress n)
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiWallet
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiWallet
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiWallet
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiWalletDelegation
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiWalletDelegation
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiWalletDelegation
@@ -5018,9 +5068,6 @@ instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiCoinSelection n)
 instance GHC.Show.Show (Cardano.Wallet.Api.Types.ApiCoinSelectionInput n)
 instance GHC.Generics.Generic (Cardano.Wallet.Api.Types.ApiCoinSelectionInput n)
 instance GHC.Classes.Eq (Cardano.Wallet.Api.Types.ApiCoinSelectionInput n)
-instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiWallet
-instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiWallet
-instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiWallet
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiDelegationStatus
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiDelegationStatus
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiDelegationStatus
@@ -5132,6 +5179,8 @@ instance Cardano.Wallet.Primitive.AddressDerivation.FromMnemonic mw "seed" => Da
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ByronWalletPostData mw)
 instance Cardano.Wallet.Primitive.AddressDerivation.FromMnemonic sizes purpose => Data.Aeson.Types.FromJSON.FromJSON (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
 instance Data.Aeson.Types.ToJSON.ToJSON (Cardano.Wallet.Api.Types.ApiMnemonicT sizes purpose)
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWallet
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiWallet
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWalletDelegation
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiWalletDelegation
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWalletDelegationNext
@@ -5140,8 +5189,6 @@ instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkI
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiNetworkInformation
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiEpochInfo
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiEpochInfo
-instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWallet
-instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiWallet
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiDelegationStatus
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiDelegationStatus
 instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiWalletPassphrase
@@ -5539,6 +5586,9 @@ quitStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger WalletLog ctx,
 --   (including one certificate).
 selectCoinsForDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasLogger WalletLog ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrSelectForDelegation IO CoinSelection
 signDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> PoolId -> DelegationAction -> ExceptT ErrSignDelegation IO (Tx, TxMeta, UTCTime, SealedTx)
+
+-- | Retrieve last two discovered delegations of a given wallet.
+takeDelegationsDiscovered :: forall ctx s k. (HasDBLayer s k ctx, WalletKey k) => ctx -> WalletId -> ExceptT ErrNoSuchWallet IO [DelegationDiscovered]
 data ErrJoinStakePool
 ErrJoinStakePoolNoSuchWallet :: ErrNoSuchWallet -> ErrJoinStakePool
 ErrJoinStakePoolAlreadyDelegating :: PoolId -> ErrJoinStakePool
@@ -6316,6 +6366,7 @@ instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Primitive.Fee.ErrA
 instance Formatting.Buildable.Buildable e => Cardano.Wallet.Api.Server.LiftHandler (Cardano.Wallet.ErrSelectForPayment e)
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrListUTxOStatistics
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Transaction.ErrMkTx
+instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Api.Types.ErrDelegationsDiscoveredInconsistency
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSignPayment
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.Transaction.ErrDecodeSignedTx
 instance Cardano.Wallet.Api.Server.LiftHandler Cardano.Wallet.ErrSubmitExternalTx
