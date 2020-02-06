@@ -181,16 +181,6 @@ HumanReadablePartContainsInvalidChars :: [CharPosition] -> HumanReadablePartErro
 --   <a>https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki#bech32</a>
 humanReadablePartFromText :: Text -> Either HumanReadablePartError HumanReadablePart
 
--- | Like <a>humanReadablePartFromText</a>, but throws at runtime if given
---   an invalid <tt>hrp</tt> as text. It is recommended to only make use of
---   this function when using litterals. For example:
---   
---   <pre>
---   &gt;&gt;&gt; unsafeHumanReadablePartFromText "addr"
---   HumanReadablePart "addr"
---   </pre>
-unsafeHumanReadablePartFromText :: HasCallStack => Text -> HumanReadablePart
-
 -- | Get the raw text of the human-readable part of a Bech32 string.
 humanReadablePartToText :: HumanReadablePart -> Text
 
@@ -378,13 +368,3 @@ humanReadablePartFromText :: Text -> Either HumanReadablePartError HumanReadable
 
 -- | Get the raw text of the human-readable part of a Bech32 string.
 humanReadablePartToText :: HumanReadablePart -> Text
-
--- | Like <a>humanReadablePartFromText</a>, but throws at runtime if given
---   an invalid <tt>hrp</tt> as text. It is recommended to only make use of
---   this function when using litterals. For example:
---   
---   <pre>
---   &gt;&gt;&gt; unsafeHumanReadablePartFromText "addr"
---   HumanReadablePart "addr"
---   </pre>
-unsafeHumanReadablePartFromText :: HasCallStack => Text -> HumanReadablePart
