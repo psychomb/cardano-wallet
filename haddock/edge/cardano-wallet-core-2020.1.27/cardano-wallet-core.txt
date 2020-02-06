@@ -6064,7 +6064,7 @@ module Cardano.Wallet.Api.Client
 -- | This data type encapsulates the client functions for all endpoints of
 --   the cardano-wallet V2 API.
 data WalletClient t
-WalletClient :: (ApiT WalletId -> Maybe (ApiT AddressState) -> ClientM [ApiAddress t]) -> (ApiT WalletId -> ClientM ()) -> (ApiT WalletId -> ClientM ApiWallet) -> (ApiT WalletId -> ClientM ApiUtxoStatistics) -> ClientM [ApiWallet] -> (WalletPostData -> ClientM ApiWallet) -> (ApiT WalletId -> WalletPutData -> ClientM ApiWallet) -> (ApiT WalletId -> WalletPutPassphraseData -> ClientM NoContent) -> (ApiT WalletId -> ApiNetworkTip -> ClientM NoContent) -> (ApiT WalletId -> Maybe Iso8601Time -> Maybe Iso8601Time -> Maybe (ApiT SortOrder) -> ClientM [ApiTransaction t]) -> (ApiT WalletId -> PostTransactionData t -> ClientM (ApiTransaction t)) -> (ApiT WalletId -> PostTransactionFeeData t -> ClientM ApiFee) -> (PostExternalTransactionData -> ClientM ApiTxId) -> (ApiT WalletId -> ApiTxId -> ClientM NoContent) -> ClientM [ApiStakePool] -> (ApiT PoolId -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)) -> (ApiT PoolId -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)) -> ClientM ApiNetworkInformation -> WalletClient t
+WalletClient :: (ApiT WalletId -> Maybe (ApiT AddressState) -> ClientM [ApiAddress t]) -> (ApiT WalletId -> ClientM ()) -> (ApiT WalletId -> ClientM ApiWallet) -> (ApiT WalletId -> ClientM ApiUtxoStatistics) -> ClientM [ApiWallet] -> (WalletPostData -> ClientM ApiWallet) -> (ApiT WalletId -> WalletPutData -> ClientM ApiWallet) -> (ApiT WalletId -> WalletPutPassphraseData -> ClientM NoContent) -> (ApiT WalletId -> ApiNetworkTip -> ClientM NoContent) -> (ApiT WalletId -> Maybe Iso8601Time -> Maybe Iso8601Time -> Maybe (ApiT SortOrder) -> ClientM [ApiTransaction t]) -> (ApiT WalletId -> PostTransactionData t -> ClientM (ApiTransaction t)) -> (ApiT WalletId -> PostTransactionFeeData t -> ClientM ApiFee) -> (PostExternalTransactionData -> ClientM ApiTxId) -> (ApiT WalletId -> ApiTxId -> ClientM NoContent) -> ClientM [ApiStakePool] -> (ApiT PoolId -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)) -> (ApiT PoolId -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)) -> ClientM ApiNetworkInformation -> (ApiEpochNumber -> ClientM ApiNetworkParameters) -> WalletClient t
 [$sel:listAddresses:WalletClient] :: WalletClient t -> ApiT WalletId -> Maybe (ApiT AddressState) -> ClientM [ApiAddress t]
 [$sel:deleteWallet:WalletClient] :: WalletClient t -> ApiT WalletId -> ClientM ()
 [$sel:getWallet:WalletClient] :: WalletClient t -> ApiT WalletId -> ClientM ApiWallet
@@ -6083,6 +6083,7 @@ WalletClient :: (ApiT WalletId -> Maybe (ApiT AddressState) -> ClientM [ApiAddre
 [$sel:joinStakePool:WalletClient] :: WalletClient t -> ApiT PoolId -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)
 [$sel:quitStakePool:WalletClient] :: WalletClient t -> ApiT PoolId -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)
 [$sel:networkInformation:WalletClient] :: WalletClient t -> ClientM ApiNetworkInformation
+[$sel:networkParameters:WalletClient] :: WalletClient t -> ApiEpochNumber -> ClientM ApiNetworkParameters
 
 -- | Produces a <a>WalletClient</a> for the cardano-wallet V2 API.
 --   

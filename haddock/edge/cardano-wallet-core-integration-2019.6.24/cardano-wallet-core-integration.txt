@@ -237,6 +237,7 @@ ClientError :: Value -> RequestException
 
 -- | A wild exception upon sending the request
 HttpException :: HttpExceptionContent -> RequestException
+expectedBlockchainParams :: ApiNetworkParameters
 walletId :: HasType (ApiT WalletId) s => Lens' s Text
 (</>) :: ToHttpApiData a => Text -> a -> Text
 infixr 5 </>
