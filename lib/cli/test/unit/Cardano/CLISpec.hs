@@ -34,6 +34,8 @@ import Control.Concurrent
     ( forkFinally )
 import Control.Concurrent.MVar
     ( newEmptyMVar, putMVar, takeMVar )
+import Control.Exception
+    ( SomeException, try )
 import Control.Monad
     ( mapM_ )
 import Data.Proxy
@@ -44,16 +46,18 @@ import Data.Text.Class
     ( FromText (..), TextDecodingError (..), toText )
 import Options.Applicative
     ( ParserResult (..), columns, execParserPure, prefs, renderFailure )
+import System.Exit
+    ( ExitCode (..) )
 import System.FilePath
     ( (</>) )
 import System.IO
-    ( Handle, IOMode (..), hClose, openFile )
+    ( Handle, IOMode (..), hClose, openFile, stderr )
 import System.IO.Silently
-    ( capture_ )
+    ( capture_, hCapture_ )
 import System.IO.Temp
     ( withSystemTempDirectory )
 import Test.Hspec
-    ( Spec, describe, expectationFailure, it, shouldBe )
+    ( Spec, describe, expectationFailure, it, shouldBe, shouldStartWith )
 import Test.QuickCheck
     ( Arbitrary (..)
     , Large (..)
@@ -93,6 +97,16 @@ spec = do
                     "expected parser to show usage but it offered completion"
                 Failure failure ->
                     expectationFailure $ "parser failed with: " ++ show failure
+    let expectStdErr args expectation = it (unwords args) $
+            case execParserPure defaultPrefs parser args of
+                Success x ->
+                    hCapture_ [stderr] (try @SomeException x) >>= (expectation)
+                CompletionInvoked _ -> expectationFailure
+                    "expected parser to show usage but it offered completion"
+                Failure failure -> do
+                    let (str, code) = renderFailure failure ""
+                    code `shouldBe` (ExitFailure 1)
+                    expectation str
     describe "Specification / Usage Overview" $ do
 
         let expectationFailure' = flip counterexample False
@@ -521,12 +535,11 @@ spec = do
             }
 
 
-
+    let mw15 = words "message mask aunt wheel ten maze between tomato slow \
+                     \analyst ladder such report capital produce"
+    let mw12 = words "broccoli side goddess shaft alarm victory sheriff \
+                     \combine birth deny train outdoor"
     describe "key derivation from mnemonics" $ do
-        let mw15 = words "message mask aunt wheel ten maze between tomato slow \
-                         \analyst ladder such report capital produce"
-        let mw12 = words "broccoli side goddess shaft alarm victory sheriff \
-                         \combine birth deny train outdoor"
         (["key", "root", "--type", "icarus"] ++ mw15) `shouldStdOut`
             "00aa5f5f364980f4ac6295fd0fbf65643390d6bb1cf76536c2ebb02713c8ba50d8\
             \903bee774b7bf8678ea0d6fded6d876db3b42bef687640cc514eb73f767537a8c7\
@@ -543,6 +556,21 @@ spec = do
             "f0ca39a0f8e259704de6fe79b61926411515b97ec99c265a55aefb5c2094e25a80\
             \d0b739ca2f4d200f2d674a57ea3266f54c53f8b8df068d0cb8874e05368462b078\
             \abfa9b0d8764fedecea41018ee6dcf51861bc3923e371dc1c14f79f9e6ea\n"
+
+    describe "key derivation (negative tests)" $ do
+        (["key", "root", "--type", "random"] ++ mw15) `expectStdErr`
+            (`shouldBe` "Invalid number of words: 12 words are expected.\n")
+
+        (["key", "root", "--type", "random"]) `expectStdErr`
+            (`shouldStartWith` "Missing: MNEMONIC_WORDS...")
+
+        let shrug = "¯\\_(ツ)_/¯"
+        (["key", "root", "--type", "random"] ++ (replicate 12 shrug))
+            `expectStdErr` (`shouldBe`
+            "Found an unknown word not present in the pre-defined dictionary: \
+            \\"\175\\_(\12484)_/\175\". The full dictionary is available here:\
+            \ https://github.com/input-output-hk/cardano-wallet/tree/master/spe\
+            \cifications/mnemonic/english.txt\n")
   where
     backspace :: Text
     backspace = T.singleton (toEnum 127)

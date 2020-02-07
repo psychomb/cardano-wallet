@@ -440,7 +440,7 @@ cmdRootKey =
         return $ do
             scheme <- byronCliKeyScheme <$> keyType
 
-            seed <-toIOErr $ wordsToSeed scheme ws
+            seed <- toIOErr $ wordsToSeed scheme ws
             let xprv = seedToRootKey scheme seed
             TIO.putStrLn $ T.pack . B8.unpack . hex $ unXPrvStripPub xprv
 
