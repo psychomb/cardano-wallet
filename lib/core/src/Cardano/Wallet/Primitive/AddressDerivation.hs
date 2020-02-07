@@ -53,8 +53,11 @@ module Cardano.Wallet.Primitive.AddressDerivation
     , unXPrv
     , xprv
     , xpub
+
+    -- * Helpers
     , hex
     , fromHex
+    , unXPrvStripPub
 
     -- * Network Discrimination
     , NetworkDiscriminant (..)
@@ -707,3 +710,16 @@ hex = convertToBase Base16
 -- | Decode a 'ByteString' from base16
 fromHex :: ByteArray bout => ByteString -> Either String bout
 fromHex = convertFromBase Base16
+
+-- | Extracts the raw xprv bytes as @private key <> chain code@, i.e. without
+-- the public key.
+unXPrvStripPub :: XPrv -> ByteString
+unXPrvStripPub = stripPub . unXPrv
+  where
+    -- Converts  prv <> pub <> cc
+    -- To        prv <>        cc
+    stripPub :: ByteString -> ByteString
+    stripPub xprv' = prv <> chainCode
+      where
+        (prv, rest) = BS.splitAt 64 xprv'
+        (_pub, chainCode) = BS.splitAt 32 rest

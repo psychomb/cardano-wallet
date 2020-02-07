@@ -39,6 +39,8 @@ import Cardano.Wallet.Primitive.AddressDerivation
     , checkPassphrase
     , encryptPassphrase
     , getIndex
+    , hex
+    , unXPrvStripPub
     )
 import Cardano.Wallet.Primitive.AddressDerivation.Byron
     ( ByronKey (..) )
@@ -56,6 +58,8 @@ import Data.Either
     ( isRight )
 import Data.Proxy
     ( Proxy (..) )
+import System.Process
+    ( readProcessWithExitCode )
 import Test.Hspec
     ( Spec, describe, it, shouldBe, shouldSatisfy )
 import Test.QuickCheck
@@ -66,6 +70,7 @@ import Test.QuickCheck
     , arbitraryBoundedEnum
     , arbitraryPrintableChar
     , choose
+    , counterexample
     , expectFailure
     , genericShrink
     , oneof
@@ -76,7 +81,7 @@ import Test.QuickCheck
     , (==>)
     )
 import Test.QuickCheck.Monadic
-    ( monadicIO )
+    ( assert, monadicIO, monitor, run )
 import Test.Text.Roundtrip
     ( textRoundtrip )
 
@@ -211,6 +216,14 @@ spec = do
         it "XPub IcarusKey"
             (property $ prop_roundtripXPub @IcarusKey)
 
+    describe "keyToHexText" $ do
+        it "is compatible with jcli (Shelley)" $
+            property $ prop_keyToHexTextJcliCompatible @ShelleyKey
+        it "is compatible with jcli (Icarus)" $
+            property $ prop_keyToHexTextJcliCompatible @IcarusKey
+        it "is compatible with jcli (Byron)" $
+            property $ prop_keyToHexTextJcliCompatible @ByronKey
+
 {-------------------------------------------------------------------------------
                                Properties
 -------------------------------------------------------------------------------}
@@ -279,6 +292,23 @@ prop_passphraseHashMalformed
 prop_passphraseHashMalformed pwd = monadicIO $ liftIO $ do
     checkPassphrase pwd (Hash mempty) `shouldBe` Left ErrWrongPassphrase
 
+prop_keyToHexTextJcliCompatible
+    :: WalletKey k
+    => Unencrypted (k 'RootK XPrv)
+    -> Property
+prop_keyToHexTextJcliCompatible (Unencrypted k) = monadicIO $ do
+    let hexXPrv = B8.unpack . hex . unXPrvStripPub . getRawKey $ k
+    monitor (counterexample $ "\nkey bytes = " ++ hexXPrv)
+    (code, stdout, stderr) <- run $ jcliKeyFromHex hexXPrv
+    monitor (counterexample $ "\n" ++ show code)
+    monitor (counterexample $ "Stdout: " ++ show stdout)
+    monitor (counterexample $ "Stderr: " ++ show stderr)
+    assert (stderr == "")
+  where
+    jcliKeyFromHex = readProcessWithExitCode
+            "jcli"
+            ["key", "from-bytes", "--type", "ed25519bip32"]
+
 {-------------------------------------------------------------------------------
                              Arbitrary Instances
 -------------------------------------------------------------------------------}
@@ -340,11 +370,11 @@ instance Eq XPrv where
 
 instance Arbitrary (ShelleyKey 'RootK XPrv) where
     shrink _ = []
-    arbitrary = genRootKeysSeq
+    arbitrary = genRootKeysSeqWithPass $ genPassphrase (0, 16)
 
 instance Arbitrary (ShelleyKey 'AccountK XPub) where
     shrink _ = []
-    arbitrary = publicKey <$> genRootKeysSeq
+    arbitrary = publicKey <$> genRootKeysSeqWithPass (genPassphrase (0, 16))
 
 instance Arbitrary (ShelleyKey 'RootK XPub) where
     shrink _ = []
@@ -352,37 +382,57 @@ instance Arbitrary (ShelleyKey 'RootK XPub) where
 
 instance Arbitrary (ByronKey 'RootK XPrv) where
     shrink _ = []
-    arbitrary = genRootKeysRnd
+    arbitrary = genRootKeysRndWithPass $ genPassphrase (0, 16)
 
 instance Arbitrary (IcarusKey 'RootK XPrv) where
     shrink _ = []
-    arbitrary = genRootKeysIca
+    arbitrary = genRootKeysIcaWithPass $ genPassphrase (0, 16)
 
 instance Arbitrary (IcarusKey 'AccountK XPub) where
     shrink _ = []
-    arbitrary = publicKey <$> genRootKeysIca
+    arbitrary = publicKey <$> genRootKeysIcaWithPass (genPassphrase (0, 16))
+
 
 instance Arbitrary NetworkDiscriminant where
     arbitrary = arbitraryBoundedEnum
     shrink = genericShrink
 
-genRootKeysSeq :: Gen (ShelleyKey depth XPrv)
-genRootKeysSeq = do
+newtype Unencrypted a = Unencrypted a
+    deriving (Eq, Show)
+
+instance Arbitrary (Unencrypted (ShelleyKey 'RootK XPrv)) where
+    shrink _ = []
+    arbitrary = Unencrypted <$> genRootKeysSeqWithPass (pure mempty)
+
+instance Arbitrary (Unencrypted (ByronKey 'RootK XPrv)) where
+    shrink _ = []
+    arbitrary = Unencrypted <$> genRootKeysRndWithPass (pure mempty)
+
+instance Arbitrary (Unencrypted (IcarusKey 'RootK XPrv)) where
+    shrink _ = []
+    arbitrary = Unencrypted <$> genRootKeysIcaWithPass (pure mempty)
+
+genRootKeysSeqWithPass
+    :: Gen (Passphrase "encryption")
+    -> Gen (ShelleyKey depth XPrv)
+genRootKeysSeqWithPass encryptionPass = do
     (s, g, e) <- (,,)
         <$> genPassphrase @"seed" (16, 32)
         <*> genPassphrase @"generation" (0, 16)
-        <*> genPassphrase @"encryption" (0, 16)
+        <*> encryptionPass
     return $ Seq.unsafeGenerateKeyFromSeed (s, g) e
 
-genRootKeysRnd :: Gen (ByronKey 'RootK XPrv)
-genRootKeysRnd = Rnd.generateKeyFromSeed
+genRootKeysRndWithPass :: Gen (Passphrase "encryption") -> Gen (ByronKey 'RootK XPrv)
+genRootKeysRndWithPass encryptionPass = Rnd.generateKeyFromSeed
     <$> genPassphrase @"seed" (16, 32)
-    <*> genPassphrase @"encryption" (0, 16)
+    <*> encryptionPass
 
-genRootKeysIca :: Gen (IcarusKey depth XPrv)
-genRootKeysIca = Ica.unsafeGenerateKeyFromSeed
+genRootKeysIcaWithPass
+    :: Gen (Passphrase "encryption")
+    -> Gen (IcarusKey depth XPrv)
+genRootKeysIcaWithPass encryptionPass = Ica.unsafeGenerateKeyFromSeed
     <$> genPassphrase @"seed" (16, 32)
-    <*> genPassphrase @"encryption" (0, 16)
+    <*> encryptionPass
 
 genPassphrase :: (Int, Int) -> Gen (Passphrase purpose)
 genPassphrase range = do
