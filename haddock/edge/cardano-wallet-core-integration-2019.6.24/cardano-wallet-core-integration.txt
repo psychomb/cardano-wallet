@@ -188,7 +188,8 @@ expectCliListField :: (HasCallStack, MonadIO m, MonadFail m, Show a) => Int -> L
 --   pre-calculated statistics.
 expectWalletUTxO :: (HasCallStack, MonadIO m, MonadFail m) => [Word64] -> Either RequestException ApiUtxoStatistics -> m ()
 between :: (Ord a, Show a) => (a, a) -> a -> Expectation
-greaterThan :: (Ord a, Show a) => a -> a -> Expectation
+(.>=) :: (Ord a, Show a) => a -> a -> Expectation
+(.>) :: (Ord a, Show a) => a -> a -> Expectation
 
 -- | Apply <tt>a</tt> to all actions in sequence
 verify :: Monad m => a -> [a -> m ()] -> m ()
@@ -226,7 +227,6 @@ infixr 5 </>
 --   integral type.
 (!!) :: () => [a] -> Int -> a
 infixl 9 !!
-(.>=) :: (Ord a, Show a) => a -> a -> Expectation
 
 -- | Create an empty wallet
 emptyRandomWallet :: Context t -> IO ApiByronWallet
