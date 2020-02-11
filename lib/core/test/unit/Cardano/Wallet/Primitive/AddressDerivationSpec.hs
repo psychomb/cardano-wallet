@@ -306,8 +306,8 @@ prop_keyToHexTextJcliCompatible (Unencrypted k) = monadicIO $ do
     assert (stderr == "")
   where
     jcliKeyFromHex = readProcessWithExitCode
-            "jcli"
-            ["key", "from-bytes", "--type", "ed25519bip32"]
+        "jcli"
+        ["key", "from-bytes", "--type", "ed25519bip32"]
 
 {-------------------------------------------------------------------------------
                              Arbitrary Instances

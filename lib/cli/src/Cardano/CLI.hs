@@ -419,11 +419,11 @@ byronCliKeyScheme = \case
     -- Construct a KeyScheme using the type families of the promoted type
     -- argument.
     mkScheme _ = CliKeyScheme
-            (left getFromMnemonicError . fromMnemonic @(AllowedMnemonics s) @"seed")
-            (map fromIntegral (manyNatVal $ Proxy @(AllowedMnemonics s)))
+        (left getFromMnemonicError . fromMnemonic @(AllowedMnemonics s) @"seed")
+        (map fromIntegral (manyNatVal $ Proxy @(AllowedMnemonics s)))
 
     icarusStyleKeyToSeed =
-            (Icarus.getKey . flip Icarus.generateKeyFromSeed pass)
+        (Icarus.getKey . flip Icarus.generateKeyFromSeed pass)
 
     -- We don't use passwords to encrypt the keys here.
     pass = mempty
