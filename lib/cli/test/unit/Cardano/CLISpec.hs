@@ -545,13 +545,13 @@ spec = do
             \903bee774b7bf8678ea0d6fded6d876db3b42bef687640cc514eb73f767537a8c7\
             \54f89bc9cc83533eab257d7c94625c95f0d749710428f5aa2404eeb6499b\n"
         (["key", "root", "--type", "trezor"] ++ mw15) `shouldStdOut`
-            "00aa5f5f364980f4ac6295fd0fbf65643390d6bb1cf76536c2ebb02713c8ba50d8\
-            \903bee774b7bf8678ea0d6fded6d876db3b42bef687640cc514eb73f767537a8c7\
-            \54f89bc9cc83533eab257d7c94625c95f0d749710428f5aa2404eeb6499b\n"
+            "003a914372e711b910a75b87e98695929b6960bd5380cfd766b572ea844ea14080\
+            \9eb7ad13f798d06ce550a9f6c48dd2151db4593e67dbd2821d75378c7350f1366b\
+            \85e0be9cdec2213af2084d462cc11e85c215e0f003acbeb996567e371502\n"
         (["key", "root", "--type", "ledger"] ++ mw15) `shouldStdOut`
-            "00aa5f5f364980f4ac6295fd0fbf65643390d6bb1cf76536c2ebb02713c8ba50d8\
-            \903bee774b7bf8678ea0d6fded6d876db3b42bef687640cc514eb73f767537a8c7\
-            \54f89bc9cc83533eab257d7c94625c95f0d749710428f5aa2404eeb6499b\n"
+            "003a914372e711b910a75b87e98695929b6960bd5380cfd766b572ea844ea14080\
+            \9eb7ad13f798d06ce550a9f6c48dd2151db4593e67dbd2821d75378c7350f1366b\
+            \85e0be9cdec2213af2084d462cc11e85c215e0f003acbeb996567e371502\n"
         (["key", "root", "--type", "random"] ++ mw12) `shouldStdOut`
             "f0ca39a0f8e259704de6fe79b61926411515b97ec99c265a55aefb5c2094e25a80\
             \d0b739ca2f4d200f2d674a57ea3266f54c53f8b8df068d0cb8874e05368462b078\

@@ -143,7 +143,7 @@ import Cardano.Wallet.Primitive.AddressDerivation
 import Cardano.Wallet.Primitive.AddressDiscovery.Sequential
     ( AddressPoolGap, defaultAddressPoolGap )
 import Cardano.Wallet.Primitive.Mnemonic
-    ( entropyToMnemonic, genEntropy, mnemonicToText )
+    ( entropyToMnemonic, genEntropy, mkMnemonic, mnemonicToText )
 import Cardano.Wallet.Primitive.Types
     ( AddressState, Hash, SortOrder, SyncTolerance (..), WalletId, WalletName )
 import Cardano.Wallet.Version
@@ -388,42 +388,82 @@ parseSeedWords = some (argument str (metavar "MNEMONIC_WORDS..."))
 
 -- | Lay thine eyes upon the type parameters and see that there are none.
 data CliKeyScheme = CliKeyScheme
-    { wordsToSeed :: [Text] -> Either String (Passphrase "seed")
-    , allowedWordLengths :: [Int]
-    , seedToRootKey :: Passphrase "seed" -> XPrv
+    { allowedWordLengths :: [Int]
+    , mnemonicToRootKey :: [Text] -> Either String XPrv
     }
 
 byronCliKeyScheme :: ByronWalletStyle -> CliKeyScheme
 byronCliKeyScheme = \case
-    Random -> mkScheme (Proxy @'Random)
-            (Byron.getKey . flip Byron.generateKeyFromSeed pass)
+    Random ->
+        let
+            proxy = (Proxy @'Random)
+        in
+            CliKeyScheme
+                (allowedLengths proxy)
+                (fmap byronKeyFromSeed . seedFromMnemonic proxy)
     Icarus ->
-        mkScheme (Proxy @'Icarus)
-            icarusStyleKeyToSeed
+        let
+            proxy = (Proxy @'Icarus)
+        in
+            CliKeyScheme
+                (allowedLengths proxy)
+                (fmap icarusKeyFromSeed . seedFromMnemonic proxy)
     Trezor ->
-        mkScheme (Proxy @'Trezor)
-            icarusStyleKeyToSeed
+        let
+            proxy = (Proxy @'Trezor)
+        in
+            CliKeyScheme
+                (allowedLengths proxy)
+                (hardwareKeyFromMnemonic)
+
     Ledger ->
-        mkScheme (Proxy @'Ledger)
-            icarusStyleKeyToSeed
+        let
+            proxy = (Proxy @'Ledger)
+        in
+            CliKeyScheme
+                (allowedLengths proxy)
+                hardwareKeyFromMnemonic
+
   where
-    mkScheme
+    seedFromMnemonic
         :: forall (s :: ByronWalletStyle).
-            ( FromMnemonic (AllowedMnemonics s) "seed"
-            , ManyNatVal (AllowedMnemonics s)
-            )
+            (FromMnemonic (AllowedMnemonics s) "seed")
         => Proxy s
-        -> (Passphrase "seed" -> XPrv)
-        -> CliKeyScheme
+        -> [Text]
+        -> Either String (Passphrase "seed")
+    seedFromMnemonic _ =
+        left getFromMnemonicError . fromMnemonic @(AllowedMnemonics s)
 
-    -- Construct a KeyScheme using the type families of the promoted type
-    -- argument.
-    mkScheme _ = CliKeyScheme
-        (left getFromMnemonicError . fromMnemonic @(AllowedMnemonics s) @"seed")
-        (map fromIntegral (manyNatVal $ Proxy @(AllowedMnemonics s)))
+    allowedLengths
+        :: forall (s :: ByronWalletStyle). ( ManyNatVal (AllowedMnemonics s))
+        => Proxy s
+        -> [Int]
+    allowedLengths _ =
+         (map fromIntegral (manyNatVal $ Proxy @(AllowedMnemonics s)))
 
-    icarusStyleKeyToSeed =
+    icarusKeyFromSeed =
         (Icarus.getKey . flip Icarus.generateKeyFromSeed pass)
+
+    byronKeyFromSeed = (Byron.getKey . flip Byron.generateKeyFromSeed pass)
+
+    hardwareKeyFromMnemonic :: [Text] -> Either String XPrv
+    hardwareKeyFromMnemonic mw = Icarus.getKey <$> case length mw of
+        n | n == 12 -> do
+            mnemonic <- left show $ mkMnemonic @12 mw
+            return $ Icarus.generateKeyFromHardwareLedger mnemonic pass
+        n | n == 15 -> do
+            mnemonic <- left show $ mkMnemonic @15 mw
+            return $ Icarus.generateKeyFromHardwareLedger mnemonic pass
+        n | n == 18 -> left show $ do
+            mnemonic <- mkMnemonic @18 mw
+            return $ Icarus.generateKeyFromHardwareLedger mnemonic pass
+        n | n == 21 -> do
+            mnemonic <- left show $ mkMnemonic @21 mw
+            return $ Icarus.generateKeyFromHardwareLedger mnemonic pass
+        n | n == 24 -> do
+            mnemonic <- left show $ mkMnemonic @24 mw
+            return $ Icarus.generateKeyFromHardwareLedger mnemonic pass
+        n -> Left $ "Invalid number of words: " ++ show n
 
     -- We don't use passwords to encrypt the keys here.
     pass = mempty
@@ -439,9 +479,7 @@ cmdRootKey =
         ws <- parseSeedWords
         return $ do
             scheme <- byronCliKeyScheme <$> keyType
-
-            seed <- toIOErr $ wordsToSeed scheme ws
-            let xprv = seedToRootKey scheme seed
+            xprv <- toIOErr $ mnemonicToRootKey scheme ws
             TIO.putStrLn $ T.pack . B8.unpack . hex $ unXPrvStripPub xprv
 
     toIOErr :: Either String a -> IO a
