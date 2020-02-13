@@ -318,6 +318,13 @@ withMethod :: Method -> (Method, Text) -> (Method, Text)
 --   ( "GET", "v2/stake-pools/2512a00e9653fe49a44a5886202e24d77eeb998f/wallets/patate" )
 --   </pre>
 withPathParam :: Int -> (Text -> Text) -> (Method, Text) -> (Method, Text)
+
+-- | Handy constructor for ApiEpochInfo
+mkEpochInfo :: EpochNo -> SlotParameters -> ApiEpochInfo
+
+-- | Wallet not delegating and not about to join any stake pool.
+notDelegating :: [(Maybe (ApiT PoolId), ApiEpochInfo)] -> ApiWalletDelegation
+delegating :: ApiT PoolId -> [(Maybe (ApiT PoolId), ApiEpochInfo)] -> ApiWalletDelegation
 command :: CmdResult r => [CmdOption] -> String -> [String] -> IO r
 
 -- | Run a command using the 'cardano-wallet' executable for the target
