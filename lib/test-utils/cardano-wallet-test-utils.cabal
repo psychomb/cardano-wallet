@@ -31,6 +31,8 @@ library
   build-depends:
       base
     , async
+    , bytestring
+    , cardano-wallet-core
     , contra-tracer
     , filepath
     , file-embed
@@ -47,6 +49,7 @@ library
   hs-source-dirs:
       src
   exposed-modules:
+      Cardano.Wallet.Gen
       Test.Hspec.Extra
       Test.Utils.Paths
       Test.Utils.StaticServer

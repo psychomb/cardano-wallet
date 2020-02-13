@@ -30,6 +30,7 @@ import Cardano.Wallet.Primitive.AddressDerivation
     , Passphrase (..)
     , PaymentAddress (..)
     , SoftDerivation (..)
+    , SomeMnemonic (..)
     , WalletKey (..)
     , XPrv
     , XPub
@@ -63,6 +64,8 @@ import Cardano.Wallet.Primitive.AddressDiscovery.Sequential
     , mkSeqState
     , shrinkPool
     )
+import Cardano.Wallet.Primitive.Mnemonic
+    ( entropyToMnemonic, mkEntropy )
 import Cardano.Wallet.Primitive.Types
     ( Address (..), ShowFmt (..) )
 import Control.Monad
@@ -346,8 +349,8 @@ prop_genChangeGap
 prop_genChangeGap g =
     property prop
   where
-    seed = Passphrase (BA.convert @ByteString "0000000000000000")
-    key = Shelley.unsafeGenerateKeyFromSeed (seed, mempty) mempty
+    Right mw = SomeMnemonic . entropyToMnemonic @12 <$> mkEntropy "0000000000000000"
+    key = Shelley.unsafeGenerateKeyFromSeed (mw, Nothing) mempty
     s0 = mkSeqState (key, mempty) g
     prop =
         length (fst $ changeAddresses [] s0) === fromEnum g
@@ -380,7 +383,8 @@ prop_lookupDiscovered
 prop_lookupDiscovered (s0, addr) =
     let (ours, s) = isOurs addr s0 in ours ==> prop s
   where
-    key = Shelley.unsafeGenerateKeyFromSeed (mempty, mempty) mempty :: ShelleyKey 'RootK XPrv
+    Right mw = SomeMnemonic . entropyToMnemonic @12 <$> mkEntropy "0000000000000000"
+    key = Shelley.unsafeGenerateKeyFromSeed (mw, Nothing) mempty
     prop s = monadicIO $ liftIO $ do
         unless (isJust $ isOwned s (key, mempty) addr) $ do
             expectationFailure "couldn't find private key corresponding to addr"
@@ -523,9 +527,10 @@ class AddressPoolTest k where
         -> Address
 
 instance AddressPoolTest IcarusKey where
-    ourAccount = publicKey $ Icarus.unsafeGenerateKeyFromSeed seed mempty
+    ourAccount = publicKey $ Icarus.unsafeGenerateKeyFromSeed mw mempty
       where
-        seed = Passphrase $ BA.convert $ BS.replicate 32 0
+        ent = BS.pack $ replicate 32 0
+        Right mw = SomeMnemonic . entropyToMnemonic @12 <$> mkEntropy ent
 
     ourAddresses _proxy cc =
         mkAddress . deriveAddressPublicKey ourAccount cc <$> [minBound..maxBound]
@@ -536,9 +541,10 @@ instance AddressPoolTest IcarusKey where
         liftPaymentAddress @'Mainnet
 
 instance AddressPoolTest ShelleyKey where
-    ourAccount = publicKey $ Shelley.unsafeGenerateKeyFromSeed (seed, mempty) mempty
+    ourAccount = publicKey $ Shelley.unsafeGenerateKeyFromSeed (mw, Nothing) mempty
       where
-        seed = Passphrase $ BA.convert $ BS.replicate 32 0
+        ent = BS.pack $ replicate 32 0
+        Right mw = SomeMnemonic . entropyToMnemonic @12 <$> mkEntropy ent
 
     ourAddresses _proxy cc =
         mkAddress . deriveAddressPublicKey ourAccount cc <$> [minBound..maxBound]
@@ -551,9 +557,10 @@ instance AddressPoolTest ShelleyKey where
 rewardAccount
     :: ShelleyKey 'AddressK XPub
 rewardAccount =
-    publicKey $ Shelley.unsafeGenerateKeyFromSeed (seed, mempty) mempty
+    publicKey $ Shelley.unsafeGenerateKeyFromSeed (mw, Nothing) mempty
   where
-    seed = Passphrase $ BA.convert $ BS.replicate 16 0
+    ent = BS.pack $ replicate 32 0
+    Right mw = SomeMnemonic . entropyToMnemonic @12 <$> mkEntropy ent
 
 changeAddresses
     :: [Address]

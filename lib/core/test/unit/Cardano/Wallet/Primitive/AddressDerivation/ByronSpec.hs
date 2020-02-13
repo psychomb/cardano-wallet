@@ -22,6 +22,7 @@ import Cardano.Wallet.Primitive.AddressDerivation
     , Index
     , Index (..)
     , Passphrase (..)
+    , SomeMnemonic (..)
     , XPrv
     , fromMnemonic
     )
@@ -62,7 +63,7 @@ spec = do
 -------------------------------------------------------------------------------}
 
 prop_keyDerivation
-    :: Passphrase "seed"
+    :: SomeMnemonic
     -> Passphrase "encryption"
     -> Index 'WholeDomain 'AccountK
     -> Index 'WholeDomain 'AddressK
@@ -97,11 +98,11 @@ data GenerateKeyFromSeed = GenerateKeyFromSeed
 
 generateTest :: GenerateKeyFromSeed -> Expectation
 generateTest GenerateKeyFromSeed{..} =
-    getKey (generateKeyFromSeed (Passphrase seed) pwd)
+    getKey (generateKeyFromSeed mw pwd)
     `shouldBe`
     getKey rootKey
   where
-    Right (Passphrase seed) = fromMnemonic @'[12] mnem
+    Right mw = fromMnemonic @'[12] mnem
 
 generateTest1 :: GenerateKeyFromSeed
 generateTest1 = GenerateKeyFromSeed

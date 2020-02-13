@@ -71,6 +71,7 @@ import Cardano.Wallet.Primitive.AddressDerivation
     , NetworkDiscriminant (..)
     , Passphrase (..)
     , PersistPrivateKey
+    , SomeMnemonic (..)
     , encryptPassphrase
     )
 import Cardano.Wallet.Primitive.AddressDerivation.Byron
@@ -83,6 +84,8 @@ import Cardano.Wallet.Primitive.AddressDiscovery.Random
     ( RndState (..) )
 import Cardano.Wallet.Primitive.AddressDiscovery.Sequential
     ( SeqState (..), defaultAddressPoolGap, mkSeqState )
+import Cardano.Wallet.Primitive.Mnemonic
+    ( entropyToMnemonic )
 import Cardano.Wallet.Primitive.Mnemonic
     ( EntropySize, entropyToBytes, genEntropy )
 import Cardano.Wallet.Primitive.Model
@@ -583,7 +586,7 @@ attachPrivateKey
     -> ExceptT ErrNoSuchWallet IO (ShelleyKey 'RootK XPrv, Hash "encryption")
 attachPrivateKey DBLayer{..} wid = do
     let Right pwd = fromText "simplevalidphrase"
-    let k = generateKeyFromSeed (coerce pwd, coerce pwd) pwd
+    let k = generateKeyFromSeed (error "todo", Nothing) pwd
     h <- liftIO $ encryptPassphrase pwd
     mapExceptT atomically $ putPrivateKey wid (k, h)
     return (k, h)
@@ -610,8 +613,9 @@ testCp = snd $ initWallet block0 genesisParameters initDummyState
     initDummyState :: SeqState 'Testnet ShelleyKey
     initDummyState = mkSeqState (xprv, mempty) defaultAddressPoolGap
       where
-        bytes = entropyToBytes <$> unsafePerformIO $ genEntropy @(EntropySize 15)
-        xprv = generateKeyFromSeed (Passphrase bytes, mempty) mempty
+        ent = unsafePerformIO $ genEntropy @(EntropySize 15)
+        mw = SomeMnemonic . entropyToMnemonic @15 $ ent
+        xprv = generateKeyFromSeed (mw, Nothing) mempty
 
 testMetadata :: WalletMetadata
 testMetadata = WalletMetadata
@@ -646,8 +650,9 @@ testCpSeq = snd $ initWallet block0 genesisParameters initDummyStateSeq
 initDummyStateSeq :: SeqState 'Testnet ShelleyKey
 initDummyStateSeq = mkSeqState (xprv, mempty) defaultAddressPoolGap
   where
-      bytes = entropyToBytes <$> unsafePerformIO $ genEntropy @(EntropySize 15)
-      xprv = Seq.generateKeyFromSeed (Passphrase bytes, mempty) mempty
+      ent = unsafePerformIO $ genEntropy @(EntropySize 15)
+      mw = SomeMnemonic . entropyToMnemonic @15 $ ent
+      xprv = Seq.generateKeyFromSeed (error "todo", Nothing) mempty
 
 {-------------------------------------------------------------------------------
                       Test data and instances - Random AD

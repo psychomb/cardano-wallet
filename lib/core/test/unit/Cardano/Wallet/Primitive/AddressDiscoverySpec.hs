@@ -13,6 +13,8 @@ module Cardano.Wallet.Primitive.AddressDiscoverySpec
 
 import Prelude
 
+import Cardano.Wallet.Gen
+    ( genMnemonic )
 import Cardano.Wallet.Primitive.AddressDerivation
     ( Depth (AccountK, AddressK, RootK)
     , DerivationType (..)
@@ -20,6 +22,7 @@ import Cardano.Wallet.Primitive.AddressDerivation
     , NetworkDiscriminant (..)
     , Passphrase (..)
     , PaymentAddress (..)
+    , SomeMnemonic (..)
     , XPrv
     , passphraseMaxLength
     , passphraseMinLength
@@ -36,10 +39,14 @@ import Cardano.Wallet.Primitive.AddressDiscovery
     ( IsOurs (..), knownAddresses )
 import Cardano.Wallet.Primitive.AddressDiscovery.Random
     ( mkRndState )
+import Cardano.Wallet.Primitive.Mnemonic
+    ( ConsistentEntropy, EntropySize, Mnemonic, entropyToMnemonic, mkEntropy )
 import Control.Monad
     ( replicateM )
 import Data.Proxy
     ( Proxy (..) )
+import GHC.TypeLits
+    ( natVal )
 import Test.Hspec
     ( Spec, describe, it )
 import Test.QuickCheck
@@ -74,7 +81,7 @@ spec = do
 
 prop_derivedKeysAreOurs
     :: forall (n :: NetworkDiscriminant). (PaymentAddress n ByronKey)
-    => Passphrase "seed"
+    => SomeMnemonic
     -> Passphrase "encryption"
     -> Index 'WholeDomain 'AccountK
     -> Index 'WholeDomain 'AddressK
@@ -108,10 +115,9 @@ instance Arbitrary (ByronKey 'RootK XPrv) where
 
 genRootKeys :: Gen (ByronKey 'RootK XPrv)
 genRootKeys = do
-    (s, e) <- (,)
-        <$> genPassphrase @"seed" (16, 32)
-        <*> genPassphrase @"encryption" (0, 16)
-    return $ generateKeyFromSeed s e
+    mnemonic <- arbitrary
+    e <- genPassphrase @"encryption" (0, 16)
+    return $ generateKeyFromSeed mnemonic e
   where
     genPassphrase :: (Int, Int) -> Gen (Passphrase purpose)
     genPassphrase range = do
@@ -129,9 +135,17 @@ instance {-# OVERLAPS #-} Arbitrary (Passphrase "encryption") where
         bytes <- T.encodeUtf8 . T.pack <$> replicateM n arbitraryPrintableChar
         return $ Passphrase $ BA.convert bytes
 
-instance {-# OVERLAPS #-} Arbitrary (Passphrase "seed") where
-    arbitrary = do
-        n <- choose (minSeedLengthBytes, 64)
-        bytes <- BS.pack <$> vectorOf n arbitrary
-        return $ Passphrase $ BA.convert bytes
+instance Arbitrary SomeMnemonic where
+    arbitrary = SomeMnemonic <$> genMnemonic @12
 
+arbMnemonic
+    :: forall mw ent csz.
+     ( ConsistentEntropy ent mw csz
+     , EntropySize mw ~ ent
+     )
+    => Gen (Mnemonic mw)
+arbMnemonic = do
+        let n = fromIntegral (natVal $ Proxy @(EntropySize mw)) `div` 8
+        bytes <- BS.pack <$> vectorOf n arbitrary
+        let ent = either (error . show) id $ mkEntropy @(EntropySize mw) bytes
+        return $ entropyToMnemonic ent

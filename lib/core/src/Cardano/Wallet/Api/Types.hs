@@ -1,5 +1,4 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
@@ -9,6 +8,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
@@ -86,7 +86,6 @@ module Cardano.Wallet.Api.Types
     -- * Polymorphic Types
     , ApiT (..)
     , ApiMnemonicT (..)
-    , getApiMnemonicT
 
     -- * Delegation status helpers
     , notDelegating
@@ -108,6 +107,7 @@ import Cardano.Wallet.Primitive.AddressDerivation
     , Passphrase (..)
     , PassphraseMaxLength (..)
     , PassphraseMinLength (..)
+    , SomeMnemonic (..)
     )
 import Cardano.Wallet.Primitive.AddressDerivation.Byron
     ( decodeLegacyAddress )
@@ -115,6 +115,8 @@ import Cardano.Wallet.Primitive.AddressDerivation.Shelley
     ( decodeShelleyAddress )
 import Cardano.Wallet.Primitive.AddressDiscovery.Sequential
     ( AddressPoolGap, getAddressPoolGap )
+import Cardano.Wallet.Primitive.Mnemonic
+    ( mnemonicToText )
 import Cardano.Wallet.Primitive.Types
     ( ActiveSlotCoefficient (..)
     , Address (..)
@@ -257,17 +259,23 @@ instance FromText ByronWalletStyle where
 instance ToText ByronWalletStyle where
     toText = toTextFromBoundedEnum KebabLowerCase
 
+data SndFactor
+    = SndFactor
+
 type family StyleSymbol (style :: ByronWalletStyle) :: Symbol where
     StyleSymbol 'Random  = "random"
     StyleSymbol 'Icarus  = "icarus"
     StyleSymbol 'Trezor  = "trezor"
     StyleSymbol 'Ledger  = "ledger"
 
-type family AllowedMnemonics (style :: ByronWalletStyle) :: [Nat] where
-    AllowedMnemonics 'Random  = '[12]
-    AllowedMnemonics 'Icarus  = '[15]
-    AllowedMnemonics 'Trezor  = '[12,15,18,21,24]
-    AllowedMnemonics 'Ledger  = '[12,15,18,21,24]
+type family AllowedMnemonics (style :: k) :: [Nat]
+
+type instance AllowedMnemonics 'Random    = '[12]
+type instance AllowedMnemonics 'Icarus    = '[15]
+type instance AllowedMnemonics 'Trezor    = '[12,15,18,21,24]
+type instance AllowedMnemonics 'Ledger    = '[12,15,18,21,24]
+type instance AllowedMnemonics 'Shelley   = '[15,18,21,24]
+type instance AllowedMnemonics 'SndFactor = '[9,12]
 
 
 -- | Machinery to demote type level [Nat] to a normal [Integer] list
@@ -366,14 +374,14 @@ data ApiUtxoStatistics = ApiUtxoStatistics
 
 data WalletPostData = WalletPostData
     { addressPoolGap :: !(Maybe (ApiT AddressPoolGap))
-    , mnemonicSentence :: !(ApiMnemonicT '[15,18,21,24] "seed")
-    , mnemonicSecondFactor :: !(Maybe (ApiMnemonicT '[9,12] "generation"))
+    , mnemonicSentence :: !(ApiMnemonicT (AllowedMnemonics 'Shelley))
+    , mnemonicSecondFactor :: !(Maybe (ApiMnemonicT (AllowedMnemonics 'SndFactor)))
     , name :: !(ApiT WalletName)
     , passphrase :: !(ApiT (Passphrase "encryption"))
     } deriving (Eq, Generic, Show)
 
 data ByronWalletPostData mw = ByronWalletPostData
-    { mnemonicSentence :: !(ApiMnemonicT mw "seed")
+    { mnemonicSentence :: !(ApiMnemonicT mw)
     , name :: !(ApiT WalletName)
     , passphrase :: !(ApiT (Passphrase "encryption"))
     } deriving (Eq, Generic, Show)
@@ -595,7 +603,7 @@ newtype ApiT a =
 --
 -- @
 -- data MyWallet
---     { mnemonic :: ApiMnemonicT '[15,18,21,24] "root-seed"
+--     { mnemonic :: ApiMnemonicT '[15,18,21,24]
 --     }
 -- @
 --
@@ -606,12 +614,9 @@ newtype ApiT a =
 -- mnemonic words that was parsed. This is only to be able to implement the
 -- 'ToJSON' instances and roundtrip, which is a very dubious argument. In
 -- practice, we'll NEVER peek at the mnemonic, output them and whatnot.
-newtype ApiMnemonicT (sizes :: [Nat]) (purpose :: Symbol) =
-    ApiMnemonicT (Passphrase purpose, [Text])
+newtype ApiMnemonicT (sizes :: [Nat]) =
+    ApiMnemonicT { getApiMnemonicT :: SomeMnemonic }
     deriving (Generic, Show, Eq)
-
-getApiMnemonicT :: ApiMnemonicT sizes purpose -> Passphrase purpose
-getApiMnemonicT (ApiMnemonicT (pw, _)) = pw
 
 {-------------------------------------------------------------------------------
                                JSON Instances
@@ -674,7 +679,7 @@ instance FromJSON WalletPostData where
 instance ToJSON  WalletPostData where
     toJSON = genericToJSON defaultRecordTypeOptions
 
-instance FromMnemonic mw "seed" => FromJSON (ByronWalletPostData mw) where
+instance FromMnemonic mw => FromJSON (ByronWalletPostData mw) where
     parseJSON = genericParseJSON defaultRecordTypeOptions
 instance ToJSON (ByronWalletPostData mw) where
     toJSON = genericToJSON defaultRecordTypeOptions
@@ -705,15 +710,15 @@ instance (PassphraseMaxLength purpose, PassphraseMinLength purpose)
 instance ToJSON (ApiT (Passphrase purpose)) where
     toJSON = toJSON . toText . getApiT
 
-instance FromMnemonic sizes purpose => FromJSON (ApiMnemonicT sizes purpose)
+instance FromMnemonic sizes => FromJSON (ApiMnemonicT sizes)
   where
     parseJSON bytes = do
         xs <- parseJSON bytes
-        m <- eitherToParser $ left ShowFmt $ fromMnemonic @sizes @purpose xs
-        return $ ApiMnemonicT (m, xs)
+        m <- eitherToParser $ left ShowFmt $ fromMnemonic @sizes xs
+        return $ ApiMnemonicT m
 
-instance ToJSON (ApiMnemonicT sizes purpose) where
-    toJSON (ApiMnemonicT (!_, xs)) = toJSON xs
+instance ToJSON (ApiMnemonicT sizes) where
+    toJSON (ApiMnemonicT (SomeMnemonic mw)) = toJSON (mnemonicToText mw)
 
 instance FromJSON (ApiT WalletId) where
     parseJSON = parseJSON >=> eitherToParser . bimap ShowFmt ApiT . fromText

@@ -16,6 +16,8 @@ module Cardano.Wallet.Primitive.AddressDiscovery.RandomSpec
 
 import Prelude
 
+import Cardano.Wallet.Gen
+    ( genMnemonic )
 import Cardano.Wallet.Primitive.AddressDerivation
     ( Depth (..)
     , DerivationType (..)
@@ -23,9 +25,9 @@ import Cardano.Wallet.Primitive.AddressDerivation
     , NetworkDiscriminant (..)
     , Passphrase (..)
     , PaymentAddress (..)
+    , SomeMnemonic (..)
     , WalletKey (..)
     , XPrv
-    , fromMnemonic
     )
 import Cardano.Wallet.Primitive.AddressDerivation.Byron
     ( ByronKey (..)
@@ -39,6 +41,8 @@ import Cardano.Wallet.Primitive.AddressDiscovery
     ( GenChange (..), IsOurs (..), IsOwned (..), KnownAddresses (..) )
 import Cardano.Wallet.Primitive.AddressDiscovery.Random
     ( RndState (..), mkRndState )
+import Cardano.Wallet.Primitive.Mnemonic
+    ( Mnemonic )
 import Cardano.Wallet.Primitive.Types
     ( Address (..) )
 import Control.Monad
@@ -51,6 +55,8 @@ import Data.Text
     ( Text )
 import Data.Word
     ( Word32 )
+import System.IO.Unsafe
+    ( unsafePerformIO )
 import Test.Hspec
     ( Expectation, Spec, describe, it, shouldBe )
 import Test.QuickCheck
@@ -60,6 +66,7 @@ import Test.QuickCheck
     , Property
     , choose
     , conjoin
+    , generate
     , property
     , (.&&.)
     , (===)
@@ -224,8 +231,8 @@ checkIsOwned GoldenTest{..} = do
 rndStateFromMnem :: [Text] -> (ByronKey 'RootK XPrv, RndState 'Testnet)
 rndStateFromMnem mnem = (rootXPrv, mkRndState @'Testnet rootXPrv 0)
   where
-    rootXPrv = generateKeyFromSeed (Passphrase seed) (Passphrase "")
-    Right (Passphrase seed) = fromMnemonic @'[12] mnem
+    mnemonic = unsafePerformIO $ generate $ (SomeMnemonic <$> genMnemonic @12)
+    rootXPrv = generateKeyFromSeed mnemonic (Passphrase "")
 
 {-------------------------------------------------------------------------------
                                Properties
@@ -324,7 +331,7 @@ instance Eq (RndState t) where
 instance Arbitrary Rnd where
     shrink _ = []  -- no shrinking
     arbitrary = do
-        s <- genPassphrase @"seed" (16, 32)
+        s <- error "todo"
         e <- genPassphrase @"encryption" (0, 16)
         let key = generateKeyFromSeed s e
         pure $ Rnd (mkRndState key 0) key e

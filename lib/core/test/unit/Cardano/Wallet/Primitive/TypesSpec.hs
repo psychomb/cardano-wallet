@@ -16,9 +16,18 @@ module Cardano.Wallet.Primitive.TypesSpec
 import Prelude
 
 import Cardano.Wallet.Primitive.AddressDerivation
-    ( Depth (..), Passphrase (..), WalletKey (..), XPrv, digest, publicKey )
+    ( Depth (..)
+    , Passphrase (..)
+    , SomeMnemonic (..)
+    , WalletKey (..)
+    , XPrv
+    , digest
+    , publicKey
+    )
 import Cardano.Wallet.Primitive.AddressDerivation.Shelley
     ( ShelleyKey (..), generateKeyFromSeed )
+import Cardano.Wallet.Primitive.Mnemonic
+    ( entropyToMnemonic, mkEntropy )
 import Cardano.Wallet.Primitive.Types
     ( ActiveSlotCoefficient (..)
     , Address (..)
@@ -215,8 +224,8 @@ spec = do
 
     describe "Buildable" $ do
         it "WalletId" $ do
-            let seed = Passphrase (BA.convert @ByteString "0000000000000000")
-            let xprv = generateKeyFromSeed (seed, mempty) mempty :: ShelleyKey 'RootK XPrv
+            let Right mw = SomeMnemonic . entropyToMnemonic @12 <$> mkEntropy "0000000000000000"
+            let xprv = generateKeyFromSeed (mw, Nothing) mempty :: ShelleyKey 'RootK XPrv
             let wid = WalletId $ digest $ publicKey xprv
             "336c96f1...b8cac9ce" === pretty @_ @Text wid
         it "TxMeta (1)" $ do

@@ -132,7 +132,6 @@ import Cardano.Wallet.Api.Types
     , WalletPostData (..)
     , WalletPutData (..)
     , WalletPutPassphraseData (..)
-    , getApiMnemonicT
     , toApiWalletDelegation
     )
 import Cardano.Wallet.DB
@@ -164,8 +163,6 @@ import Cardano.Wallet.Primitive.AddressDiscovery.Sequential
     ( SeqState (..), defaultAddressPoolGap, mkSeqState )
 import Cardano.Wallet.Primitive.CoinSelection
     ( CoinSelection (..), changeBalance, feeBalance, inputBalance )
-import Cardano.Wallet.Primitive.Mnemonic
-    ( mkMnemonic )
 import Cardano.Wallet.Primitive.Model
     ( Wallet, availableBalance, currentTip, getState, totalBalance )
 import Cardano.Wallet.Primitive.Types
@@ -668,7 +665,7 @@ postShelleyWallet ctx body = do
     fst <$> getWallet ctx (mkShelleyWallet @_ @s @t @k) (ApiT wid)
   where
     seed = getApiMnemonicT (body ^. #mnemonicSentence)
-    secondFactor = maybe mempty getApiMnemonicT (body ^. #mnemonicSecondFactor)
+    secondFactor = getApiMnemonicT <$> (body ^. #mnemonicSecondFactor)
     pwd = getApiT (body ^. #passphrase)
     rootXPrv = Seq.generateKeyFromSeed (seed, secondFactor) pwd
     g = maybe defaultAddressPoolGap getApiT (body ^. #addressPoolGap)
@@ -829,25 +826,8 @@ postLedgerWallet ctx body = do
   where
     wName = getApiT (body ^. #name)
     pwd   = getApiT (body ^. #passphrase)
-    ApiMnemonicT (_, mw) = body ^. #mnemonicSentence
-
-    -- NOTE Safe because #mnemonicSentence has been parsed successfully
-    rootXPrv = case length mw of
-        n | n == 12 ->
-            let Right mnemonic = mkMnemonic @12 mw
-            in  Ica.generateKeyFromHardwareLedger mnemonic pwd
-        n | n == 15 ->
-            let Right mnemonic = mkMnemonic @15 mw
-            in  Ica.generateKeyFromHardwareLedger mnemonic pwd
-        n | n == 18 ->
-            let Right mnemonic = mkMnemonic @18 mw
-            in  Ica.generateKeyFromHardwareLedger mnemonic pwd
-        n | n == 21 ->
-            let Right mnemonic = mkMnemonic @21 mw
-            in  Ica.generateKeyFromHardwareLedger mnemonic pwd
-        _  {- 24 -} ->
-            let Right mnemonic = mkMnemonic @24 mw
-            in  Ica.generateKeyFromHardwareLedger mnemonic pwd
+    rootXPrv = Ica.generateKeyFromHardwareLedger mw pwd
+      where mw = getApiMnemonicT (body ^. #mnemonicSentence)
 
 {-------------------------------------------------------------------------------
                              ApiLayer Discrimination

@@ -41,6 +41,7 @@ import Cardano.Wallet.Primitive.AddressDerivation
     , HardDerivation (..)
     , Index
     , Passphrase (..)
+    , SomeMnemonic (..)
     , XPrv
     , publicKey
     )
@@ -55,6 +56,8 @@ import Cardano.Wallet.Primitive.AddressDiscovery
     )
 import Cardano.Wallet.Primitive.CoinSelection
     ( CoinSelection (..) )
+import Cardano.Wallet.Primitive.Mnemonic
+    ( entropyToMnemonic, mkEntropy )
 import Cardano.Wallet.Primitive.Types
     ( Address (..)
     , BlockchainParameters (..)
@@ -510,13 +513,20 @@ instance Arbitrary (Passphrase purpose) where
     arbitrary =
         Passphrase . BA.convert . BS.pack <$> replicateM 16 arbitrary
 
+
+instance {-# OVERLAPS #-} Arbitrary SomeMnemonic where
+    arbitrary = do
+        bytes <- BS.pack <$> vectorOf 16 arbitrary
+        let ent = either (error . show) id $ mkEntropy @128 bytes
+        return . SomeMnemonic . entropyToMnemonic @12 $ ent
+
 instance {-# OVERLAPS #-} Arbitrary (ShelleyKey 'RootK XPrv, Passphrase "encryption")
   where
     shrink _ = []
     arbitrary = do
-        seed <- Passphrase . BA.convert . BS.pack <$> replicateM 32 arbitrary
         pwd <- arbitrary
-        let key = generateKeyFromSeed (seed, mempty) pwd
+        mw <- arbitrary
+        let key = generateKeyFromSeed (mw, Nothing) pwd
         return (key, pwd)
 
 instance Arbitrary SlotId where

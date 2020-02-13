@@ -133,6 +133,7 @@ import Cardano.Wallet.Primitive.AddressDerivation
     , Passphrase (..)
     , PassphraseMaxLength
     , PassphraseMinLength
+    , SomeMnemonic (..)
     , WalletKey (..)
     , XPrv
     , deriveRewardAccount
@@ -143,7 +144,7 @@ import Cardano.Wallet.Primitive.AddressDerivation
 import Cardano.Wallet.Primitive.AddressDiscovery.Sequential
     ( AddressPoolGap, defaultAddressPoolGap )
 import Cardano.Wallet.Primitive.Mnemonic
-    ( entropyToMnemonic, genEntropy, mkMnemonic, mnemonicToText )
+    ( entropyToMnemonic, genEntropy, mnemonicToText )
 import Cardano.Wallet.Primitive.Types
     ( AddressState, Hash, SortOrder, SyncTolerance (..), WalletId, WalletName )
 import Cardano.Wallet.Version
@@ -151,7 +152,7 @@ import Cardano.Wallet.Version
 import Control.Applicative
     ( optional, some, (<|>) )
 import Control.Arrow
-    ( first, left, second )
+    ( first, left )
 import Control.Exception
     ( bracket, catch )
 import Control.Monad
@@ -165,7 +166,7 @@ import Data.Bifunctor
 import Data.Char
     ( toLower )
 import Data.Functor
-    ( (<$), (<&>) )
+    ( (<$) )
 import Data.List
     ( intercalate )
 import Data.List.Extra
@@ -400,21 +401,21 @@ byronCliKeyScheme = \case
         in
             CliKeyScheme
                 (allowedLengths proxy)
-                (fmap byronKeyFromSeed . seedFromMnemonic proxy)
+                (withMnemonic proxy byronKeyFromMnemonic)
     Icarus ->
         let
             proxy = (Proxy @'Icarus)
         in
             CliKeyScheme
                 (allowedLengths proxy)
-                (fmap icarusKeyFromSeed . seedFromMnemonic proxy)
+                (withMnemonic proxy icarusKeyFromMnemonic)
     Trezor ->
         let
             proxy = (Proxy @'Trezor)
         in
             CliKeyScheme
                 (allowedLengths proxy)
-                (hardwareKeyFromMnemonic)
+                (withMnemonic proxy icarusHardwareKeyFromMnemonic)
 
     Ledger ->
         let
@@ -422,17 +423,18 @@ byronCliKeyScheme = \case
         in
             CliKeyScheme
                 (allowedLengths proxy)
-                hardwareKeyFromMnemonic
+                (withMnemonic proxy icarusHardwareKeyFromMnemonic)
 
   where
-    seedFromMnemonic
-        :: forall (s :: ByronWalletStyle).
-            (FromMnemonic (AllowedMnemonics s) "seed")
+    withMnemonic
+        :: forall (s :: ByronWalletStyle) a.
+            (FromMnemonic (AllowedMnemonics s))
         => Proxy s
+        -> (SomeMnemonic -> a)
         -> [Text]
-        -> Either String (Passphrase "seed")
-    seedFromMnemonic _ =
-        left getFromMnemonicError . fromMnemonic @(AllowedMnemonics s)
+        -> Either String a
+    withMnemonic _ f =
+        left getFromMnemonicError . fmap f . fromMnemonic @(AllowedMnemonics s)
 
     allowedLengths
         :: forall (s :: ByronWalletStyle). ( ManyNatVal (AllowedMnemonics s))
@@ -441,29 +443,14 @@ byronCliKeyScheme = \case
     allowedLengths _ =
          (map fromIntegral (manyNatVal $ Proxy @(AllowedMnemonics s)))
 
-    icarusKeyFromSeed =
+    icarusKeyFromMnemonic =
         (Icarus.getKey . flip Icarus.generateKeyFromSeed pass)
 
-    byronKeyFromSeed = (Byron.getKey . flip Byron.generateKeyFromSeed pass)
+    byronKeyFromMnemonic =
+        (Byron.getKey . flip Byron.generateKeyFromSeed pass)
 
-    hardwareKeyFromMnemonic :: [Text] -> Either String XPrv
-    hardwareKeyFromMnemonic mw = Icarus.getKey <$> case length mw of
-        n | n == 12 -> do
-            mnemonic <- left show $ mkMnemonic @12 mw
-            return $ Icarus.generateKeyFromHardwareLedger mnemonic pass
-        n | n == 15 -> do
-            mnemonic <- left show $ mkMnemonic @15 mw
-            return $ Icarus.generateKeyFromHardwareLedger mnemonic pass
-        n | n == 18 -> left show $ do
-            mnemonic <- mkMnemonic @18 mw
-            return $ Icarus.generateKeyFromHardwareLedger mnemonic pass
-        n | n == 21 -> do
-            mnemonic <- left show $ mkMnemonic @21 mw
-            return $ Icarus.generateKeyFromHardwareLedger mnemonic pass
-        n | n == 24 -> do
-            mnemonic <- left show $ mkMnemonic @24 mw
-            return $ Icarus.generateKeyFromHardwareLedger mnemonic pass
-        n -> Left $ "Invalid number of words: " ++ show n
+    icarusHardwareKeyFromMnemonic =
+        (Icarus.getKey . flip Icarus.generateKeyFromHardwareLedger pass)
 
     -- We don't use passwords to encrypt the keys here.
     pass = mempty
@@ -529,17 +516,14 @@ cmdMnemonicRewardCredentials =
     exec = do
         wSeed <- fst <$> do
             let prompt = "Please enter your 15–24 word mnemonic sentence: "
-            let parser = fromMnemonic @'[15,18,21,24] @"seed" . T.words
+            let parser = fromMnemonic @'[15,18,21,24] . T.words
             getLine prompt parser
-        wSndFactor <- maybe mempty fst <$> do
+        wSndFactor <- fst <$> do
             let prompt =
                     "(Enter a blank line if you didn't use a second factor.)\n"
                     <> "Please enter your 9–12 word mnemonic second factor: "
-            let parser =
-                    optionalE (fromMnemonic @'[9,12] @"generation") . T.words
-            getLine prompt parser <&> \case
-                (Nothing, _) -> Nothing
-                (Just a, t) -> Just (a, t)
+            let parser = optionalE (fromMnemonic @'[9,12] . T.words)
+            getLine prompt parser
 
         let rootXPrv = Shelley.generateKeyFromSeed (wSeed, wSndFactor) mempty
         let rewardAccountXPrv = deriveRewardAccount mempty rootXPrv
@@ -609,24 +593,21 @@ cmdWalletCreate = command "create" $ info (helper <*> cmd) $ mempty
     exec (WalletCreateArgs wPort wName wGap) = do
         wSeed <- do
             let prompt = "Please enter a 15–24 word mnemonic sentence: "
-            let parser = fromMnemonic @'[15,18,21,24] @"seed" . T.words
-            getLine prompt parser
+            let parser = fromMnemonic @'[15,18,21,24] . T.words
+            fst <$> getLine prompt parser
         wSndFactor <- do
             let prompt =
                     "(Enter a blank line if you do not wish to use a second " <>
                     "factor.)\n" <>
                     "Please enter a 9–12 word mnemonic second factor: "
-            let parser =
-                    optionalE (fromMnemonic @'[9,12] @"generation") . T.words
-            getLine prompt parser <&> \case
-                (Nothing, _) -> Nothing
-                (Just a, t) -> Just (a, t)
+            let parser = optionalE (fromMnemonic @'[9,12]) . T.words
+            fst <$> getLine prompt parser
         wPwd <- getPassphraseWithConfirm "Please enter a passphrase: "
         runClient wPort Aeson.encodePretty $ postWallet (walletClient @t) $
             WalletPostData
                 (Just $ ApiT wGap)
-                (ApiMnemonicT . second T.words $ wSeed)
-                (ApiMnemonicT . second T.words <$> wSndFactor)
+                (ApiMnemonicT wSeed)
+                (ApiMnemonicT <$> wSndFactor)
                 (ApiT wName)
                 (ApiT wPwd)
 
