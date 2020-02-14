@@ -56,6 +56,10 @@ toByronHash :: Hash "BlockHeader" -> ByronHash
 toEpochSlots :: EpochLength -> EpochSlots
 toPoint :: BlockHeader -> Point ByronBlock
 toSlotNo :: SlotId -> SlotNo
+
+-- | SealedTx are the result of rightfully constructed byron transactions
+--   so, it is relatively safe to unserialize them from CBOR.
+toGenTx :: HasCallStack => SealedTx -> GenTx ByronBlock
 fromByronBlock :: Hash "Genesis" -> ByronBlock -> Block
 fromTxAux :: TxAux -> Tx
 fromTxIn :: TxIn -> TxIn
@@ -80,10 +84,10 @@ instance Cardano.Wallet.Byron.Compatibility.KnownNetwork 'Cardano.Wallet.Primiti
 --   <li>In particular sections 4.1, 4.2, 4.6 and 4.8</li>
 --   </ul>
 module Cardano.Wallet.Byron.Network
-pattern Cursor :: () => Point ByronBlock -> TQueue m (NetworkClientCmd m) -> Cursor (m Byron)
+pattern Cursor :: () => Point ByronBlock -> TQueue m (ChainSyncCmd m) -> Cursor (m Byron)
 
 -- | Create an instance of the network layer
-newNetworkLayer :: Trace IO Text -> BlockchainParameters -> AddrInfo -> (NodeToClientVersionData, CodecCBORTerm Text NodeToClientVersionData) -> NetworkLayer IO (IO Byron) ByronBlock
+newNetworkLayer :: Trace IO Text -> BlockchainParameters -> AddrInfo -> (NodeToClientVersionData, CodecCBORTerm Text NodeToClientVersionData) -> IO (NetworkLayer IO (IO Byron) ByronBlock)
 data AddrInfo
 localSocketAddrInfo :: FilePath -> AddrInfo
 

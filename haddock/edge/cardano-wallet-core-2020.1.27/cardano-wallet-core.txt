@@ -2953,7 +2953,7 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Network.BlockHeaders.BlockHeaders
 
 module Cardano.Wallet.Network
 data NetworkLayer m target block
-NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)) -> ([BlockHeader] -> m (Cursor target)) -> (Cursor target -> SlotId) -> ExceptT ErrCurrentNodeTip m BlockHeader -> (SealedTx -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> (ChimericAccount -> ExceptT ErrGetAccountBalance m (Quantity "lovelace" Word64)) -> NetworkLayer m target block
+NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult (Cursor target) block)) -> ([BlockHeader] -> m (Cursor target)) -> (Cursor target -> SlotId) -> ExceptT ErrCurrentNodeTip m BlockHeader -> (SealedTx -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> (ChimericAccount -> ExceptT ErrGetAccountBalance m (Quantity "lovelace" Word64)) -> NetworkLayer m target block
 
 -- | Starting from the given <a>Cursor</a>, fetches a contiguous sequence
 --   of blocks from the node, if they are available. An updated cursor will
@@ -2966,7 +2966,7 @@ NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target
 --   
 --   If the node has adopted an alternate fork of the chain, it will return
 --   <a>RollBackward</a> with a new cursor.
-[nextBlocks] :: NetworkLayer m target block -> Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target block)
+[nextBlocks] :: NetworkLayer m target block -> Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult (Cursor target) block)
 
 -- | Creates a cursor from the given block header so that <a>nextBlocks</a>
 --   can be used to fetch blocks.
@@ -2988,19 +2988,20 @@ NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult target
 
 -- | The result of <a>nextBlocks</a>, which is instructions for what the
 --   chain consumer should do next.
-data NextBlocksResult target block
+data NextBlocksResult cursor block
 
 -- | There are no blocks available from the node, so wait.
-AwaitReply :: NextBlocksResult target block
+AwaitReply :: NextBlocksResult cursor block
 
 -- | Apply the given contiguous non-empty sequence of blocks. Use the
 --   updated cursor to get the next batch. The given block header is the
 --   current tip of the node.
-RollForward :: Cursor target -> BlockHeader -> [block] -> NextBlocksResult target block
+RollForward :: cursor -> BlockHeader -> [block] -> NextBlocksResult cursor block
 
 -- | The chain consumer must roll back its state, then use the cursor to
 --   get the next batch of blocks.
-RollBackward :: Cursor target -> NextBlocksResult target block
+RollBackward :: cursor -> NextBlocksResult cursor block
+mapCursor :: (a -> b) -> NextBlocksResult a block -> NextBlocksResult b block
 
 -- | A cursor is local state kept by the chain consumer to use as the
 --   starting position for <a>nextBlocks</a>. The actual type is opaque and
@@ -3116,7 +3117,7 @@ instance Data.Text.Class.ToText Cardano.Wallet.Network.FollowLog
 instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Wallet.Network.FollowLog
 instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Wallet.Network.FollowLog
 instance GHC.Base.Functor m => GHC.Base.Functor (Cardano.Wallet.Network.NetworkLayer m target)
-instance GHC.Base.Functor (Cardano.Wallet.Network.NextBlocksResult target)
+instance GHC.Base.Functor (Cardano.Wallet.Network.NextBlocksResult cursor)
 instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrPostTx
 instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrCurrentNodeTip
 instance GHC.Exception.Type.Exception Cardano.Wallet.Network.ErrNetworkUnavailable
