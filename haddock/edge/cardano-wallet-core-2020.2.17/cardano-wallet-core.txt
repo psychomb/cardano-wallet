@@ -306,18 +306,6 @@ module Cardano.Wallet.Version.TH
 gitRevFromGit :: Q Exp
 
 
--- | This module contains Template-Haskell-specific extensions to the
---   Bech32 library.
-module Codec.Binary.Bech32.TH
-
--- | A quasiquoter for Bech32 human-readable prefixes.
---   
---   This allows the construction of prefixes to be checked at compile
---   time.
-humanReadablePart :: QuasiQuoter
-instance Language.Haskell.TH.Syntax.Lift Codec.Binary.Bech32.Internal.HumanReadablePart
-
-
 -- | Extra helpers for safe decoding of binary data.
 module Data.Binary.Get.Safe
 
