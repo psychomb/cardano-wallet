@@ -31,67 +31,18 @@ library
     ghc-options:
       -Werror
   build-depends:
-      aeson
-    , async
-    , base
-    , base58-bytestring
-    , basement
-    , bech32
-    , bech32-th
-    , binary
+      base
     , bytestring
-    , cardano-crypto
-    , cborg
-    , conduit
     , containers
-    , contra-tracer
     , cryptonite
     , deepseq
-    , digest
-    , directory
-    , exceptions
     , extra
-    , fast-logger
-    , file-embed
-    , filepath
     , fmt
-    , foldl
-    , generic-lens
-    , http-api-data
-    , http-client
-    , http-conduit
-    , http-media
-    , http-types
-    , iohk-monitoring
-    , lifted-base
     , memory
-    , monad-logger
-    , network
-    , OddWord
-    , path-pieces
-    , persistent
-    , persistent-sqlite
-    , persistent-template
-    , process
     , random
-    , retry
-    , safe
-    , servant
-    , servant-client
-    , servant-server
-    , split
-    , streaming-commons
-    , template-haskell
     , text
-    , text-class
-    , time
     , transformers
-    , unliftio
-    , unordered-containers
     , vector
-    , wai
-    , warp
-    , zip
   hs-source-dirs:
       src
   exposed-modules:
@@ -122,55 +73,20 @@ test-suite unit
       -Werror
   build-depends:
       base
-    , aeson
-    , aeson-qq
-    , async
     , bytestring
-    , cardano-crypto
     , cardano-wallet-core
-    , cborg
     , containers
-    , contra-tracer
     , cryptonite
-    , directory
     , deepseq
-    , extra >= 1.6.17
-    , file-embed
-    , filepath
+    , extra
     , fmt
-    , foldl
-    , generic-arbitrary
-    , generic-lens
     , hspec
-    , hspec-golden-aeson
-    , http-api-data
-    , http-client
-    , http-types
-    , iohk-monitoring
     , memory
-    , network
-    , persistent
-    , OddWord
     , QuickCheck
-    , quickcheck-state-machine >= 0.6.0
     , random
-    , safe
-    , servant
-    , servant-server
-    , servant-swagger
-    , stm
-    , swagger2
-    , temporary
     , text
-    , text-class
-    , time
     , transformers
-    , tree-diff
-    , unordered-containers
-    , yaml
-    , wai
-    , warp
-    , zip
+    , vector
   build-tools:
       hspec-discover
   type:
