@@ -2,13 +2,7 @@ resolver: lts-13.24
 
 packages:
 - lib/core
-- lib/core-integration
-- lib/cli
-- lib/launcher
 - lib/text-class
-- lib/test-utils
-- lib/jormungandr
-- lib/byron
 
 extra-deps:
 # Miscellaneous
