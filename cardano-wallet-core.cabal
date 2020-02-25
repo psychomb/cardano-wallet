@@ -92,7 +92,7 @@ test-suite unit
   type:
       exitcode-stdio-1.0
   hs-source-dirs:
-      test/unit
+      test
   main-is:
       Spec.hs
   other-modules:
