@@ -285,10 +285,8 @@ waitForServer :: forall t ctx. (HasType (Port "wallet") ctx, KnownCommand t) => 
 -- | <a>map</a> flipped.
 for :: [a] -> (a -> b) -> [b]
 utcIso8601ToText :: UTCTime -> Text
-eventually :: IO a -> IO a
-eventuallyUsingDelay :: Int -> IO a -> IO a
-eventually_ :: IO () -> IO ()
-eventuallyUsingDelay_ :: Int -> IO () -> IO ()
+eventually :: String -> IO a -> IO a
+eventuallyUsingDelay :: Int -> String -> IO a -> IO a
 
 -- | Default passphrase used for fixture wallets
 fixturePassphrase :: Text
