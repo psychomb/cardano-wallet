@@ -5606,6 +5606,7 @@ ErrJoinStakePoolSubmitTx :: ErrSubmitTx -> ErrJoinStakePool
 data ErrQuitStakePool
 ErrQuitStakePoolNoSuchWallet :: ErrNoSuchWallet -> ErrQuitStakePool
 ErrQuitStakePoolNotDelegating :: ErrQuitStakePool
+ErrQuitStakePoolNextNotDelegating :: ErrQuitStakePool
 ErrQuitStakePoolSelectCoin :: ErrSelectForDelegation -> ErrQuitStakePool
 ErrQuitStakePoolSignDelegation :: ErrSignDelegation -> ErrQuitStakePool
 ErrQuitStakePoolSubmitTx :: ErrSubmitTx -> ErrQuitStakePool
