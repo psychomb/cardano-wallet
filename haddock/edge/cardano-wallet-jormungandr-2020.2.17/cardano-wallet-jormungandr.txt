@@ -585,7 +585,7 @@ ErrPostTxNetworkUnreachable :: ErrNetworkUnavailable -> ErrPostTx
 ErrPostTxBadRequest :: Text -> ErrPostTx
 ErrPostTxProtocolFailure :: Text -> ErrPostTx
 data ErrUnexpectedNetworkFailure
-ErrUnexpectedNetworkFailure :: Link -> ServantError -> ErrUnexpectedNetworkFailure
+ErrUnexpectedNetworkFailure :: Link -> ClientError -> ErrUnexpectedNetworkFailure
 data BaseUrl
 BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
 [baseUrlScheme] :: BaseUrl -> Scheme
@@ -701,7 +701,7 @@ ErrStartupInvalidGenesisBlock :: FilePath -> ErrStartup
 ErrStartupInvalidGenesisHash :: String -> ErrStartup
 ErrStartupMissingIncentiveParameters :: ErrStartup
 data ErrUnexpectedNetworkFailure
-ErrUnexpectedNetworkFailure :: Link -> ServantError -> ErrUnexpectedNetworkFailure
+ErrUnexpectedNetworkFailure :: Link -> ClientError -> ErrUnexpectedNetworkFailure
 data NetworkLayerLog
 MsgLauncher :: LauncherLog -> NetworkLayerLog
 MsgWaitForService :: WaitForServiceLog -> NetworkLayerLog

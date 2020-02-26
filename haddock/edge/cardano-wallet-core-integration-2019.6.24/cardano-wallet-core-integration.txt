@@ -231,7 +231,7 @@ infixl 9 !!
 -- | Create an empty wallet
 emptyRandomWallet :: Context t -> IO ApiByronWallet
 emptyIcarusWallet :: Context t -> IO ApiByronWallet
-emptyByronWalletWith :: forall (style :: ByronWalletStyle) t. PostWallet style => Context t -> (Text, [Text], Text) -> IO ApiByronWallet
+emptyByronWalletWith :: forall t. () => Context t -> String -> (Text, [Text], Text) -> IO ApiByronWallet
 
 -- | Create an empty wallet
 emptyWallet :: Context t -> IO ApiWallet
@@ -243,7 +243,7 @@ getFromResponseList :: Int -> Lens' s a -> (Status, Either RequestException [s])
 json :: QuasiQuoter
 joinStakePool :: forall t w. HasType (ApiT WalletId) w => Context t -> ApiT PoolId -> (w, Text) -> IO (Status, Either RequestException (ApiTransaction  'Testnet))
 delegationFee :: forall t w. HasType (ApiT WalletId) w => Context t -> w -> IO (Status, Either RequestException ApiFee)
-quitStakePool :: forall t s w. (HasType (ApiT WalletId) w, HasType (ApiT PoolId) s) => Context t -> BackwardCompatPlaceholder s -> (w, Text) -> IO (Status, Either RequestException (ApiTransaction  'Testnet))
+quitStakePool :: forall t w. HasType (ApiT WalletId) w => Context t -> (w, Text) -> IO (Status, Either RequestException (ApiTransaction  'Testnet))
 selectCoins :: forall t w. HasType (ApiT WalletId) w => Context t -> w -> NonEmpty (AddressAmount  'Testnet) -> IO (Status, Either RequestException (ApiCoinSelection  'Testnet))
 listAddresses :: Context t -> ApiWallet -> IO [ApiAddress  'Testnet]
 listTransactions :: Context t -> ApiWallet -> Maybe UTCTime -> Maybe UTCTime -> Maybe SortOrder -> IO [ApiTransaction  'Testnet]
@@ -377,9 +377,7 @@ payloadWith :: Text -> [Text] -> Payload
 simplePayload :: Payload
 updateNamePayload :: Text -> Payload
 updatePassPayload :: Text -> Text -> Payload
-getHeaderCases :: forall a. Show a => Status -> [(String, Headers, [(Status, Either RequestException a) -> IO ()])]
-postHeaderCases :: Show a => [(String, Headers, [(Status, Either RequestException a) -> IO ()])]
-errMsgWalletIdEncoding :: String
+errMsg400WalletIdEncoding :: String
 errMsg400StartTimeLaterThanEndTime :: String -> String -> String
 errMsg403Fee :: String
 errMsg403DelegationFee :: Natural -> String
@@ -401,7 +399,6 @@ errMsg403TxTooBig :: Int -> String
 errMsg400MalformedTxPayload :: String
 errMsg400WronglyEncodedTxPayload :: String
 errMsg400ParseError :: String
-errMsg400MalformedEpoch :: String -> String
 errMsg403ZeroAmtOutput :: String
 errMsg405 :: String
 errMsg406 :: String
