@@ -1638,6 +1638,42 @@ hex :: ByteArrayAccess bin => bin -> ByteString
 -- | Decode a <a>ByteString</a> from base16
 fromHex :: ByteArray bout => ByteString -> Either String bout
 
+-- | Convert a <tt>XPrv</tt> to a 96-byte long extended private key that
+--   does <i>not</i> include the public key.
+--   
+--   The format is: &gt; Extended Private Key (64 bytes) &lt;&gt; ChainCode
+--   (32 bytes)
+--   
+--   Returns <tt>Left</tt> if the resulting bytestring fails to roundtrip
+--   back to the original <tt>XPrv</tt>. This can happen: - If the
+--   <tt>XPrv</tt> was encrypted - If a DerivationScheme1 (Byron) key was
+--   used (that does not conform to the "tweak")
+unXPrvStripPub :: XPrv -> Either ErrUnXPrvStripPub ByteString
+
+-- | Create a <tt>XPrv</tt> from a 96-byte long extended private key
+--   
+--   The format is:
+--   
+--   <pre>
+--   Extended Private Key (64 bytes) &lt;&gt; ChainCode (32 bytes)
+--   </pre>
+xPrvFromStrippedPubXPrv :: ByteString -> Either ErrXPrvFromStrippedPubXPrv XPrv
+data ErrXPrvFromStrippedPubXPrv
+
+-- | Expected, Actual
+ErrInputLengthMismatch :: Int -> Int -> ErrXPrvFromStrippedPubXPrv
+ErrInternalError :: String -> ErrXPrvFromStrippedPubXPrv
+data ErrUnXPrvStripPub
+
+-- | The resulting bytestring would have been unable to roundtrip using
+--   <tt>xPrvFromStrippedPubXPrv</tt>. Most likely because the input
+--   <tt>XPrv</tt> was encrypted, or because it was an old (Byron) key.
+ErrCannotRoundtrip :: ErrUnXPrvStripPub
+
+-- | Small helper to collect <a>Nat</a> values from a type-level list
+class NatVals (ns :: [Nat])
+natVals :: NatVals ns => Proxy ns -> [Integer]
+
 -- | Available network options.
 data NetworkDiscriminant
 Mainnet :: NetworkDiscriminant
@@ -1793,6 +1829,10 @@ encryptPassphrase :: MonadRandom m => Passphrase purpose -> m (Hash purpose)
 
 -- | Check whether a <a>Passphrase</a> matches with a stored <a>Hash</a>
 checkPassphrase :: Passphrase purpose -> Hash purpose -> Either ErrWrongPassphrase ()
+instance GHC.Show.Show Cardano.Wallet.Primitive.AddressDerivation.ErrXPrvFromStrippedPubXPrv
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.AddressDerivation.ErrXPrvFromStrippedPubXPrv
+instance GHC.Show.Show Cardano.Wallet.Primitive.AddressDerivation.ErrUnXPrvStripPub
+instance GHC.Classes.Eq Cardano.Wallet.Primitive.AddressDerivation.ErrUnXPrvStripPub
 instance forall k (key :: k) from. GHC.Classes.Eq from => GHC.Classes.Eq (Cardano.Wallet.Primitive.AddressDerivation.ErrMkKeyFingerprint key from)
 instance forall k (key :: k) from. GHC.Show.Show from => GHC.Show.Show (Cardano.Wallet.Primitive.AddressDerivation.ErrMkKeyFingerprint key from)
 instance forall (s :: GHC.Types.Symbol) k (key :: k). GHC.Classes.Ord (Cardano.Wallet.Primitive.AddressDerivation.KeyFingerprint s key)
@@ -1809,6 +1849,7 @@ instance GHC.Show.Show Cardano.Wallet.Primitive.AddressDerivation.ErrWrongPassph
 instance Formatting.Buildable.Buildable (Cardano.Wallet.Primitive.AddressDerivation.FromMnemonicError sz)
 instance GHC.Show.Show (Cardano.Wallet.Primitive.AddressDerivation.FromMnemonicError sz)
 instance GHC.Classes.Eq (Cardano.Wallet.Primitive.AddressDerivation.FromMnemonicError sz)
+instance Data.ByteArray.Types.ByteArrayAccess (Cardano.Wallet.Primitive.AddressDerivation.Passphrase purpose)
 instance Control.DeepSeq.NFData (Cardano.Wallet.Primitive.AddressDerivation.Passphrase purpose)
 instance GHC.Base.Monoid (Cardano.Wallet.Primitive.AddressDerivation.Passphrase purpose)
 instance GHC.Base.Semigroup (Cardano.Wallet.Primitive.AddressDerivation.Passphrase purpose)

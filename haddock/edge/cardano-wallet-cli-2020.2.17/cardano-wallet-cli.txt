@@ -30,6 +30,7 @@ cmdAddress :: forall t. (DecodeAddress t, EncodeAddress t) => Mod CommandFields 
 cmdStakePool :: forall t. (DecodeAddress t, EncodeAddress t) => Mod CommandFields (IO ())
 cmdNetwork :: forall t. (DecodeAddress t, EncodeAddress t) => Mod CommandFields (IO ())
 cmdVersion :: Mod CommandFields (IO ())
+cmdKey :: Mod CommandFields (IO ())
 
 -- | Helper for writing an option <a>Parser</a> using a <a>FromText</a>
 --   instance.
@@ -107,6 +108,39 @@ MS_24 :: MnemonicSize
 newtype Port (tag :: Symbol)
 Port :: Int -> Port
 [$sel:getPort:Port] :: Port -> Int
+
+-- | Record with mnemonic and key derivation funcionality — <i>without</i>
+--   any type parameters related to scheme.
+--   
+--   This means that we can have a value for byron, a value for icarus,
+--   both with the same type <tt>CliKeyScheme</tt>.
+--   
+--   <tt>CliKeyScheme</tt> is on the other hand parameterized over
+--   <tt>key</tt> and <tt>m</tt>. <tt>hoistKeyScheme</tt> is provided for
+--   mapping over <tt>m</tt>. <tt>mapKey</tt> is provided for mapping over
+--   <tt>key</tt>.
+--   
+--   This way we can test mapping <tt>XPrv</tt>s to <tt>Text</tt> as pure
+--   code in <tt>Either String</tt>, rather than <tt>IO</tt>.
+data CliKeyScheme key m
+CliKeyScheme :: [Int] -> ([Text] -> m key) -> CliKeyScheme key m
+[$sel:allowedWordLengths:CliKeyScheme] :: CliKeyScheme key m -> [Int]
+[$sel:mnemonicToRootKey:CliKeyScheme] :: CliKeyScheme key m -> [Text] -> m key
+data CliWalletStyle
+Icarus :: CliWalletStyle
+Ledger :: CliWalletStyle
+Trezor :: CliWalletStyle
+newCliKeyScheme :: CliWalletStyle -> CliKeyScheme XPrv (Either String)
+hexTextToXPrv :: Text -> Either String XPrv
+xPrvToHexText :: XPrv -> Either String Text
+
+-- | Change the underlying monad of a <tt>CliKeyScheme</tt>.
+hoistKeyScheme :: (forall a. m1 a -> m2 a) -> CliKeyScheme key m1 -> CliKeyScheme key m2
+
+-- | Map over the key type of a CliKeyScheme.
+--   
+--   Can be used with e.g <tt>xPrvToHexText</tt>.
+mapKey :: Monad m => (key1 -> m key2) -> CliKeyScheme key1 m -> CliKeyScheme key2 m
 
 -- | Run an action with logging available and configured. When the action
 --   is finished (normally or otherwise), log messages are flushed.
@@ -187,6 +221,11 @@ instance GHC.Generics.Generic Cardano.CLI.MnemonicSize
 instance GHC.Classes.Eq Cardano.CLI.MnemonicSize
 instance GHC.Enum.Enum Cardano.CLI.MnemonicSize
 instance GHC.Enum.Bounded Cardano.CLI.MnemonicSize
+instance GHC.Enum.Enum Cardano.CLI.CliWalletStyle
+instance GHC.Enum.Bounded Cardano.CLI.CliWalletStyle
+instance GHC.Generics.Generic Cardano.CLI.CliWalletStyle
+instance GHC.Classes.Eq Cardano.CLI.CliWalletStyle
+instance GHC.Show.Show Cardano.CLI.CliWalletStyle
 instance Data.Text.Class.ToText Cardano.CLI.WaitForServiceLog
 instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.CLI.WaitForServiceLog
 instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.CLI.WaitForServiceLog
@@ -196,3 +235,5 @@ instance Data.Text.Class.FromText (Cardano.CLI.Port tag)
 instance Data.Text.Class.ToText (Cardano.CLI.Port tag)
 instance Data.Text.Class.ToText Cardano.CLI.MnemonicSize
 instance Data.Text.Class.FromText Cardano.CLI.MnemonicSize
+instance Data.Text.Class.FromText Cardano.CLI.CliWalletStyle
+instance Data.Text.Class.ToText Cardano.CLI.CliWalletStyle
