@@ -55,7 +55,17 @@ let
 
   inherit (systems.examples) mingwW64 musl64;
 
+  mkPins = inputs: pkgs.runCommand "ifd-pins" {} ''
+    mkdir $out
+    cd $out
+    ${lib.concatMapStringsSep "\n" (input: "ln -sv ${input.value} ${input.key}") (lib.attrValues (lib.mapAttrs (key: value: { inherit key value; }) inputs))}
+  '';
+  sources = import ./nix/sources.nix;
+
   jobs = {
+    ifd-pins = mkPins {
+      inherit (sources) iohk-nix "haskell.nix";
+    };
     native = mapTestOn (packagePlatformsOrig project);
     # Cross compilation, excluding the dockerImage and shells that we cannnot cross compile
     "${mingwW64.config}" = mapTestOnCross mingwW64 (packagePlatformsCross
