@@ -819,7 +819,6 @@ tracerSeverities :: Maybe Severity -> TracerSeverities
 data ApplicationLog
 MsgStarting :: JormungandrBackend -> ApplicationLog
 MsgNetworkName :: NetworkDiscriminant -> ApplicationLog
-MsgSigTerm :: ApplicationLog
 MsgWalletStartupError :: ErrStartup -> ApplicationLog
 MsgServerStartupError :: ListenError -> ApplicationLog
 MsgDatabaseStartup :: DatabasesStartupLog -> ApplicationLog

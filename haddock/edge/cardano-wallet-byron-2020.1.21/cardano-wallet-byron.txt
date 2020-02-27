@@ -161,7 +161,6 @@ tracerSeverities :: Maybe Severity -> TracerSeverities
 data ApplicationLog
 MsgStarting :: AddrInfo -> ApplicationLog
 MsgNetworkName :: NetworkDiscriminant -> ApplicationLog
-MsgSigTerm :: ApplicationLog
 MsgServerStartupError :: ListenError -> ApplicationLog
 MsgDatabaseStartup :: DatabasesStartupLog -> ApplicationLog
 instance GHC.Classes.Eq Cardano.Wallet.Byron.ApplicationLog

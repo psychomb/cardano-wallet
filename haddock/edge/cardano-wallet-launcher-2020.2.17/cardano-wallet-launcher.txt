@@ -24,14 +24,18 @@ module Cardano.Launcher
 --       , "--network", "mainnet"
 --       ] (return ())
 --       Inherit
+--       Inherit
 --   </pre>
 data Command
-Command :: String -> [String] -> IO () -> StdStream -> Command
+Command :: String -> [String] -> IO () -> StdStream -> StdStream -> Command
 [cmdName] :: Command -> String
 [cmdArgs] :: Command -> [String]
 
 -- | An extra action to run _before_ the command
 [cmdSetup] :: Command -> IO ()
+
+-- | Input to supply to command
+[cmdInput] :: Command -> StdStream
 
 -- | What to do with stdout &amp; stderr
 [cmdOutput] :: Command -> StdStream
@@ -71,19 +75,8 @@ ProcessHasExited :: String -> ExitCode -> ProcessHasExited
 withBackendProcess :: Tracer IO LauncherLog -> Command -> IO a -> IO (Either ProcessHasExited a)
 
 -- | A variant of <a>withBackendProcess</a> which also provides the
---   <a>ProcessHandle</a> to the given action.
-withBackendProcessHandle :: Tracer IO LauncherLog -> Command -> (ProcessHandle -> IO a) -> IO (Either ProcessHasExited a)
-
--- | Convert any SIGTERM received to SIGINT, for which the runtime system
---   has handlers that will correctly clean up sub-processes.
-installSignalHandlers :: IO () -> IO ()
-
--- | Force the locale text encoding to UTF-8. This is needed because the
---   CLI prints UTF-8 characters regardless of the <tt>LANG</tt>
---   environment variable or any other settings.
---   
---   On Windows the current console code page is changed to UTF-8.
-withUtf8Encoding :: IO a -> IO a
+--   <a>ProcessHandle</a> and stdin <a>Handle</a> to the given action.
+withBackendProcessHandle :: Tracer IO LauncherLog -> Command -> (Maybe Handle -> ProcessHandle -> IO a) -> IO (Either ProcessHasExited a)
 data LauncherLog
 MsgLauncherStart :: Command -> LauncherLog
 WithProcessInfo :: String -> Text -> LaunchedProcessLog -> LauncherLog
@@ -110,3 +103,50 @@ instance GHC.Show.Show Cardano.Launcher.Command
 instance GHC.Classes.Eq Cardano.Launcher.Command
 instance Formatting.Buildable.Buildable Cardano.Launcher.Command
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Launcher.Command
+
+
+-- | This module contains functions relating to startup and shutdown of the
+--   <tt>cardano-wallet serve</tt> program.
+module Cardano.Startup
+
+-- | Force the locale text encoding to UTF-8. This is needed because the
+--   CLI prints UTF-8 characters regardless of the <tt>LANG</tt>
+--   environment variable or any other settings.
+--   
+--   On Windows the current console code page is changed to UTF-8.
+withUtf8Encoding :: IO a -> IO a
+
+-- | Runs the given action with a cross-platform clean shutdown handler.
+--   
+--   This is necessary when running cardano-wallet as a subprocess of
+--   Daedalus. For more details, see
+--   <a>https://github.com/input-output-hk/cardano-launcher/blob/master/docs/windows-clean-shutdown.md</a>
+--   
+--   It works simply by reading from <a>stdin</a>, which is otherwise
+--   unused by the API server. Once end-of-file is reached, it cancels the
+--   action, causing the program to shut down.
+--   
+--   So, when running <tt>cardano-wallet</tt> as a subprocess, the parent
+--   process should pass a pipe for <a>stdin</a>, then close the pipe when
+--   it wants <tt>cardano-wallet</tt> to shut down.
+--   
+--   TODO: may need to add <tt>forkIO</tt> if <tt>hGet</tt> blocks on
+--   windows
+withShutdownHandler :: Tracer IO ShutdownHandlerLog -> IO a -> IO (Maybe a)
+
+-- | A variant of <a>withShutdownHandler</a> where the handle to read can
+--   be chosen.
+withShutdownHandler' :: Tracer IO ShutdownHandlerLog -> Handle -> IO a -> IO (Maybe a)
+
+-- | Convert any SIGTERM received to SIGINT, for which the runtime system
+--   has handlers that will correctly clean up sub-processes.
+installSignalHandlers :: IO () -> IO ()
+data ShutdownHandlerLog
+MsgShutdownHandler :: Bool -> ShutdownHandlerLog
+MsgShutdownEOF :: ShutdownHandlerLog
+MsgShutdownError :: IOException -> ShutdownHandlerLog
+instance GHC.Classes.Eq Cardano.Startup.ShutdownHandlerLog
+instance GHC.Show.Show Cardano.Startup.ShutdownHandlerLog
+instance Data.Text.Class.ToText Cardano.Startup.ShutdownHandlerLog
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Startup.ShutdownHandlerLog
+instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Startup.ShutdownHandlerLog
