@@ -5682,20 +5682,25 @@ quitStakePool :: forall ctx s t k. (HasDBLayer s k ctx, HasLogger WalletLog ctx,
 --   (including one certificate).
 selectCoinsForDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasLogger WalletLog ctx, HasDBLayer s k ctx) => ctx -> WalletId -> ExceptT ErrSelectForDelegation IO CoinSelection
 signDelegation :: forall ctx s t k. (HasTransactionLayer t k ctx, HasDBLayer s k ctx, Show s, NFData s, IsOwned s k, GenChange s, HardDerivation k, AddressIndexDerivationType k ~  'Soft) => ctx -> WalletId -> ArgGenChange s -> Passphrase "encryption" -> CoinSelection -> DelegationAction -> ExceptT ErrSignDelegation IO (Tx, TxMeta, UTCTime, SealedTx)
+guardJoin :: [PoolId] -> WalletDelegation -> PoolId -> Either ErrCannotJoin ()
+guardQuit :: WalletDelegation -> Either ErrCannotQuit ()
 data ErrJoinStakePool
 ErrJoinStakePoolNoSuchWallet :: ErrNoSuchWallet -> ErrJoinStakePool
-ErrJoinStakePoolAlreadyDelegating :: PoolId -> ErrJoinStakePool
-ErrJoinStakePoolNoSuchPool :: PoolId -> ErrJoinStakePool
 ErrJoinStakePoolSelectCoin :: ErrSelectForDelegation -> ErrJoinStakePool
 ErrJoinStakePoolSignDelegation :: ErrSignDelegation -> ErrJoinStakePool
 ErrJoinStakePoolSubmitTx :: ErrSubmitTx -> ErrJoinStakePool
+ErrJoinStakePoolCannotJoin :: ErrCannotJoin -> ErrJoinStakePool
+data ErrCannotJoin
+ErrAlreadyDelegating :: PoolId -> ErrCannotJoin
+ErrNoSuchPool :: PoolId -> ErrCannotJoin
 data ErrQuitStakePool
 ErrQuitStakePoolNoSuchWallet :: ErrNoSuchWallet -> ErrQuitStakePool
-ErrQuitStakePoolNotDelegating :: ErrQuitStakePool
-ErrQuitStakePoolNextNotDelegating :: ErrQuitStakePool
 ErrQuitStakePoolSelectCoin :: ErrSelectForDelegation -> ErrQuitStakePool
 ErrQuitStakePoolSignDelegation :: ErrSignDelegation -> ErrQuitStakePool
 ErrQuitStakePoolSubmitTx :: ErrSubmitTx -> ErrQuitStakePool
+ErrQuitStakePoolCannotQuit :: ErrCannotQuit -> ErrQuitStakePool
+data ErrCannotQuit
+ErrNotDelegatingOrAboutTo :: ErrCannotQuit
 
 -- | Errors that can occur when creating unsigned delegation certificate
 --   transaction.
@@ -5811,16 +5816,22 @@ MsgPaymentCoinSelectionAdjusted :: CoinSelection -> WalletLog
 instance GHC.Generics.Generic (Cardano.Wallet.WalletLayer s t k)
 instance GHC.Classes.Eq Cardano.Wallet.WalletLog
 instance GHC.Show.Show Cardano.Wallet.WalletLog
+instance GHC.Show.Show Cardano.Wallet.ErrQuitStakePool
+instance GHC.Classes.Eq Cardano.Wallet.ErrQuitStakePool
+instance GHC.Generics.Generic Cardano.Wallet.ErrQuitStakePool
+instance GHC.Show.Show Cardano.Wallet.ErrCannotQuit
+instance GHC.Classes.Eq Cardano.Wallet.ErrCannotQuit
+instance GHC.Generics.Generic Cardano.Wallet.ErrCannotQuit
+instance GHC.Show.Show Cardano.Wallet.ErrJoinStakePool
+instance GHC.Classes.Eq Cardano.Wallet.ErrJoinStakePool
+instance GHC.Generics.Generic Cardano.Wallet.ErrJoinStakePool
+instance GHC.Show.Show Cardano.Wallet.ErrCannotJoin
+instance GHC.Classes.Eq Cardano.Wallet.ErrCannotJoin
+instance GHC.Generics.Generic Cardano.Wallet.ErrCannotJoin
 instance GHC.Show.Show Cardano.Wallet.ErrCheckWalletIntegrity
 instance GHC.Classes.Eq Cardano.Wallet.ErrCheckWalletIntegrity
 instance GHC.Show.Show Cardano.Wallet.ErrSelectForMigration
 instance GHC.Classes.Eq Cardano.Wallet.ErrSelectForMigration
-instance GHC.Show.Show Cardano.Wallet.ErrQuitStakePool
-instance GHC.Classes.Eq Cardano.Wallet.ErrQuitStakePool
-instance GHC.Generics.Generic Cardano.Wallet.ErrQuitStakePool
-instance GHC.Show.Show Cardano.Wallet.ErrJoinStakePool
-instance GHC.Classes.Eq Cardano.Wallet.ErrJoinStakePool
-instance GHC.Generics.Generic Cardano.Wallet.ErrJoinStakePool
 instance GHC.Classes.Eq Cardano.Wallet.ErrSignDelegation
 instance GHC.Show.Show Cardano.Wallet.ErrSignDelegation
 instance GHC.Classes.Eq Cardano.Wallet.ErrSelectForDelegation
