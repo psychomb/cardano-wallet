@@ -131,16 +131,20 @@ Icarus :: CliWalletStyle
 Ledger :: CliWalletStyle
 Trezor :: CliWalletStyle
 newCliKeyScheme :: CliWalletStyle -> CliKeyScheme XPrv (Either String)
-hexTextToXPrv :: Text -> Either String XPrv
-xPrvToHexText :: XPrv -> Either String Text
+
+-- | Pair of functions representing the bidirectional transformation
+--   between a <tt>XPrv</tt> and its 96-byte hex-encoded form.
+xPrvToTextTransform :: (XPrv -> Either String Text, Text -> Either String XPrv)
 
 -- | Change the underlying monad of a <tt>CliKeyScheme</tt>.
 hoistKeyScheme :: (forall a. m1 a -> m2 a) -> CliKeyScheme key m1 -> CliKeyScheme key m2
 
 -- | Map over the key type of a CliKeyScheme.
 --   
---   Can be used with e.g <tt>xPrvToHexText</tt>.
-mapKey :: Monad m => (key1 -> m key2) -> CliKeyScheme key1 m -> CliKeyScheme key2 m
+--   <tt>deriveChildKey</tt> both takes a key as an argument and returns
+--   one. Therefore we need a bidirectional mapping between the two key
+--   types.
+mapKey :: Monad m => (key1 -> m key2, key2 -> m key1) -> CliKeyScheme key1 m -> CliKeyScheme key2 m
 
 -- | Run an action with logging available and configured. When the action
 --   is finished (normally or otherwise), log messages are flushed.
