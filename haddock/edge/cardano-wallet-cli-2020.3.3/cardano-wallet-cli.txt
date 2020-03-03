@@ -123,13 +123,19 @@ Port :: Int -> Port
 --   This way we can test mapping <tt>XPrv</tt>s to <tt>Text</tt> as pure
 --   code in <tt>Either String</tt>, rather than <tt>IO</tt>.
 data CliKeyScheme key m
-CliKeyScheme :: [Int] -> ([Text] -> m key) -> CliKeyScheme key m
+CliKeyScheme :: [Int] -> ([Text] -> m key) -> (key -> DerivationIndex -> m key) -> CliKeyScheme key m
 [$sel:allowedWordLengths:CliKeyScheme] :: CliKeyScheme key m -> [Int]
 [$sel:mnemonicToRootKey:CliKeyScheme] :: CliKeyScheme key m -> [Text] -> m key
+[$sel:deriveChildKey:CliKeyScheme] :: CliKeyScheme key m -> key -> DerivationIndex -> m key
 data CliWalletStyle
 Icarus :: CliWalletStyle
 Ledger :: CliWalletStyle
 Trezor :: CliWalletStyle
+newtype DerivationIndex
+DerivationIndex :: Word32 -> DerivationIndex
+[$sel:unDerivationIndex:DerivationIndex] :: DerivationIndex -> Word32
+newtype DerivationPath
+DerivationPath :: [DerivationIndex] -> DerivationPath
 newCliKeyScheme :: CliWalletStyle -> CliKeyScheme XPrv (Either String)
 
 -- | Pair of functions representing the bidirectional transformation
@@ -225,6 +231,12 @@ instance GHC.Generics.Generic Cardano.CLI.MnemonicSize
 instance GHC.Classes.Eq Cardano.CLI.MnemonicSize
 instance GHC.Enum.Enum Cardano.CLI.MnemonicSize
 instance GHC.Enum.Bounded Cardano.CLI.MnemonicSize
+instance GHC.Classes.Eq Cardano.CLI.DerivationPath
+instance GHC.Show.Show Cardano.CLI.DerivationPath
+instance GHC.Enum.Enum Cardano.CLI.DerivationIndex
+instance GHC.Enum.Bounded Cardano.CLI.DerivationIndex
+instance GHC.Classes.Eq Cardano.CLI.DerivationIndex
+instance GHC.Show.Show Cardano.CLI.DerivationIndex
 instance GHC.Enum.Enum Cardano.CLI.CliWalletStyle
 instance GHC.Enum.Bounded Cardano.CLI.CliWalletStyle
 instance GHC.Generics.Generic Cardano.CLI.CliWalletStyle
@@ -239,5 +251,9 @@ instance Data.Text.Class.FromText (Cardano.CLI.Port tag)
 instance Data.Text.Class.ToText (Cardano.CLI.Port tag)
 instance Data.Text.Class.ToText Cardano.CLI.MnemonicSize
 instance Data.Text.Class.FromText Cardano.CLI.MnemonicSize
+instance Data.Text.Class.FromText Cardano.CLI.DerivationPath
+instance Data.Text.Class.ToText Cardano.CLI.DerivationPath
+instance Data.Text.Class.FromText Cardano.CLI.DerivationIndex
+instance Data.Text.Class.ToText Cardano.CLI.DerivationIndex
 instance Data.Text.Class.FromText Cardano.CLI.CliWalletStyle
 instance Data.Text.Class.ToText Cardano.CLI.CliWalletStyle

@@ -1641,14 +1641,23 @@ fromHex :: ByteArray bout => ByteString -> Either String bout
 -- | Convert a <tt>XPrv</tt> to a 96-byte long extended private key that
 --   does <i>not</i> include the public key.
 --   
---   The format is: &gt; Extended Private Key (64 bytes) &lt;&gt; ChainCode
---   (32 bytes)
+--   The format is:
 --   
---   Returns <tt>Left</tt> if the resulting bytestring fails to roundtrip
---   back to the original <tt>XPrv</tt>. This can happen: - If the
---   <tt>XPrv</tt> was encrypted - If a DerivationScheme1 (Byron) key was
---   used (that does not conform to the "tweak")
-unXPrvStripPub :: XPrv -> Either ErrUnXPrvStripPub ByteString
+--   <pre>
+--   Extended Private Key (64 bytes) &lt;&gt; ChainCode (32 bytes)
+--   </pre>
+--   
+--   Does <i>not</i> guarantee that <tt>xPrvFromStrippedPubXPrv</tt> will
+--   be able to reconstruct the same <tt>XPrv</tt> from the resulting
+--   <tt>ByteString</tt>.
+unXPrvStripPub :: XPrv -> ByteString
+
+-- | Like <tt>unXPrvStripPub</tt>, but also checks that the result
+--   roundtrips.
+--   
+--   Roundtrip may fail if: - the key is encrypted - the key is an old
+--   byron key
+unXPrvStripPubCheckRoundtrip :: XPrv -> Either ErrUnXPrvStripPub ByteString
 
 -- | Create a <tt>XPrv</tt> from a 96-byte long extended private key
 --   
@@ -1657,18 +1666,32 @@ unXPrvStripPub :: XPrv -> Either ErrUnXPrvStripPub ByteString
 --   <pre>
 --   Extended Private Key (64 bytes) &lt;&gt; ChainCode (32 bytes)
 --   </pre>
+--   
+--   This function uses
+--   <tt>cardano-crypto:encryptedCreateDirectWithTweak</tt> which will
+--   modify the key if certain bits are not cleared / set. Byron keys are
+--   likely not to have the correct tweak.
+--   
+--   Byron keys would be silently modified.
 xPrvFromStrippedPubXPrv :: ByteString -> Either ErrXPrvFromStrippedPubXPrv XPrv
+
+-- | Like <tt>xPrvFromStrippedPubXPrv</tt>, but also checks that the result
+--   roundtrips.
+--   
+--   Roundtrip may fail if: - the key is encrypted - the key is an old
+--   byron key
+xPrvFromStrippedPubXPrvCheckRoundtrip :: ByteString -> Either ErrXPrvFromStrippedPubXPrv XPrv
 data ErrXPrvFromStrippedPubXPrv
 
 -- | Expected, Actual
 ErrInputLengthMismatch :: Int -> Int -> ErrXPrvFromStrippedPubXPrv
-ErrInternalError :: String -> ErrXPrvFromStrippedPubXPrv
+ErrCannotRoundtripToSameBytes :: ErrXPrvFromStrippedPubXPrv
 data ErrUnXPrvStripPub
 
 -- | The resulting bytestring would have been unable to roundtrip using
 --   <tt>xPrvFromStrippedPubXPrv</tt>. Most likely because the input
 --   <tt>XPrv</tt> was encrypted, or because it was an old (Byron) key.
-ErrCannotRoundtrip :: ErrUnXPrvStripPub
+ErrCannotRoundtripToSameXPrv :: ErrUnXPrvStripPub
 
 -- | Small helper to collect <a>Nat</a> values from a type-level list
 class NatVals (ns :: [Nat])
