@@ -4988,6 +4988,17 @@ ApiNetworkInformation :: !ApiT SyncProgress -> !ApiEpochInfo -> !ApiBlockReferen
 [$sel:nextEpoch:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiEpochInfo
 [$sel:nodeTip:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiBlockReference
 [$sel:networkTip:ApiNetworkInformation] :: ApiNetworkInformation -> !ApiNetworkTip
+data ApiNtpStatus
+ApiNtpStatus :: !NtpSyncingStatus -> !Maybe (Quantity "microsecond" Integer) -> ApiNtpStatus
+[$sel:status:ApiNtpStatus] :: ApiNtpStatus -> !NtpSyncingStatus
+[$sel:offset:ApiNtpStatus] :: ApiNtpStatus -> !Maybe (Quantity "microsecond" Integer)
+data NtpSyncingStatus
+NtpSyncingStatusUnavailable :: NtpSyncingStatus
+NtpSyncingStatusPending :: NtpSyncingStatus
+NtpSyncingStatusAvailable :: NtpSyncingStatus
+newtype ApiNetworkClock
+ApiNetworkClock :: ApiNtpStatus -> ApiNetworkClock
+[$sel:ntpStatus:ApiNetworkClock] :: ApiNetworkClock -> ApiNtpStatus
 data ApiBlockReference
 ApiBlockReference :: !ApiT EpochNo -> !ApiT SlotNo -> !Quantity "block" Natural -> ApiBlockReference
 [$sel:epochNumber:ApiBlockReference] :: ApiBlockReference -> !ApiT EpochNo
@@ -5224,6 +5235,15 @@ instance GHC.Classes.Eq Cardano.Wallet.Api.Types.Iso8601Time
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiErrorCode
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiErrorCode
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiErrorCode
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiNetworkClock
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiNetworkClock
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiNetworkClock
+instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiNtpStatus
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiNtpStatus
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiNtpStatus
+instance GHC.Show.Show Cardano.Wallet.Api.Types.NtpSyncingStatus
+instance GHC.Generics.Generic Cardano.Wallet.Api.Types.NtpSyncingStatus
+instance GHC.Classes.Eq Cardano.Wallet.Api.Types.NtpSyncingStatus
 instance GHC.Show.Show Cardano.Wallet.Api.Types.ApiEpochNumber
 instance GHC.Generics.Generic Cardano.Wallet.Api.Types.ApiEpochNumber
 instance GHC.Classes.Eq Cardano.Wallet.Api.Types.ApiEpochNumber
@@ -5373,6 +5393,14 @@ instance Data.Text.Class.FromText Cardano.Wallet.Api.Types.Iso8601Time
 instance Web.Internal.HttpApiData.FromHttpApiData Cardano.Wallet.Api.Types.Iso8601Time
 instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Api.Types.Iso8601Time
 instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiErrorCode
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNetworkClock
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiNetworkClock
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.ApiNtpStatus
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.ApiNtpStatus
+instance Data.Text.Class.ToText Cardano.Wallet.Api.Types.NtpSyncingStatus
+instance Data.Text.Class.FromText Cardano.Wallet.Api.Types.NtpSyncingStatus
+instance Data.Aeson.Types.FromJSON.FromJSON Cardano.Wallet.Api.Types.NtpSyncingStatus
+instance Data.Aeson.Types.ToJSON.ToJSON Cardano.Wallet.Api.Types.NtpSyncingStatus
 instance Data.Text.Class.ToText Cardano.Wallet.Api.Types.ApiEpochNumber
 instance Data.Text.Class.FromText Cardano.Wallet.Api.Types.ApiEpochNumber
 instance Web.Internal.HttpApiData.ToHttpApiData Cardano.Wallet.Api.Types.ApiEpochNumber
@@ -6077,9 +6105,10 @@ type MigrateByronWallet n = "byron-wallets" :> Capture "sourceWalletId" (ApiT Wa
 -- | 
 --   <a>https://input-output-hk.github.io/cardano-wallet/api/#operation/getByronWalletMigrationInfo</a>
 type GetByronWalletMigrationInfo = "byron-wallets" :> Capture "walletId" (ApiT WalletId) :> "migrations" :> Get '[JSON] ApiByronWalletMigrationInfo
-type Network = GetNetworkInformation :<|> GetNetworkParameters
+type Network = GetNetworkInformation :<|> GetNetworkParameters :<|> GetNetworkClock
 type GetNetworkInformation = "network" :> "information" :> Get '[JSON] ApiNetworkInformation
 type GetNetworkParameters = "network" :> "parameters" :> Capture "epochId" ApiEpochNumber :> Get '[JSON] ApiNetworkParameters
+type GetNetworkClock = "network" :> "clock" :> Get '[JSON] ApiNetworkClock
 type Proxy_ = PostExternalTransaction
 
 -- | 
@@ -6149,6 +6178,7 @@ quitStakePool :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
 getDelegationFee :: forall w. HasType (ApiT WalletId) w => w -> (Method, Text)
 getNetworkInfo :: (Method, Text)
 getNetworkParams :: forall e. HasType ApiEpochNumber e => e -> (Method, Text)
+getNetworkClock :: (Method, Text)
 postExternalTransaction :: (Method, Text)
 class PostWallet (style :: WalletStyle)
 class Discriminate (style :: WalletStyle)
@@ -6174,7 +6204,7 @@ module Cardano.Wallet.Api.Client
 -- | This data type encapsulates the client functions for all endpoints of
 --   the cardano-wallet V2 API.
 data WalletClient t
-WalletClient :: (ApiT WalletId -> Maybe (ApiT AddressState) -> ClientM [ApiAddress t]) -> (ApiT WalletId -> ClientM ()) -> (ApiT WalletId -> ClientM ApiWallet) -> (ApiT WalletId -> ClientM ApiUtxoStatistics) -> ClientM [ApiWallet] -> (WalletOrAccountPostData -> ClientM ApiWallet) -> (ApiT WalletId -> WalletPutData -> ClientM ApiWallet) -> (ApiT WalletId -> WalletPutPassphraseData -> ClientM NoContent) -> (ApiT WalletId -> ApiNetworkTip -> ClientM NoContent) -> (ApiT WalletId -> Maybe Iso8601Time -> Maybe Iso8601Time -> Maybe (ApiT SortOrder) -> ClientM [ApiTransaction t]) -> (ApiT WalletId -> PostTransactionData t -> ClientM (ApiTransaction t)) -> (ApiT WalletId -> PostTransactionFeeData t -> ClientM ApiFee) -> (PostExternalTransactionData -> ClientM ApiTxId) -> (ApiT WalletId -> ApiTxId -> ClientM NoContent) -> ClientM [ApiStakePool] -> (ApiPoolId -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)) -> (ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)) -> ClientM ApiNetworkInformation -> (ApiEpochNumber -> ClientM ApiNetworkParameters) -> WalletClient t
+WalletClient :: (ApiT WalletId -> Maybe (ApiT AddressState) -> ClientM [ApiAddress t]) -> (ApiT WalletId -> ClientM ()) -> (ApiT WalletId -> ClientM ApiWallet) -> (ApiT WalletId -> ClientM ApiUtxoStatistics) -> ClientM [ApiWallet] -> (WalletOrAccountPostData -> ClientM ApiWallet) -> (ApiT WalletId -> WalletPutData -> ClientM ApiWallet) -> (ApiT WalletId -> WalletPutPassphraseData -> ClientM NoContent) -> (ApiT WalletId -> ApiNetworkTip -> ClientM NoContent) -> (ApiT WalletId -> Maybe Iso8601Time -> Maybe Iso8601Time -> Maybe (ApiT SortOrder) -> ClientM [ApiTransaction t]) -> (ApiT WalletId -> PostTransactionData t -> ClientM (ApiTransaction t)) -> (ApiT WalletId -> PostTransactionFeeData t -> ClientM ApiFee) -> (PostExternalTransactionData -> ClientM ApiTxId) -> (ApiT WalletId -> ApiTxId -> ClientM NoContent) -> ClientM [ApiStakePool] -> (ApiPoolId -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)) -> (ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)) -> ClientM ApiNetworkInformation -> (ApiEpochNumber -> ClientM ApiNetworkParameters) -> ClientM ApiNetworkClock -> WalletClient t
 [$sel:listAddresses:WalletClient] :: WalletClient t -> ApiT WalletId -> Maybe (ApiT AddressState) -> ClientM [ApiAddress t]
 [$sel:deleteWallet:WalletClient] :: WalletClient t -> ApiT WalletId -> ClientM ()
 [$sel:getWallet:WalletClient] :: WalletClient t -> ApiT WalletId -> ClientM ApiWallet
@@ -6194,6 +6224,7 @@ WalletClient :: (ApiT WalletId -> Maybe (ApiT AddressState) -> ClientM [ApiAddre
 [$sel:quitStakePool:WalletClient] :: WalletClient t -> ApiT WalletId -> ApiWalletPassphrase -> ClientM (ApiTransaction t)
 [$sel:networkInformation:WalletClient] :: WalletClient t -> ClientM ApiNetworkInformation
 [$sel:networkParameters:WalletClient] :: WalletClient t -> ApiEpochNumber -> ClientM ApiNetworkParameters
+[$sel:networkClock:WalletClient] :: WalletClient t -> ClientM ApiNetworkClock
 
 -- | Produces a <a>WalletClient</a> for the cardano-wallet V2 API.
 --   
@@ -6348,6 +6379,46 @@ instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Cardano.Pool.Metrics.Sta
 instance Cardano.BM.Data.Tracer.DefineSeverity Cardano.Pool.Metrics.StakePoolLog
 instance Data.Text.Class.ToText Cardano.Pool.Metrics.StakePoolLog
 
+
+-- | This module provides the Ntp client related settings, types and
+--   re-exports used in a number of places throught codebase.
+module Network.Ntp
+ntpSettings :: NtpSettings
+getNtpStatus :: NtpClient -> IO ApiNetworkClock
+withNtpClient :: () => Tracer IO NtpTrace -> NtpSettings -> (NtpClient -> IO a) -> IO a
+data NtpTrace
+NtpTraceStartNtpClient :: NtpTrace
+NtpTraceTriggerUpdate :: NtpTrace
+NtpTraceRestartDelay :: !Int -> NtpTrace
+NtpTraceRestartingClient :: NtpTrace
+NtpTraceClientSleeping :: NtpTrace
+NtpTraceIOError :: !IOError -> NtpTrace
+NtpTraceLookupServerFailed :: !String -> NtpTrace
+NtpTraceClientStartQuery :: NtpTrace
+NtpTraceNoLocalAddr :: NtpTrace
+NtpTraceIPv4IPv6NoReplies :: NtpTrace
+NtpTraceReportPolicyQueryFailed :: NtpTrace
+NtpTraceQueryResult :: !Microsecond -> NtpTrace
+NtpTraceRunProtocolError :: !IPVersion -> !IOError -> NtpTrace
+NtpTraceRunProtocolNoResult :: !IPVersion -> NtpTrace
+NtpTraceRunProtocolSuccess :: !IPVersion -> NtpTrace
+NtpTraceSocketOpen :: !IPVersion -> NtpTrace
+NtpTraceSocketClosed :: !IPVersion -> NtpTrace
+NtpTracePacketSent :: !IPVersion -> NtpTrace
+NtpTracePacketSentError :: !IPVersion -> !IOError -> NtpTrace
+NtpTracePacketDecodeError :: !IPVersion -> !String -> NtpTrace
+NtpTracePacketReceived :: !IPVersion -> NtpTrace
+NtpTraceWaitingForRepliesTimeout :: !IPVersion -> NtpTrace
+data NtpClient
+NtpClient :: STM NtpStatus -> IO NtpStatus -> Async Void -> NtpClient
+[ntpGetStatus] :: NtpClient -> STM NtpStatus
+[ntpQueryBlocking] :: NtpClient -> IO NtpStatus
+[ntpThread] :: NtpClient -> Async Void
+instance Data.Text.Class.ToText Network.NTP.Trace.IPVersion
+instance Data.Text.Class.ToText Network.NTP.Trace.NtpTrace
+instance Cardano.BM.Data.Tracer.DefinePrivacyAnnotation Network.NTP.Trace.NtpTrace
+instance Cardano.BM.Data.Tracer.DefineSeverity Network.NTP.Trace.NtpTrace
+
 module Network.Wai.Middleware.Logging
 
 -- | Installs a request &amp; response logger on a Wai application.
@@ -6456,10 +6527,10 @@ start :: Settings -> Tracer IO ApiLog -> Socket -> Application -> IO ()
 serve :: HasServer api ([] :: [Type]) => Proxy api -> Server api -> Application
 
 -- | A Servant server for our wallet API
-server :: forall t n byron icarus shelley. (byron ~ ApiLayer (RndState  'Mainnet) t ByronKey, icarus ~ ApiLayer (SeqState  'Mainnet IcarusKey) t IcarusKey, shelley ~ ApiLayer (SeqState n ShelleyKey) t ShelleyKey, DelegationAddress n ShelleyKey, Buildable (ErrValidateSelection t)) => byron -> icarus -> shelley -> StakePoolLayer IO -> Server (Api n)
+server :: forall t n byron icarus shelley. (byron ~ ApiLayer (RndState  'Mainnet) t ByronKey, icarus ~ ApiLayer (SeqState  'Mainnet IcarusKey) t IcarusKey, shelley ~ ApiLayer (SeqState n ShelleyKey) t ShelleyKey, DelegationAddress n ShelleyKey, Buildable (ErrValidateSelection t)) => byron -> icarus -> shelley -> StakePoolLayer IO -> NtpClient -> Server (Api n)
 
 -- | A diminished servant server to serve Byron wallets only.
-byronServer :: forall t n. () => ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState  'Mainnet IcarusKey) t IcarusKey -> Server (Api n)
+byronServer :: forall t n. () => ApiLayer (RndState  'Mainnet) t ByronKey -> ApiLayer (SeqState  'Mainnet IcarusKey) t IcarusKey -> NtpClient -> Server (Api n)
 
 -- | Create a new instance of the wallet layer.
 newApiLayer :: forall ctx s t k. ctx ~ ApiLayer s t k => Tracer IO (WorkerLog WalletId WalletLog) -> (Block, BlockchainParameters, SyncTolerance) -> NetworkLayer IO t Block -> TransactionLayer t k -> DBFactory IO s k -> [WalletId] -> IO ctx

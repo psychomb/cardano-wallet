@@ -131,11 +131,12 @@ serveWallet :: forall (n :: NetworkDiscriminant) t. (NetworkDiscriminantVal n, K
 
 -- | The types of trace events produced by the Byron API server.
 data Tracers' f
-Tracers :: f ApplicationLog -> f ApiLog -> f (WorkerLog WalletId WalletLog) -> f DBLog -> Tracers' f
+Tracers :: f ApplicationLog -> f ApiLog -> f (WorkerLog WalletId WalletLog) -> f DBLog -> f NtpTrace -> Tracers' f
 [applicationTracer] :: Tracers' f -> f ApplicationLog
 [apiServerTracer] :: Tracers' f -> f ApiLog
 [walletEngineTracer] :: Tracers' f -> f (WorkerLog WalletId WalletLog)
 [walletDbTracer] :: Tracers' f -> f DBLog
+[ntpClientTracer] :: Tracers' f -> f NtpTrace
 
 -- | All of the Byron <a>Tracer</a>s.
 type Tracers m = Tracers' (Tracer m)
