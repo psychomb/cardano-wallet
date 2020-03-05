@@ -22,4 +22,4 @@ jobs:
           Invoke-WebRequest -Uri $url -OutFile $output
           Expand-Archive -LiteralPath $output -DestinationPath .
           Get-ChildItem
-      - run: 'tests.bat'
+      - run: '.\\tests.bat'
