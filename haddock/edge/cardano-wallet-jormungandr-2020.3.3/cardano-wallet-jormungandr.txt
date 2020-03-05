@@ -639,11 +639,11 @@ JormungandrConnParams :: Hash "Genesis" -> BaseUrl -> JormungandrConnParams
 -- | Starts the network layer and runs the given action with a
 --   <a>NetworkLayer</a>. The caller is responsible for handling errors
 --   which may have occurred while starting the Node.
-withNetworkLayer :: forall a t. t ~ Jormungandr => Tracer IO NetworkLayerLog -> JormungandrBackend -> (Either ErrStartup (JormungandrConnParams, NetworkLayer IO t Block) -> IO a) -> IO a
+withNetworkLayer :: forall a t. t ~ Jormungandr => Tracer IO NetworkLayerLog -> JormungandrBackend -> (Either ErrStartup (JormungandrConnParams, (Block, BlockchainParameters), NetworkLayer IO t Block) -> IO a) -> IO a
 
 -- | Creates a new <a>NetworkLayer</a> connecting to an underlying
 --   <a>Jormungandr</a> backend target.
-newNetworkLayer :: forall t. t ~ Jormungandr => Tracer IO NetworkLayerLog -> BaseUrl -> Hash "Genesis" -> ExceptT ErrGetBlockchainParams IO (NetworkLayer IO t Block)
+newNetworkLayer :: forall t. t ~ Jormungandr => Tracer IO NetworkLayerLog -> BaseUrl -> Hash "Genesis" -> ExceptT ErrGetBlockchainParams IO ((Block, BlockchainParameters), NetworkLayer IO t Block)
 
 -- | A subset of the Jormungandr configuration parameters, used for
 --   starting the Jormungandr node backend.
@@ -710,7 +710,7 @@ MsgWaitForService :: WaitForServiceLog -> NetworkLayerLog
 --   
 --   This version provides the full, raw blocks from
 --   <a>Cardano.Wallet.Jormungandr.Binary</a>.
-mkRawNetworkLayer :: forall m t block. (MonadBaseControl IO m, t ~ Jormungandr, block ~ Block) => (block, BlockchainParameters) -> Word -> MVar BlockHeaders -> JormungandrClient m -> NetworkLayer m t block
+mkRawNetworkLayer :: forall m t block. (MonadBaseControl IO m, t ~ Jormungandr, block ~ Block) => BlockchainParameters -> Word -> MVar BlockHeaders -> JormungandrClient m -> NetworkLayer m t block
 data BaseUrl
 BaseUrl :: Scheme -> String -> Int -> String -> BaseUrl
 [baseUrlScheme] :: BaseUrl -> Scheme

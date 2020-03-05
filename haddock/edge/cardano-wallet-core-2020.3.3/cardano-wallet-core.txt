@@ -191,6 +191,10 @@ simpleSockAddr :: (Word8, Word8, Word8, Word8) -> PortNumber -> SockAddr
 --   retry policy. Throws an exception if the time out is reached.
 waitForPort :: RetryPolicyM IO -> PortNumber -> IO Bool
 
+-- | Get the underlying port number for the given socket address. Fails for
+--   UNIX socket addresses which aren't bound to any TCP port.
+unsafePortNumber :: SockAddr -> PortNumber
+
 
 -- | This module provides mnemonic (backup phrase) creation, and conversion
 --   of a mnemonic to seed for wallet restoration.
@@ -747,6 +751,9 @@ EpochNo :: Word31 -> EpochNo
 --   size in bytes or, a number of inputs + outputs.
 --   
 --   <tt>a</tt>, <tt>b</tt> and <tt>c</tt> are constant coefficients.
+--   
+--   FIXME <a>Double</a> is an old artifact from the Byron era on
+--   cardano-sl. It must go.
 data FeePolicy
 LinearFee :: Quantity "lovelace" Double -> Quantity "lovelace/byte" Double -> Quantity "lovelace/certificate" Double -> FeePolicy
 
@@ -2768,6 +2775,9 @@ Fee :: Word64 -> Fee
 --   size in bytes or, a number of inputs + outputs.
 --   
 --   <tt>a</tt>, <tt>b</tt> and <tt>c</tt> are constant coefficients.
+--   
+--   FIXME <a>Double</a> is an old artifact from the Byron era on
+--   cardano-sl. It must go.
 data FeePolicy
 LinearFee :: Quantity "lovelace" Double -> Quantity "lovelace/byte" Double -> Quantity "lovelace/certificate" Double -> FeePolicy
 
@@ -3015,7 +3025,7 @@ instance Control.DeepSeq.NFData Cardano.Wallet.Network.BlockHeaders.BlockHeaders
 
 module Cardano.Wallet.Network
 data NetworkLayer m target block
-NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult (Cursor target) block)) -> ([BlockHeader] -> m (Cursor target)) -> (Cursor target -> SlotId) -> ExceptT ErrCurrentNodeTip m BlockHeader -> (SealedTx -> ExceptT ErrPostTx m ()) -> (block, BlockchainParameters) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> (ChimericAccount -> ExceptT ErrGetAccountBalance m (Quantity "lovelace" Word64)) -> NetworkLayer m target block
+NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult (Cursor target) block)) -> ([BlockHeader] -> m (Cursor target)) -> (Cursor target -> SlotId) -> ExceptT ErrCurrentNodeTip m BlockHeader -> (SealedTx -> ExceptT ErrPostTx m ()) -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64)) -> (ChimericAccount -> ExceptT ErrGetAccountBalance m (Quantity "lovelace" Word64)) -> NetworkLayer m target block
 
 -- | Starting from the given <a>Cursor</a>, fetches a contiguous sequence
 --   of blocks from the node, if they are available. An updated cursor will
@@ -3042,9 +3052,6 @@ NetworkLayer :: (Cursor target -> ExceptT ErrGetBlock m (NextBlocksResult (Curso
 
 -- | Broadcast a transaction to the chain producer
 [postTx] :: NetworkLayer m target block -> SealedTx -> ExceptT ErrPostTx m ()
-
--- | Get the genesis block and blockchain parameters.
-[staticBlockchainParameters] :: NetworkLayer m target block -> (block, BlockchainParameters)
 [stakeDistribution] :: NetworkLayer m target block -> ExceptT ErrNetworkUnavailable m (EpochNo, Map PoolId (Quantity "lovelace" Word64))
 [getAccountBalance] :: NetworkLayer m target block -> ChimericAccount -> ExceptT ErrGetAccountBalance m (Quantity "lovelace" Word64)
 
@@ -6282,7 +6289,7 @@ StakePoolLayer :: ExceptT ErrListStakePools m [(StakePool, Maybe StakePoolMetada
 --   Jörmungandr or any registry. This list comes from the registration
 --   certificates that have been seen on chain.
 [$sel:knownStakePools:StakePoolLayer] :: StakePoolLayer m -> m [PoolId]
-newStakePoolLayer :: Tracer IO StakePoolLog -> (EpochNo -> Quantity "lovelace" Word64 -> EpochConstants) -> DBLayer IO -> NetworkLayer IO t Block -> FilePath -> StakePoolLayer IO
+newStakePoolLayer :: Tracer IO StakePoolLog -> BlockHeader -> (EpochNo -> Quantity "lovelace" Word64 -> EpochConstants) -> DBLayer IO -> NetworkLayer IO t Block -> FilePath -> StakePoolLayer IO
 data ErrListStakePools
 ErrMetricsIsUnsynced :: Quantity "percent" Percentage -> ErrListStakePools
 ErrListStakePoolsMetricsInconsistency :: ErrMetricsInconsistency -> ErrListStakePools
@@ -6294,7 +6301,7 @@ ErrListStakePoolsCurrentNodeTip :: ErrCurrentNodeTip -> ErrListStakePools
 --   
 --   The pool productions and stake distrubtions in the db can <i>never</i>
 --   be from different forks such that it's safe for readers to access it.
-monitorStakePools :: Tracer IO StakePoolLog -> NetworkLayer IO t Block -> DBLayer IO -> IO ()
+monitorStakePools :: Tracer IO StakePoolLog -> (Block, Quantity "block" Word32) -> NetworkLayer IO t Block -> DBLayer IO -> IO ()
 
 -- | Possible errors returned by <a>combineMetrics</a>.
 newtype ErrMetricsInconsistency

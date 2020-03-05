@@ -66,16 +66,13 @@ HttpException :: HttpExceptionContent -> RequestException
 
 -- | Running Context for our integration test
 data Context t
-Context :: IO () -> (Text, Manager) -> Port "node" -> Port "wallet" -> Faucet -> (TxDescription -> (Natural, Natural)) -> FeePolicy -> Proxy t -> Context t
+Context :: IO () -> (Text, Manager) -> Port "wallet" -> Faucet -> (TxDescription -> (Natural, Natural)) -> Proxy t -> Context t
 
 -- | Cleanup action for the context
 [_cleanup] :: Context t -> IO ()
 
 -- | The underlying BaseUrl and Manager used by the Wallet Client
 [_manager] :: Context t -> (Text, Manager)
-
--- | Node TCP port
-[_nodePort] :: Context t -> Port "node"
 
 -- | Server TCP port
 [_walletPort] :: Context t -> Port "wallet"
@@ -86,9 +83,6 @@ Context :: IO () -> (Text, Manager) -> Port "node" -> Port "wallet" -> Faucet ->
 
 -- | A fee estimator for the integration tests
 [_feeEstimator] :: Context t -> TxDescription -> (Natural, Natural)
-
--- | Fee policy
-[_feePolicy] :: Context t -> FeePolicy
 [_target] :: Context t -> Proxy t
 
 -- | Describe a transaction in terms of its inputs and outputs
@@ -112,16 +106,13 @@ module Test.Integration.Framework.DSL
 
 -- | Running Context for our integration test
 data Context t
-Context :: IO () -> (Text, Manager) -> Port "node" -> Port "wallet" -> Faucet -> (TxDescription -> (Natural, Natural)) -> FeePolicy -> Proxy t -> Context t
+Context :: IO () -> (Text, Manager) -> Port "wallet" -> Faucet -> (TxDescription -> (Natural, Natural)) -> Proxy t -> Context t
 
 -- | Cleanup action for the context
 [_cleanup] :: Context t -> IO ()
 
 -- | The underlying BaseUrl and Manager used by the Wallet Client
 [_manager] :: Context t -> (Text, Manager)
-
--- | Node TCP port
-[_nodePort] :: Context t -> Port "node"
 
 -- | Server TCP port
 [_walletPort] :: Context t -> Port "wallet"
@@ -132,9 +123,6 @@ Context :: IO () -> (Text, Manager) -> Port "node" -> Port "wallet" -> Faucet ->
 
 -- | A fee estimator for the integration tests
 [_feeEstimator] :: Context t -> TxDescription -> (Natural, Natural)
-
--- | Fee policy
-[_feePolicy] :: Context t -> FeePolicy
 [_target] :: Context t -> Proxy t
 
 -- | A class to select the right command for a given 'Context t'

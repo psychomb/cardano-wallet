@@ -13,62 +13,34 @@
 module Cardano.Wallet.Byron.Compatibility
 data Byron
 data ByronBlock
+type NodeVersionData = (NodeToClientVersionData, CodecCBORTerm Text NodeToClientVersionData)
 
 -- | Embed some constants into a network type.
 class KnownNetwork (n :: NetworkDiscriminant)
 blockchainParameters :: KnownNetwork n => BlockchainParameters
-versionData :: KnownNetwork n => (NodeToClientVersionData, CodecCBORTerm Text NodeToClientVersionData)
-mainnetParameters :: BlockchainParameters
-
--- | Hard-coded mainnet genesis hash
-mainnetGenesisHash :: Hash "Genesis"
-
--- | Hard-coded mainnet start time
-mainnetStartTime :: StartTime
-
--- | Hard-coded fee policy for Cardano on Byron
-byronFeePolicy :: FeePolicy
-
--- | Hard-coded slot duration
-byronSlotLength :: SlotLength
-
--- | Hard-coded byron epoch length
-byronEpochLength :: EpochLength
-
--- | Hard-coded max transaction size
-byronTxMaxSize :: Quantity "byte" Word16
-
--- | Hard-coded epoch stability (a.k.a <tt>k</tt>)
-byronEpochStability :: Quantity "block" Word32
-
--- | Hard-coded active slot coefficient (a.k.a <tt>f</tt> in
---   Ouroboros/Praos)
-byronActiveSlotCoefficient :: ActiveSlotCoefficient
+versionData :: KnownNetwork n => NodeVersionData
+mainnetGenesis :: Block
 genesisTip :: Tip ByronBlock
-genesisBlock :: ByronHash -> ByronBlock
-
--- | Settings for configuring a MainNet network client
-mainnetVersionData :: (NodeToClientVersionData, CodecCBORTerm Text NodeToClientVersionData)
-
--- | Settings
-testnetVersionData :: (NodeToClientVersionData, CodecCBORTerm Text NodeToClientVersionData)
 toByronHash :: Hash "BlockHeader" -> ByronHash
 toEpochSlots :: EpochLength -> EpochSlots
-toPoint :: BlockHeader -> Point ByronBlock
-toSlotNo :: SlotId -> SlotNo
 
 -- | SealedTx are the result of rightfully constructed byron transactions
 --   so, it is relatively safe to unserialize them from CBOR.
 toGenTx :: HasCallStack => SealedTx -> GenTx ByronBlock
-fromByronBlock :: Hash "Genesis" -> ByronBlock -> Block
+toPoint :: EpochLength -> BlockHeader -> Point ByronBlock
+toSlotNo :: EpochLength -> SlotId -> SlotNo
+fromBlockNo :: BlockNo -> Quantity "block" Word32
+fromByronBlock :: Hash "Genesis" -> EpochLength -> ByronBlock -> Block
+fromByronHash :: ByronHash -> Hash "BlockHeader"
+fromChainHash :: Hash "Genesis" -> ChainHash ByronBlock -> Hash "BlockHeader"
+
+-- | Convert genesis data into blockchain params and an initial set of UTxO
+fromGenesisData :: (GenesisData, GenesisHash) -> (BlockchainParameters, [TxOut])
+fromSlotNo :: EpochLength -> SlotNo -> SlotId
+fromTip :: Hash "Genesis" -> EpochLength -> Tip ByronBlock -> BlockHeader
 fromTxAux :: TxAux -> Tx
 fromTxIn :: TxIn -> TxIn
 fromTxOut :: TxOut -> TxOut
-fromByronHash :: ByronHash -> Hash "BlockHeader"
-fromChainHash :: Hash "Genesis" -> ChainHash ByronBlock -> Hash "BlockHeader"
-fromSlotNo :: SlotNo -> SlotId
-fromBlockNo :: BlockNo -> Quantity "block" Word32
-fromTip :: Hash "Genesis" -> Tip ByronBlock -> BlockHeader
 instance Cardano.Wallet.Byron.Compatibility.KnownNetwork 'Cardano.Wallet.Primitive.AddressDerivation.Mainnet
 
 
@@ -110,6 +82,7 @@ instance Cardano.Wallet.Byron.Transaction.Size.WorstSizeOf Cardano.Wallet.Primit
 -- | Working with Byron transactions.
 module Cardano.Wallet.Byron.Transaction
 newTransactionLayer :: forall (n :: NetworkDiscriminant) k t. (t ~ IO Byron, WalletKey k, WorstSizeOf Address n k) => TransactionLayer t k
+fromGenesisTxOut :: TxOut -> Tx
 instance Formatting.Buildable.Buildable Cardano.Wallet.Byron.Transaction.ErrInvalidTxOutAmount
 
 
@@ -127,7 +100,7 @@ module Cardano.Wallet.Byron
 -- | The <tt>cardano-wallet-shelley</tt> main function. It takes the
 --   configuration which was passed from the CLI and environment and starts
 --   all components of the wallet.
-serveWallet :: forall (n :: NetworkDiscriminant) t. (NetworkDiscriminantVal n, KnownNetwork n, DecodeAddress n, EncodeAddress n, WorstSizeOf Address n IcarusKey, WorstSizeOf Address n ByronKey, t ~ IO Byron) => Tracers IO -> SyncTolerance -> Maybe FilePath -> HostPreference -> Listen -> AddrInfo -> (SockAddr -> IO ()) -> IO ExitCode
+serveWallet :: forall (n :: NetworkDiscriminant) t. (NetworkDiscriminantVal n, DecodeAddress n, EncodeAddress n, WorstSizeOf Address n IcarusKey, WorstSizeOf Address n ByronKey, t ~ IO Byron) => Tracers IO -> SyncTolerance -> Maybe FilePath -> HostPreference -> Listen -> AddrInfo -> Block -> (BlockchainParameters, (NodeToClientVersionData, CodecCBORTerm Text NodeToClientVersionData)) -> (SockAddr -> IO ()) -> IO ExitCode
 
 -- | The types of trace events produced by the Byron API server.
 data Tracers' f
