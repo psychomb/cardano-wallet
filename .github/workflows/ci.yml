@@ -1,0 +1,24 @@
+# Every night at 00:00UTC
+# Download the latest master branch build of windows testing bundle
+# and run it.
+
+name: cardano-wallet Windows Tests
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  tests:
+    runs-on: windows-2016
+    name: Run tests on Windows
+    steps:
+      - name: Fetch Windows testing bundle
+        shell: powershell
+        run: |
+          $url = "https://hydra.iohk.io/job/Cardano/cardano-wallet/cardano-wallet-jormungandr-tests-win64/latest/download/1"
+          $output = "cardano-wallet-jormungandr-tests-win64.zip"
+          Invoke-WebRequest -Uri $url -OutFile $output
+          Expand-Archive -LiteralPath $output -DestinationPath .
+          Get-ChildItem
+      - run: 'tests.bat'
