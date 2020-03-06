@@ -766,6 +766,7 @@ SlotId :: !EpochNo -> !SlotNo -> SlotId
 -- | Duration of a single slot.
 newtype SlotLength
 SlotLength :: NominalDiffTime -> SlotLength
+[$sel:unSlotLength:SlotLength] :: SlotLength -> NominalDiffTime
 newtype SlotNo
 SlotNo :: Word32 -> SlotNo
 [$sel:unSlotNo:SlotNo] :: SlotNo -> Word32
@@ -1048,9 +1049,13 @@ rangeUpperBound :: Range a -> RangeBound a
 -- | Magic constant associated to a given network
 newtype ProtocolMagic
 ProtocolMagic :: Int32 -> ProtocolMagic
+[$sel:getProtocolMagic:ProtocolMagic] :: ProtocolMagic -> Int32
 
 -- | Hard-coded protocol magic for the Byron TestNet
 testnetMagic :: ProtocolMagic
+
+-- | Hard-codedo protocol magic for the Byron MainNet
+mainnetMagic :: ProtocolMagic
 newtype Hash (tag :: Symbol)
 Hash :: ByteString -> Hash
 [$sel:getHash:Hash] :: Hash -> ByteString
@@ -5032,6 +5037,7 @@ ApiNetworkParameters :: !ApiT (Hash "Genesis") -> !ApiT StartTime -> !Quantity "
 [$sel:epochLength:ApiNetworkParameters] :: ApiNetworkParameters -> !Quantity "slot" Word32
 [$sel:epochStability:ApiNetworkParameters] :: ApiNetworkParameters -> !Quantity "block" Word32
 [$sel:activeSlotCoefficient:ApiNetworkParameters] :: ApiNetworkParameters -> !Quantity "percent" Double
+toApiNetworkParameters :: BlockchainParameters -> ApiNetworkParameters
 data ApiWalletDelegation
 ApiWalletDelegation :: !ApiWalletDelegationNext -> ![ApiWalletDelegationNext] -> ApiWalletDelegation
 [$sel:active:ApiWalletDelegation] :: ApiWalletDelegation -> !ApiWalletDelegationNext
