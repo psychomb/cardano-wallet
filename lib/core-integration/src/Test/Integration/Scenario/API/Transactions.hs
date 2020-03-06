@@ -1422,7 +1422,7 @@ spec = do
 
     it "BYRON_TRANS_DELETE_01 -\
         \ Byron: Can forget pending transaction" $ \ctx -> do
-        sourceWallet <- fixtureRandomWallet ctx
+        sourceWallet <- fst <$> fixtureRandomWallet ctx
         targetWallet <- emptyWallet ctx
 
         -- migrate funds and quickly get id of one of the pending txs
@@ -1463,7 +1463,7 @@ spec = do
 
     it "BYRON_TRANS_DELETE_02 -\
         \ Byron: Cannot forget tx that is already in ledger" $ \ctx -> do
-        w <- fixtureRandomWallet ctx
+        w <- fst <$> fixtureRandomWallet ctx
 
         -- Get TX id
         let listEp = Link.listTransactions @'Byron w
