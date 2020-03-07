@@ -41,13 +41,11 @@ localhostBaseUrl :: Int -> BaseUrl
 baseUrlToText :: BaseUrl -> Text
 
 module Cardano.Wallet.Jormungandr.Rewards
-data Ratio
-Ratio :: Word64 -> Word64 -> Ratio
 data RewardFormula
 HalvingFormula :: RewardParams -> RewardFormula
 LinearFormula :: RewardParams -> RewardFormula
 data RewardParams
-RewardParams :: Word64 -> Ratio -> Word32 -> Word32 -> RewardParams
+RewardParams :: Word64 -> Ratio Word64 -> Word32 -> Word32 -> RewardParams
 
 -- | In the linear formula, it represents the starting point of the
 --   contribution at #epoch=0, whereas in halving formula is used as
@@ -62,7 +60,7 @@ RewardParams :: Word64 -> Ratio -> Word32 -> Word32 -> RewardParams
 --   epoch zone (current_epoch - start_epoch / epoch_rate). Further
 --   requirement is that this ratio is expressed in fractional form (e.g.
 --   1/2), which allow calculation in integer form.
-[rRatio] :: RewardParams -> Ratio
+[rRatio] :: RewardParams -> Ratio Word64
 
 -- | indicates when this contribution start. note that if the epoch is not
 --   the same or after the epoch_start, the overall contribution is zero.
@@ -71,13 +69,13 @@ RewardParams :: Word64 -> Ratio -> Word32 -> Word32 -> RewardParams
 -- | the rate at which the contribution is tweaked related to epoch.
 [rEpochRate] :: RewardParams -> Word32
 data TaxParameters
-TaxParameters :: Word64 -> Ratio -> Maybe Word64 -> TaxParameters
+TaxParameters :: Word64 -> Ratio Word64 -> Maybe Word64 -> TaxParameters
 
 -- | A fix value taken from the total
 [taxFixed] :: TaxParameters -> Word64
 
 -- | An extra percentage taken from the total
-[taxRatio] :: TaxParameters -> Ratio
+[taxRatio] :: TaxParameters -> Ratio Word64
 
 -- | It is possible to add a max bound to the total value taken at each
 --   cut.
@@ -92,7 +90,7 @@ TaxParameters :: Word64 -> Ratio -> Maybe Word64 -> TaxParameters
 --   this value is optional, the default is no reward drawing limit
 data RewardLimit
 RewardLimitNone :: RewardLimit
-RewardLimitByAbsoluteStake :: Ratio -> RewardLimit
+RewardLimitByAbsoluteStake :: Ratio Word64 -> RewardLimit
 
 -- | settings to incentivize the numbers of stake pool to be registered on
 --   the blockchain.
@@ -110,7 +108,6 @@ PoolCapping :: Word32 -> Word32 -> PoolCapping
 [minParticipation] :: PoolCapping -> Word32
 [maxParticipation] :: PoolCapping -> Word32
 rewardsAt :: (RewardLimit, Quantity "lovelace" Word64) -> TaxParameters -> EpochNo -> RewardFormula -> Quantity "lovelace" Word64
-ratio :: Ratio -> Double
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Rewards.PoolCapping
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Rewards.PoolCapping
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Rewards.PoolCapping
@@ -126,15 +123,11 @@ instance GHC.Show.Show Cardano.Wallet.Jormungandr.Rewards.RewardFormula
 instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Rewards.RewardParams
 instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Rewards.RewardParams
 instance GHC.Show.Show Cardano.Wallet.Jormungandr.Rewards.RewardParams
-instance GHC.Generics.Generic Cardano.Wallet.Jormungandr.Rewards.Ratio
-instance GHC.Classes.Eq Cardano.Wallet.Jormungandr.Rewards.Ratio
-instance GHC.Show.Show Cardano.Wallet.Jormungandr.Rewards.Ratio
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Rewards.PoolCapping
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Rewards.RewardLimit
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Rewards.TaxParameters
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Rewards.RewardFormula
 instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Rewards.RewardParams
-instance Control.DeepSeq.NFData Cardano.Wallet.Jormungandr.Rewards.Ratio
 
 
 -- | The format is for the Shelley era as implemented by the Jörmungandr
@@ -272,19 +265,17 @@ PerCertificateFee :: Word64 -> Word64 -> Word64 -> PerCertificateFee
 [feeStakeDelegation] :: PerCertificateFee -> Word64
 [feeOwnerStakeDelegation] :: PerCertificateFee -> Word64
 data TaxParameters
-TaxParameters :: Word64 -> Ratio -> Maybe Word64 -> TaxParameters
+TaxParameters :: Word64 -> Ratio Word64 -> Maybe Word64 -> TaxParameters
 
 -- | A fix value taken from the total
 [taxFixed] :: TaxParameters -> Word64
 
 -- | An extra percentage taken from the total
-[taxRatio] :: TaxParameters -> Ratio
+[taxRatio] :: TaxParameters -> Ratio Word64
 
 -- | It is possible to add a max bound to the total value taken at each
 --   cut.
 [taxLimit] :: TaxParameters -> Maybe Word64
-data Ratio
-Ratio :: Word64 -> Word64 -> Ratio
 getBlock :: Get Block
 getBlockHeader :: Get BlockHeader
 
